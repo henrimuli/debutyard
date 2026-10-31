@@ -71,8 +71,16 @@ const schema = z.object({
   /** SerpApi: its API key. DataForSEO: "login:password". */
   SERP_API_KEY: optional,
 
-  // Gemini API (free tier). Reserved for upcoming AI features; listing prefill doesn't use it.
+  // Gemini API (billing on). The blog writer agent: gemini-3.1-flash-lite for text, Nano Banana 2.1 for images.
   GEMINI_API_KEY: optional,
+
+  // Google Keyword Planner (Google Ads API) for real search volume in the blog writer. All optional;
+  // without them keyword research uses autocomplete and live search only. See docs/blog.md.
+  GOOGLE_ADS_CLIENT_ID: optional,
+  GOOGLE_ADS_CLIENT_SECRET: optional,
+  GOOGLE_ADS_REFRESH_TOKEN: optional,
+  GOOGLE_ADS_CUSTOMER_ID: optional,
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: optional,
 
   /** Resend webhook signing secret (whsec_…) for newsletter open/click tracking. Unset disables the webhook. */
   RESEND_WEBHOOK_SECRET: optional,

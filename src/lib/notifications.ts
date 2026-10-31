@@ -200,6 +200,69 @@ export async function notifyRecapDrafted(post: { id: string; title: string }) {
   );
 }
 
+/** A paid debut's launch post went live: tell the maker, with the link to share. */
+export async function notifyLaunchPostLive(post: { slug: string; title: string; productId: string | null }) {
+  if (!post.productId) return;
+  const p = await db().query.products.findFirst({ where: eq(schema.products.id, post.productId) });
+  if (!p) return;
+  const link = url(`/blog/${post.slug}`);
+  await toMaker(
+    p,
+    `Your launch post for ${p.name} is live`,
+    [
+      { heading: "Your launch post is live" },
+      {
+        text: `We wrote up ${p.name} on the DebutYard blog, with you as co-author. It's also linked from your listing, right under the description.`,
+      },
+      { facts: [["Post", post.title]] },
+      { button: "Read the post", href: link },
+      {
+        text: "Share it with your audience: a post from a third party tends to land better than your own announcement. If anything needs correcting, reply to this email.",
+      },
+    ],
+    `${post.title}`,
+  );
+}
+
+/** A launch post is ready for the maker's fact check. */
+export async function notifyMakerReview(p: Product, post: { title: string }, reviewUrl: string, expiresAt: Date) {
+  await toMaker(
+    p,
+    `Check your launch post before it goes live`,
+    [
+      { heading: `Your ${p.name} launch post is drafted` },
+      {
+        text: "Before we publish, take a look and tell us if anything is wrong: a feature, a price, who it's for. You can approve it as is or send notes.",
+      },
+      {
+        facts: [
+          ["Post", post.title],
+          ["Review by", expiresAt.toUTCString().slice(0, 16)],
+        ],
+      },
+      { button: "Review the draft", href: reviewUrl },
+      {
+        text: "If we don't hear back by then, we'll publish it as written. You can still send corrections afterwards.",
+      },
+    ],
+    "Approve it or send notes.",
+  );
+}
+
+/** The maker answered a fact check. */
+export async function notifyMakerReviewAnswered(post: { id: string; title: string }, approved: boolean, notes: string) {
+  await toStaff(
+    "Blog",
+    approved ? `Maker approved: ${post.title}` : `Maker sent notes: ${post.title}`,
+    [
+      { heading: approved ? "The maker approved their launch post" : "The maker sent notes on their launch post" },
+      ...(notes ? [{ text: notes } as Block] : []),
+      { button: "Open the post", href: url(`/admin/blog/${post.id}`) },
+    ],
+    "Sent when a maker answers a launch post fact check.",
+  );
+}
+
 /** A Spotlight spot opened for someone on the waitlist. Spots go to whoever books first. */
 export async function notifySpotlightOpen(to: string, productId: string | null) {
   const book = url(productId ? `/dashboard/products/${productId}/plan` : "/dashboard/products");

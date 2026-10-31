@@ -83,7 +83,7 @@ export function MentionControls({ taskId, blurb, tagline }: { taskId: string; bl
   );
 }
 
-/** A launch post: start the draft (then open it), or skip it. */
+/** A launch post: start the draft with the writer or by hand (then open it), or skip it. */
 export function LaunchPostControls({ taskId, postId }: { taskId: string; postId: string | null }) {
   const [run, pending, error] = useRun();
   const router = useRouter();
@@ -95,21 +95,30 @@ export function LaunchPostControls({ taskId, postId }: { taskId: string; postId:
             Open draft
           </ButtonLink>
         ) : (
-          <Button
-            size="sm"
-            disabled={pending}
-            onClick={() =>
-              run(async () => {
-                const res = await startLaunchDraftAction(taskId);
-                if (res.ok) router.push(`/admin/blog/${res.id}`);
-                return res;
-              })
-            }
-          >
-            Start draft
-          </Button>
+          <>
+            {/* "Draft with AI" opens the editor and has the writer plan the post straight away. */}
+            {[
+              { label: "Draft with AI", query: "?draft=1", variant: "primary" as const },
+              { label: "Write it myself", query: "", variant: "outline" as const },
+            ].map((b) => (
+              <Button
+                key={b.label}
+                size="sm"
+                variant={b.variant}
+                disabled={pending}
+                onClick={() =>
+                  run(async () => {
+                    const res = await startLaunchDraftAction(taskId);
+                    if (res.ok) router.push(`/admin/blog/${res.id}${b.query}`);
+                    return res;
+                  })
+                }
+              >
+                {b.label}
+              </Button>
+            ))}
+          </>
         )}
-        {/* Room for a "Write with Gemini" button once drafting is automated. */}
         <Skip taskId={taskId} run={run} pending={pending} />
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}

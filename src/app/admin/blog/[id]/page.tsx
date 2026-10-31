@@ -1,54 +1,35 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
-import { PostEditor } from "@/components/post-editor";
+import { BlogEditor } from "@/components/blog-admin/blog-editor";
 import { requireStaff } from "@/lib/auth";
-import { getPost } from "@/lib/blog/service";
+import { getStaffPost, listCategories } from "@/lib/blog/service";
+import { siteUrl } from "@/lib/blog/site-url";
 
 export const metadata: Metadata = { title: "Edit post · Admin", robots: { index: false } };
 
 export default function EditPostPage(props: PageProps<"/admin/blog/[id]">) {
   return (
-    <div className="mx-auto max-w-4xl">
-      <Link href="/admin/blog" className="text-sm text-muted-foreground hover:text-foreground">
-        ← All posts
-      </Link>
-      <div className="mt-4">
-        <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
-          <Editor params={props.params} />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+      <Editor params={props.params} searchParams={props.searchParams} />
+    </Suspense>
   );
 }
 
-async function Editor({ params }: Pick<PageProps<"/admin/blog/[id]">, "params">) {
+async function Editor({ params, searchParams }: Pick<PageProps<"/admin/blog/[id]">, "params" | "searchParams">) {
   await requireStaff();
   const { id } = await params;
-  if (id === "new") {
-    return (
-      <PostEditor
-        initial={{ id: null, title: "", slug: "", excerpt: "", body: "", coverUrl: "", status: "draft", kind: "post" }}
-      />
-    );
-  }
   if (!z.string().uuid().safeParse(id).success) notFound();
-  const post = await getPost(id);
+  const [post, categories, query] = await Promise.all([getStaffPost(id), listCategories(), searchParams]);
   if (!post) notFound();
   return (
-    <PostEditor
-      initial={{
-        id: post.id,
-        title: post.title,
-        slug: post.slug,
-        excerpt: post.excerpt,
-        body: post.body,
-        coverUrl: post.coverUrl ?? "",
-        status: post.status,
-        kind: post.kind,
-      }}
+    <BlogEditor
+      key={post.id}
+      initial={post}
+      categories={categories}
+      siteHost={new URL(siteUrl()).hostname}
+      autoDraft={query.draft === "1"}
     />
   );
 }

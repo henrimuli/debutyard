@@ -165,6 +165,119 @@ body {
   border: 1px solid var(--border);
   padding: 0.4em 0.7em;
 }
+.prose-dy th {
+  background: var(--muted);
+  text-align: left;
+  font-weight: 600;
+}
+.prose-dy mark {
+  border-radius: 0.2em;
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  padding: 0 0.15em;
+  color: inherit;
+}
+
+/* Callouts: tip, info, warning and a call to action, plus two editor-only placeholders. */
+.blog-callout {
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+  padding: 0.9em 1.1em;
+}
+.blog-callout > * + * {
+  margin-top: 0.6em;
+}
+.blog-callout[data-callout="warning"] {
+  border-left-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 12%, var(--card));
+}
+.blog-callout[data-callout="info"] {
+  border-left-color: var(--muted-foreground);
+  background: var(--muted);
+}
+.blog-callout[data-callout="cta"] {
+  border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  font-weight: 500;
+}
+.blog-callout[data-callout="image"],
+.blog-callout[data-callout="generate"] {
+  border: 2px dashed var(--border);
+  background: var(--card);
+  font-size: 0.92em;
+  color: var(--muted-foreground);
+}
+.blog-callout[data-callout="generate"] {
+  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+}
+.blog-callout[data-callout="image"]::before,
+.blog-callout[data-callout="generate"]::before {
+  display: block;
+  margin-bottom: 0.35em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--foreground);
+}
+.blog-callout[data-callout="image"]::before {
+  content: "📷 Screenshot needed (add by hand, removed on publish)";
+}
+.blog-callout[data-callout="generate"]::before {
+  content: "✨ Image to generate (put the cursor here, then Generate)";
+  color: var(--primary);
+}
+
+/* Post cards without a cover. */
+.blog-cover-fallback {
+  background:
+    radial-gradient(circle at 20% 20%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 60%),
+    radial-gradient(circle at 85% 80%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 55%),
+    var(--muted);
+}
+
+/* FAQ block in the editor: every answer stays open while writing. */
+.blog-faq {
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  padding: 0.4em 1em;
+}
+.blog-faq-item + .blog-faq-item {
+  border-top: 1px solid var(--border);
+}
+.blog-faq-item > summary {
+  padding: 0.6em 0 0.2em;
+  font-weight: 600;
+  list-style: none;
+}
+.blog-faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+.blog-faq-item > [data-faq-a] {
+  padding-bottom: 0.6em;
+}
+
+/* Editor surface. */
+.blog-editor .ProseMirror {
+  min-height: 50vh;
+}
+.blog-editor .ProseMirror p.is-empty::before,
+.blog-editor .ProseMirror h2.is-empty::before,
+.blog-editor .ProseMirror h3.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}
+.blog-editor .ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid var(--ring);
+}
+.blog-editor .ProseMirror .selectedCell {
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+}
 
 /* Clap button: the hands pop, sparks burst out, the count rolls. */
 @keyframes clap-pop {

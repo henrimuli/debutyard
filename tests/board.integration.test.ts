@@ -623,20 +623,31 @@ describe.skipIf(!TEST_DB)("launch board (Postgres)", () => {
   });
 
   it("saves, publishes and hides blog posts", async () => {
+    const pub = await import("@/lib/blog/public");
     const author = await makeUser();
-    const a = await blog.savePost(author, { title: "Launch tips", body: "Hello **world**." });
-    const b = await blog.savePost(author, { title: "Launch tips", body: "" });
+    const a = await blog.createPost({ title: "Launch tips", authorId: author });
+    const b = await blog.createPost({ title: "Launch tips", authorId: author });
     expect([a.slug, b.slug]).toEqual(["launch-tips", "launch-tips-2"]);
-    expect(a.excerpt).toBe("Hello world.");
 
-    expect(await blog.publishedPost("launch-tips")).toBeNull();
-    await expect(blog.setPublished(b.id, true)).rejects.toThrow("Write something");
-    await blog.setPublished(a.id, true);
-    expect((await blog.publishedPost("launch-tips"))?.authorName).toBe(`User ${author}`);
-    expect((await blog.publishedPosts()).map((p) => p.slug)).toEqual(["launch-tips"]);
+    const category = await blog.createCategory("Guides");
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello world." }] }] };
+    const fields = { content_json: doc, seo_description: "Tips for launching.", category_id: category.id };
+    await blog.saveDraft(a.id, author, { baseVersion: 1, fields });
+    // A stale autosave is refused rather than overwriting the newer copy.
+    await expect(blog.saveDraft(a.id, author, { baseVersion: 1, fields: {} })).rejects.toMatchObject({ status: 409 });
 
-    await blog.setPublished(a.id, false);
-    expect(await blog.publishedPosts()).toEqual([]);
+    expect(await pub.getPublishedPost("launch-tips")).toBeNull();
+    await expect(blog.publishPost(b.id, author)).rejects.toMatchObject({
+      data: { blockers: expect.arrayContaining(["The article is empty."]) },
+    });
+    await blog.publishPost(a.id, author);
+    const live = await pub.getPublishedPost("launch-tips");
+    expect(live?.excerpt).toBe("Hello world.");
+    expect(live?.authors.map((x) => x.name)).toEqual([`User ${author}`]);
+    expect((await pub.listPublishedPosts()).posts.map((p) => p.slug)).toEqual(["launch-tips"]);
+
+    await blog.unpublishPost(a.id);
+    expect((await pub.listPublishedPosts()).total).toBe(0);
   });
 
   it("drafts one recap per closed week with maker text escaped", async () => {
@@ -663,10 +674,11 @@ describe.skipIf(!TEST_DB)("launch board (Postgres)", () => {
 
     const [post] = await dbmod.db().select().from(dbmod.schema.posts);
     expect(post).toMatchObject({ kind: "recap", weekKey: lastWeek, status: "draft" });
-    expect(post.body).toContain("## Debut of the Week");
-    expect(post.body).toContain("## Also debuting");
-    const { renderMarkdown } = await import("@/lib/blog/markdown");
-    const html = renderMarkdown(post.body);
+    // The recap lands in the editor's working copy; check it renders the way it would publish.
+    const doc = (await blog.getStaffPost(post.id))!.fields.content_json;
+    const { renderPostContent } = await import("@/lib/blog/render");
+    const { html, toc } = renderPostContent(doc);
+    expect(toc.map((t) => t.text)).toEqual(expect.arrayContaining(["Debut of the Week", "Also debuting"]));
     expect(html).not.toContain('href="javascript');
     expect(html).toContain("Evil [x](javascript:alert(1))");
     expect(sent.some((e) => e.subject.startsWith("Recap draft ready"))).toBe(true);

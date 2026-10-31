@@ -44,9 +44,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const dirs = (await queryRows(sql`select slug from directories where is_active`)) as unknown as Array<{
       slug: string;
     }>;
+    // Noindexed posts stay out; "updated" is when the text last changed, not any row write.
     const posts = (await queryRows(sql`
-      select slug, updated_at from posts where status = 'published' and published_at <= now()
+      select slug, coalesce(content_updated_at, published_at) as updated_at from posts
+      where status = 'published' and published_at <= now() and not noindex
     `)) as unknown as Array<{ slug: string; updated_at: Date | string }>;
+    const blogCategories = (await queryRows(sql`
+      select distinct c.slug from blog_categories c
+      join posts p on p.category_id = c.id and p.status = 'published' and p.published_at <= now()
+    `)) as unknown as Array<{ slug: string }>;
 
     entries.push(
       ...products.map((p) => ({ url: `${base}/p/${p.slug}`, lastModified: new Date(p.updated_at) })),
@@ -54,6 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...categories.map((c) => ({ url: `${base}/category/${c.slug}` })),
       ...dirs.map((d) => ({ url: `${base}/directories/${d.slug}` })),
       ...posts.map((p) => ({ url: `${base}/blog/${p.slug}`, lastModified: new Date(p.updated_at) })),
+      ...blogCategories.map((c) => ({ url: `${base}/blog/category/${c.slug}` })),
     );
   } catch (err) {
     console.error("sitemap: database unavailable", err);

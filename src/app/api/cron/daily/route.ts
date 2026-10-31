@@ -8,7 +8,7 @@ import { checkIndexed } from "@/lib/links/indexed";
 import { monitorLinks } from "@/lib/links/service";
 import { snapshotDomains } from "@/lib/metrics/service";
 import { checkBadgeBlocks, sendOrderDigests } from "@/lib/submissions/service";
-import { draftWeeklyRecap } from "@/lib/blog/service";
+import { draftWeeklyRecap, notifyScheduledLaunchPosts } from "@/lib/blog/service";
 import { sendWeeklyDigest } from "@/lib/newsletter/service";
 import { reconcilePendingOrders } from "@/lib/payments/service";
 import { notifySpotlightWaitlist } from "@/lib/products/spotlight";
@@ -26,6 +26,7 @@ export function GET(request: Request) {
     ["periods", () => closeEndedPeriods()],
     ["newsletter", () => sendWeeklyDigest()],
     ["recap", () => draftWeeklyRecap()],
+    ["launch post emails", () => notifyScheduledLaunchPosts()],
     ["payments", () => reconcilePendingOrders()],
     ["subscriptions", () => syncSubscriptions()],
     ["ads", () => settleBookings()],
