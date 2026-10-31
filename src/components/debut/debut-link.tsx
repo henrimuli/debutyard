@@ -1,25 +1,39 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import type { ComponentProps } from "react";
+import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { ButtonLink } from "@/components/ui/button";
 
+const ModalMounted = createContext(false);
+
+/** Marks pages where the debut modal is mounted (the public site layout), so links open it in place. */
+export function DebutModalScope({ children }: { children: ReactNode }) {
+  return <ModalMounted.Provider value>{children}</ModalMounted.Provider>;
+}
+
 /**
- * Opens the debut modal. On the homepage it just adds `?debut=1` to the URL
- * (no server round-trip); elsewhere it navigates to the homepage with it.
+ * Opens the debut modal. Where it's mounted it just adds `?debut=1` to the
+ * current URL (no server round-trip); elsewhere, like the dashboard, it
+ * navigates to the homepage with it. `url` prefills the wizard.
  */
-export function DebutLink(props: Omit<ComponentProps<typeof ButtonLink>, "href">) {
-  const pathname = usePathname();
+export function DebutLink({ url, ...props }: Omit<ComponentProps<typeof ButtonLink>, "href"> & { url?: string }) {
+  const inPlace = useContext(ModalMounted);
+  const query = `debut=1${url ? `&url=${encodeURIComponent(url)}` : ""}`;
   return (
     <ButtonLink
       {...props}
-      href="/?debut=1"
+      // A query-only href resolves against the current page, and reading the pathname here would block prerendering.
+      href={inPlace ? `?${query}` : `/?${query}`}
       scroll={false}
       onClick={(e) => {
         props.onClick?.(e);
-        if (pathname !== "/" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+        if (!inPlace || e.metaKey || e.ctrlKey || e.shiftKey) return;
         e.preventDefault();
-        window.history.pushState(null, "", "/?debut=1");
+        // Keep the page's own query and hash; the modal's close() strips just its own params.
+        const next = new URLSearchParams(window.location.search);
+        next.set("debut", "1");
+        if (url) next.set("url", url);
+        else next.delete("url");
+        window.history.pushState(null, "", `${window.location.pathname}?${next}${window.location.hash}`);
       }}
     />
   );

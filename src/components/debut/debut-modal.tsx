@@ -13,8 +13,8 @@ const subscribeNoop = () => () => {};
 
 /**
  * "Debut your product", opened by `?debut=1` on any public page. Signed-out
- * visitors get a sign-in dialog first; the magic link brings them back to
- * `/?debut=1`, which reopens this straight into the submission wizard.
+ * visitors get a sign-in dialog first; the magic link brings them back to the
+ * same page with `?debut=1`, which reopens this straight into the submission wizard.
  */
 export function DebutModal({ socialProviders }: { socialProviders: SocialProvider[] }) {
   const params = useSearchParams();
@@ -34,7 +34,7 @@ export function DebutModal({ socialProviders }: { socialProviders: SocialProvide
     next.delete("debut");
     next.delete("url");
     const qs = next.toString();
-    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+    window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
   }, [params, pathname]);
 
   if (!open || !isClient) return null;
@@ -42,6 +42,7 @@ export function DebutModal({ socialProviders }: { socialProviders: SocialProvide
     <ModalBody
       socialProviders={socialProviders}
       initialUrl={params.get("url")}
+      back={`${pathname}?${params}`}
       onClose={close}
       onSignedIn={() => router.refresh()}
     />
@@ -51,11 +52,13 @@ export function DebutModal({ socialProviders }: { socialProviders: SocialProvide
 function ModalBody({
   socialProviders,
   initialUrl,
+  back,
   onClose,
   onSignedIn,
 }: {
   socialProviders: SocialProvider[];
   initialUrl: string | null;
+  back: string;
   onClose: () => void;
   onSignedIn: () => void;
 }) {
@@ -72,7 +75,6 @@ function ModalBody({
   }
 
   if (!session.data) {
-    const back = `/?debut=1${initialUrl ? `&url=${encodeURIComponent(initialUrl)}` : ""}`;
     return (
       <Dialog onClose={onClose} label="Sign in to debut your product">
         <div className="p-7">

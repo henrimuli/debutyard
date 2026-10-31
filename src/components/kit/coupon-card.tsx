@@ -1,4 +1,4 @@
-import { ButtonLink } from "@/components/ui/button";
+import { DebutLink } from "@/components/debut/debut-link";
 import { KIT_COUPON, KIT_COUPON_PERCENT } from "@/lib/kit";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +20,7 @@ export function CouponCard({ className }: { className?: string }) {
           at checkout on any launch plan.
         </p>
       </div>
-      <ButtonLink href="/?debut=1" className="shrink-0">
-        Debut your product
-      </ButtonLink>
+      <DebutLink className="shrink-0">Debut your product</DebutLink>
     </div>
   );
 }

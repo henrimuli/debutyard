@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { BookingForm } from "@/components/ads/booking-form";
+import { DebutLink } from "@/components/debut/debut-link";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/primitives";
 import { db, schema } from "@/db";
@@ -45,9 +46,13 @@ export async function BookingSection({ area = "site" }: { area?: "site" | "dashb
         <p className="mt-1 text-sm text-muted-foreground">
           Submit your product first; you can book as soon as it&apos;s approved.
         </p>
-        <ButtonLink href={inDashboard ? "/dashboard/products/new" : "/?debut=1"} scroll={false} className="mt-4">
-          Submit your product
-        </ButtonLink>
+        {inDashboard ? (
+          <ButtonLink href="/dashboard/products/new" className="mt-4">
+            Submit your product
+          </ButtonLink>
+        ) : (
+          <DebutLink className="mt-4">Submit your product</DebutLink>
+        )}
       </Card>
     );
   }

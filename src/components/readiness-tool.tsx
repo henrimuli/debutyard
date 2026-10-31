@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { readinessAction } from "@/app/(site)/tools/launch-readiness/actions";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { DebutLink } from "@/components/debut/debut-link";
+import { Button } from "@/components/ui/button";
 import { Card, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,7 @@ export function ReadinessTool() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <ButtonLink href={`/?debut=1&url=${encodeURIComponent(report.url)}`}>Debut it on DebutYard</ButtonLink>
+            <DebutLink url={report.url}>Debut it on DebutYard</DebutLink>
             <Link href="/badge" className="self-center text-sm text-primary hover:underline">
               Get the badge
             </Link>
