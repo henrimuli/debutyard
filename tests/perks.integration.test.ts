@@ -186,8 +186,10 @@ describe.skipIf(!TEST_DB)("paid debut perks (Postgres)", () => {
     expect(await perks.createPerkTasks(paid!, product!, "premium")).toHaveLength(2);
     expect(await tasksFor(p.id)).toHaveLength(2);
 
-    const staff = sent.filter((e) => e.subject.startsWith("Needs attention"));
-    expect(staff.map((e) => e.subject)).toEqual([`Needs attention: premium.io (Premium Debut)`]);
+    // One staff email: the payment put it in the review queue, and the perks ride along.
+    const staff = sent.filter((e) => e.to === "ops@debutyard.test");
+    expect(staff.map((e) => e.subject)).toEqual([`Review: premium.io (Premium Debut)`]);
+    expect(staff[0].text).toContain("/admin/review");
     expect(staff[0].text).toContain("/admin/newsletter");
     expect(staff[0].text).toContain("/admin/blog");
     expect(await perks.openPerkCounts()).toEqual({ newsletter: 1, blog: 1 });
