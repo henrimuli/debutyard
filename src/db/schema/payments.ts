@@ -1,4 +1,15 @@
-import { integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, index } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  index,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
 export const paymentProvider = pgEnum("payment_provider", ["paystack", "paypal"]);
@@ -25,6 +36,8 @@ export const coupons = pgTable("coupons", {
   /** SKU ids this coupon applies to; empty array means all one-time SKUs. */
   appliesToSkus: text("applies_to_skus").array().notNull().default([]),
   maxRedemptions: integer("max_redemptions"),
+  /** Only for a buyer's first paid debut (no earlier paid launch order for their email or account). */
+  firstPurchaseOnly: boolean("first_purchase_only").notNull().default(false),
   redeemedCount: integer("redeemed_count").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

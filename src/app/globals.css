@@ -126,6 +126,11 @@ body {
 .prose-dy li + li {
   margin-top: 0.4em;
 }
+/* Custom lists inside prose (checklists, numbered steps) draw their own markers. */
+.prose-dy .not-prose {
+  list-style: none;
+  padding-left: 0;
+}
 .prose-dy blockquote {
   border-left: 3px solid var(--primary);
   padding-left: 1em;

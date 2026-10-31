@@ -19,10 +19,15 @@ function siteUrl(path: string) {
   return new URL(path, env().NEXT_PUBLIC_SITE_URL).toString();
 }
 
-async function findCoupon(code: string): Promise<CouponRule> {
-  const row = await db().query.coupons.findFirst({ where: eq(coupons.code, code.trim().toUpperCase()) });
-  if (!row) throw new CouponError("Unknown coupon code.");
-  return row;
+/** Whether this buyer (by email or account) already paid for a debut. Refunded in full doesn't count. */
+async function hasPaidDebut(email: string, userId: string | null): Promise<boolean> {
+  const byEmail = sql`lower(${orders.email}) = ${email.trim().toLowerCase()}`;
+  const who = userId ? or(byEmail, eq(orders.userId, userId)) : byEmail;
+  const row = await db().query.orders.findFirst({
+    where: and(eq(orders.kind, "launch"), or(eq(orders.status, "paid"), eq(orders.status, "partially_refunded")), who),
+    columns: { id: true },
+  });
+  return Boolean(row);
 }
 
 /** Creates a pending order and returns the provider URL to send the buyer to. */
@@ -39,7 +44,14 @@ export async function startCheckout(input: {
   const sku = getSku(input.skuId);
   if (!sku || sku.type !== "one_time") throw new CheckoutError("Unknown product.");
 
-  const coupon = input.couponCode ? await findCoupon(input.couponCode) : null;
+  const found = input.couponCode
+    ? await db().query.coupons.findFirst({ where: eq(coupons.code, input.couponCode.trim().toUpperCase()) })
+    : null;
+  if (input.couponCode && !found) throw new CouponError("Unknown coupon code.");
+  if (found?.firstPurchaseOnly && (await hasPaidDebut(input.email, input.userId ?? null))) {
+    throw new CouponError("This coupon is for your first paid debut.");
+  }
+  const coupon: CouponRule | null = found ?? null;
   const price = quote(sku as OneTimeSku, coupon);
 
   const [order] = await db()

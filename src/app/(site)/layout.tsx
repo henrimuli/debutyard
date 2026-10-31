@@ -1,10 +1,15 @@
 import { Suspense } from "react";
 import { DebutModal } from "@/components/debut/debut-modal";
+import { ExitPopup } from "@/components/kit/exit-popup";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { enabledSocialProviders } from "@/lib/auth";
+import { turnstileSiteKey } from "@/lib/turnstile";
 
-/** Public pages: header, footer, and the "Debut your product" modal that any page can open with `?debut=1`. */
+/**
+ * Public pages: header, footer, the "Debut your product" modal that any page can open with `?debut=1`,
+ * and the Founder Kit exit-intent popup.
+ */
 export default function SiteLayout({ children }: LayoutProps<"/">) {
   return (
     <>
@@ -13,6 +18,7 @@ export default function SiteLayout({ children }: LayoutProps<"/">) {
       <SiteFooter />
       <Suspense>
         <DebutModal socialProviders={enabledSocialProviders()} />
+        <ExitPopup turnstileSiteKey={turnstileSiteKey()} />
       </Suspense>
     </>
   );

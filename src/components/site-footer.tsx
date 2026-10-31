@@ -18,6 +18,7 @@ const columns: Array<{ heading: string; links: FooterLink[] }> = [
       { href: "/categories", label: "Categories" },
       { href: "/launch-wall", label: "Launch wall" },
       { href: "/blog", label: "Blog" },
+      { href: "/resources", label: "Free resources" },
     ],
   },
   {

@@ -123,6 +123,31 @@ describe.skipIf(!TEST_DB)("payment service (Postgres)", () => {
     });
   });
 
+  it("limits a first-purchase coupon to buyers without a paid debut", async () => {
+    await dbmod.db().insert(dbmod.schema.coupons).values({ code: "KIT15", percentOff: 15, firstPurchaseOnly: true });
+    const fresh = await svc.startCheckout({
+      skuId: "launch_pro",
+      provider: "paystack",
+      email: "new@x.com",
+      couponCode: "KIT15",
+    });
+    expect(await order(fresh.orderId)).toMatchObject({ listAmountCents: 3900, discountCents: 585, amountCents: 3315 });
+
+    await dbmod.db().insert(dbmod.schema.orders).values({
+      email: "Old@X.com",
+      kind: "launch",
+      sku: "launch_fast_track",
+      listAmountCents: 1500,
+      amountCents: 1500,
+      currency: "USD",
+      provider: "paystack",
+      status: "paid",
+    });
+    await expect(
+      svc.startCheckout({ skuId: "launch_pro", provider: "paystack", email: "old@x.com", couponCode: "KIT15" }),
+    ).rejects.toThrow("first paid debut");
+  });
+
   it("marks paid, redeems the coupon and fulfils exactly once", async () => {
     const [coupon] = await dbmod.db().insert(dbmod.schema.coupons).values({ code: "HALF", percentOff: 50 }).returning();
     const { orderId } = await svc.startCheckout({
