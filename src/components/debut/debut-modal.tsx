@@ -34,7 +34,7 @@ export function DebutModal({ socialProviders }: { socialProviders: SocialProvide
     next.delete("debut");
     next.delete("url");
     const qs = next.toString();
-    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+    window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
   }, [params, pathname]);
 
   if (!open || !isClient) return null;
