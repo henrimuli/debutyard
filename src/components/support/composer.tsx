@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { previewAction, sendAction } from "@/app/admin/email/actions";
 import { Icon } from "@/components/app-shell/icons";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { BodyEditor } from "./body-editor";
@@ -122,7 +123,14 @@ export function Composer({
           type="button"
           aria-label="Discard"
           title="Discard"
-          onClick={() => (!body.trim() || confirm("Discard this message?")) && onDone(null)}
+          onClick={async () => {
+            if (
+              body.trim() &&
+              !(await confirmDialog({ title: "Discard this message?", confirmLabel: "Discard", danger: true }))
+            )
+              return;
+            onDone(null);
+          }}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Icon name="trash" />

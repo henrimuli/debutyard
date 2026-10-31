@@ -9,6 +9,7 @@ import { formatUsd, getSku } from "@/lib/payments/skus";
 import type { ProviderId } from "@/lib/payments/types";
 import { addWeeks } from "@/lib/weeks";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 
 type Week = { key: string; label: string; range: string; remaining: number };
 
@@ -89,7 +90,7 @@ export function BookingForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="placement">Placement</Label>
-          <select
+          <Select
             id="placement"
             className={selectCls}
             value={placement}
@@ -100,22 +101,22 @@ export function BookingForm({
                 {p.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="product">Promote</Label>
-          <select id="product" className={selectCls} value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <Select id="product" className={selectCls} value={productId} onChange={(e) => setProductId(e.target.value)}>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         {placement === "category" && (
           <div className="space-y-1.5">
             <Label htmlFor="category">Category</Label>
-            <select
+            <Select
               id="category"
               className={selectCls}
               value={category}
@@ -126,7 +127,7 @@ export function BookingForm({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         {durations.length > 1 && (

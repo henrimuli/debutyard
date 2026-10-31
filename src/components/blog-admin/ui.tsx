@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { IconClose } from "@/components/blog-admin/icons";
 import { Dialog } from "@/components/ui/dialog";
+import { Select as SiteSelect } from "@/components/ui/select";
 import type { BlogDisplayStatus } from "@/lib/blog/types";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +20,8 @@ export function TextArea({ className, ...props }: ComponentProps<"textarea">) {
   return <textarea {...props} className={cn(control, "resize-y", className)} />;
 }
 
-export function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select {...props} className={cn(control, "h-10 py-0", className)} />;
+export function Select({ className, ...props }: ComponentProps<typeof SiteSelect>) {
+  return <SiteSelect {...props} className={cn(control, "h-10 py-0", className)} />;
 }
 
 export function Field({

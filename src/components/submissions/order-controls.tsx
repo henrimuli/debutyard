@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { assignAction, deliverAction, resendBadgeBlockAction } from "@/app/admin/submissions/actions";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
+import { Select } from "@/components/ui/select";
 
 export function OrderControls({
   orderId,
@@ -21,7 +23,7 @@ export function OrderControls({
     <div className="flex flex-wrap items-center gap-3">
       <label className="flex items-center gap-2 text-sm">
         Assignee
-        <select
+        <Select
           defaultValue={assigneeId ?? ""}
           disabled={pending}
           onChange={(e) =>
@@ -38,19 +40,24 @@ export function OrderControls({
               {s.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {canDeliver && (
         <Button
           size="sm"
           disabled={pending}
-          onClick={() =>
-            confirm("Mark delivered and email the client their report?") &&
+          onClick={async () => {
+            const ok = await confirmDialog({
+              title: "Mark this order delivered?",
+              message: "We'll email the client their report.",
+              confirmLabel: "Mark delivered",
+            });
+            if (!ok) return;
             start(async () => {
               const res = await deliverAction(orderId);
               setMsg(res.ok ? { ok: true, text: res.message ?? "Delivered." } : { ok: false, text: res.error });
-            })
-          }
+            });
+          }}
         >
           Mark delivered
         </Button>

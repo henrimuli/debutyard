@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { LinkVerdict } from "./link-verdict";
+import { Select } from "@/components/ui/select";
 
 export type TrackerRow = {
   directory: {
@@ -155,7 +156,7 @@ function Row({ productId, initial }: { productId: string; initial: TrackerRow })
         )}
         {error && <p className="mt-1 text-xs text-danger">{error}</p>}
       </div>
-      <select
+      <Select
         aria-label={`Status on ${d.name}`}
         value={editingUrl ? "live" : status}
         disabled={pending}
@@ -173,7 +174,7 @@ function Row({ productId, initial }: { productId: string; initial: TrackerRow })
             {LABELS[s]}
           </option>
         ))}
-      </select>
+      </Select>
     </li>
   );
 }

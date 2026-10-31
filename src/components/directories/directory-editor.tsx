@@ -6,6 +6,7 @@ import { saveDirectoryAction } from "@/app/admin/directories/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import type { DirectoryInput } from "@/lib/directories/service";
+import { Select } from "@/components/ui/select";
 
 type Values = {
   name: string;
@@ -73,7 +74,7 @@ export function DirectoryEditor({ id, initial }: { id: string | null; initial: V
         {text("queueEstimateDays", "Typical queue (days)")}
         <div className="space-y-1.5">
           <Label htmlFor="niche">Niche</Label>
-          <select
+          <Select
             id="niche"
             className={selectCls}
             value={v.niche}
@@ -82,11 +83,11 @@ export function DirectoryEditor({ id, initial }: { id: string | null; initial: V
             {["general", "devtools", "ai", "indie", "b2b"].map((n) => (
               <option key={n}>{n}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pricing">Pricing</Label>
-          <select
+          <Select
             id="pricing"
             className={selectCls}
             value={v.pricing}
@@ -95,11 +96,11 @@ export function DirectoryEditor({ id, initial }: { id: string | null; initial: V
             {["free", "freemium", "paid"].map((n) => (
               <option key={n}>{n}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="link">Link type (as stated)</Label>
-          <select
+          <Select
             id="link"
             className={selectCls}
             value={v.linkTypeClaimed}
@@ -108,7 +109,7 @@ export function DirectoryEditor({ id, initial }: { id: string | null; initial: V
             {["dofollow", "nofollow", "unknown"].map((n) => (
               <option key={n}>{n}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div className="flex flex-wrap gap-5">

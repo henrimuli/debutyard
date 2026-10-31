@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/blog-admin/ui";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { BlogApiError, blogApi, type Revision } from "@/lib/blog/client";
 
 const REASON: Record<string, string> = {
@@ -62,12 +63,12 @@ export function RevisionsDialog({
                 variant="outline"
                 disabled={busy !== null}
                 onClick={async () => {
-                  if (
-                    !window.confirm(
-                      "Restore this version? Your current draft stays in the history, so you can undo this.",
-                    )
-                  )
-                    return;
+                  const ok = await confirmDialog({
+                    title: "Restore this version?",
+                    message: "Your current draft stays in the history, so you can undo this.",
+                    confirmLabel: "Restore",
+                  });
+                  if (!ok) return;
                   setBusy(r.id);
                   await onRestore(r.id);
                   setBusy(null);

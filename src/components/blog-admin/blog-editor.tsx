@@ -30,6 +30,7 @@ import { SeoPanel } from "@/components/blog-admin/panels/seo-panel";
 import { SettingsPanel } from "@/components/blog-admin/panels/settings-panel";
 import { Menu, MenuItem, ScoreChip, StatusBadge, Toast, type ToastState } from "@/components/blog-admin/ui";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import type { ImageResult } from "@/lib/blog/ai/types";
 import { aiFields, BlogApiError, blogApi, describeAiError } from "@/lib/blog/client";
 import { placeholderBlockers } from "@/lib/blog/content";
@@ -313,7 +314,11 @@ export function BlogEditor({
   async function saveSlug(next: string): Promise<string | null> {
     if (
       meta.status === "published" &&
-      !window.confirm("Change the URL of a live post? The old URL keeps working as a redirect.")
+      !(await confirmDialog({
+        title: "Change the URL of a live post?",
+        message: "The old URL keeps working as a redirect.",
+        confirmLabel: "Change URL",
+      }))
     ) {
       return "Cancelled.";
     }
@@ -376,13 +381,13 @@ export function BlogEditor({
 
   async function sendToMaker() {
     if (!(await settle())) return notify("Could not save your latest changes first.", "error");
-    if (
-      !window.confirm(
-        "Email the maker a private preview of this draft? They have 48 hours to approve it or send notes. It doesn't stop you publishing.",
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Email the maker a preview?",
+      message:
+        "They get a private preview of this draft and have 48 hours to approve it or send notes. It doesn't stop you publishing.",
+      confirmLabel: "Send preview",
+    });
+    if (!ok) return;
     setReviewBusy(true);
     try {
       const { review } = await blogApi.requestMakerReview(postId);
@@ -428,7 +433,13 @@ export function BlogEditor({
   }
 
   async function unpublish() {
-    if (!window.confirm("Unpublish this post? It goes back to being a draft and its URL stops working.")) return;
+    const ok = await confirmDialog({
+      title: "Unpublish this post?",
+      message: "It goes back to being a draft and its URL stops working.",
+      confirmLabel: "Unpublish",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const { post: p } = await blogApi.unpublish(postId);
       setMeta((m) => ({ ...m, status: p.status, displayStatus: p.displayStatus, unpublishedChanges: false }));
@@ -439,7 +450,13 @@ export function BlogEditor({
   }
 
   async function remove() {
-    if (!window.confirm("Delete this post permanently? This can't be undone.")) return;
+    const ok = await confirmDialog({
+      title: "Delete this post permanently?",
+      message: "This can't be undone.",
+      confirmLabel: "Delete post",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await blogApi.remove(postId);
       clearBackup(postId);

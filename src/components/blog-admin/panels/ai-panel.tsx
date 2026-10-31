@@ -22,6 +22,7 @@ import {
 } from "@/components/blog-admin/icons";
 import { ChipInput, Field, Select, TextArea, TextInput } from "@/components/blog-admin/ui";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Spinner } from "@/components/ui/primitives";
 import type {
   ContentIdea,
@@ -512,8 +513,12 @@ export function AiPanel({
   async function reviseWithNotes() {
     const notes = post.review?.notes;
     if (!notes) return;
-    if (!window.confirm("Rewrite the post to apply the maker's notes? The current version stays in the history."))
-      return;
+    const ok = await confirmDialog({
+      title: "Rewrite the post with the maker's notes?",
+      message: "The current version stays in the history.",
+      confirmLabel: "Rewrite",
+    });
+    if (!ok) return;
     await streamIntoEditor("Applying the maker's notes", { action: "revise", ...base(), notes }, "all");
   }
 

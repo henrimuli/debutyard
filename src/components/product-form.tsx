@@ -10,6 +10,7 @@ import { MAX_CATEGORIES, MAX_SCREENSHOTS, type ProductInput } from "@/lib/produc
 import { normalizeWebsite } from "@/lib/products/website";
 import { putToStorage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 
 type Category = { slug: string; name: string };
 
@@ -303,7 +304,7 @@ export function ProductForm({
       </div>
       <div className="space-y-2">
         <Label htmlFor="pricingModel">Pricing</Label>
-        <select
+        <Select
           id="pricingModel"
           className="h-11 w-full rounded-md border border-border bg-card px-3 text-base sm:h-10 sm:text-sm"
           value={values.pricingModel}
@@ -317,7 +318,7 @@ export function ProductForm({
               {o.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     </section>
   );

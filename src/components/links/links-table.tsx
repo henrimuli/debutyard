@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { addLinkAction, linkHistoryAction, recheckLinkAction, removeLinkAction } from "@/app/dashboard/links/actions";
 import { LinkVerdict } from "@/components/directories/link-verdict";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Badge, Input, Label } from "@/components/ui/primitives";
 
 type Verdict = "dofollow" | "nofollow" | "missing" | "unreachable";
@@ -168,8 +169,14 @@ function Row({ initial }: { initial: LinkRow }) {
               type="button"
               className="text-muted-foreground hover:text-danger"
               disabled={pending}
-              onClick={() => {
-                if (!confirm("Stop monitoring this link?")) return;
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: "Stop monitoring this link?",
+                  message: "We'll stop checking it, and it no longer counts toward your plan.",
+                  confirmLabel: "Stop monitoring",
+                  danger: true,
+                });
+                if (!ok) return;
                 start(async () => {
                   const res = await removeLinkAction(row.id);
                   if (!res.ok) return setError(res.error);
