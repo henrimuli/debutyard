@@ -266,18 +266,22 @@ describe.skipIf(!TEST_DB)("paid debut perks (Postgres)", () => {
 
     const post = await blog.startLaunchDraft(task.id, author);
     expect(post).toMatchObject({ kind: "launch", status: "draft" });
-    expect(post.body).toContain("launchy\\.io does useful things");
-    expect(post.body).toContain("https://launchy.io/");
-    expect(post.body).toContain("https://launchy.io/shot.png");
-    expect(post.body).toContain("Second paragraph");
-    expect(post.body).toContain("/category/productivity");
-    expect(post.body).toContain(`Maker u`);
+    const draft = JSON.stringify((await blog.getStaffPost(post.id))!.fields.content_json);
+    expect(draft).toContain("launchy.io does useful things");
+    expect(draft).toContain("https://launchy.io/");
+    expect(draft).toContain("https://launchy.io/shot.png");
+    expect(draft).toContain("Second paragraph");
+    expect(draft).toContain("/category/productivity");
+    expect(draft).toContain(`Maker u`);
     expect(await perks.getPerkTask(task.id)).toMatchObject({ status: "drafting", postId: post.id });
     // Starting again opens the same draft.
     expect((await blog.startLaunchDraft(task.id, author)).id).toBe(post.id);
     expect(await perks.openPerkCounts()).toEqual({ newsletter: 1, blog: 1 });
 
-    await blog.setPublished(post.id, true);
+    // Launch drafts come with a category but still need a meta description.
+    const staff = (await blog.getStaffPost(post.id))!;
+    await blog.saveDraft(post.id, author, { baseVersion: staff.version, fields: { seo_description: "launchy.io." } });
+    await blog.publishPost(post.id, author);
     expect(await perks.getPerkTask(task.id)).toMatchObject({ status: "done" });
     expect((await perks.openPerkCounts()).blog).toBe(0);
   });

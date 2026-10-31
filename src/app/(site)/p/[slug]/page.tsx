@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge, Card, Container } from "@/components/ui/primitives";
 import { site } from "@/config/site";
 import { getCurrentUser, isStaff } from "@/lib/auth";
+import { postsForProduct } from "@/lib/blog/service";
 import { proUserIds } from "@/lib/billing/service";
 import { listingRel, withRef } from "@/lib/board/links";
 import { commentsFor, getProductPage, similarProducts, applauseByDay } from "@/lib/board/queries";
@@ -60,11 +61,12 @@ async function Product({ params }: { params: PageProps<"/p/[slug]">["params"] })
   if (!data) notFound();
 
   const p = data.product;
-  const [comments, similar, days, pro] = await Promise.all([
+  const [comments, similar, days, pro, stories] = await Promise.all([
     commentsFor(p.id),
     similarProducts(p.id),
     p.launchWeekKey && data.live ? applauseByDay(p.id, p.launchWeekKey) : Promise.resolve(null),
     proUserIds([p.createdBy]),
+    postsForProduct(p.id).catch(() => ({ launch: null, featuredIn: [] })),
   ]);
   const rel = listingRel({ tier: p.tier, isWinner: p.isWinner, badgeStatus: data.badgeStatus });
   const href = withRef(p.websiteUrl);
@@ -165,6 +167,8 @@ async function Product({ params }: { params: PageProps<"/p/[slug]">["params"] })
             <h2 className="sr-only">About</h2>
             <p className="whitespace-pre-line leading-7 [overflow-wrap:anywhere]">{p.description}</p>
           </section>
+
+          <BlogStories name={p.name} stories={stories} />
 
           {data.media.length > 0 && <ScreenshotGallery urls={data.media.map((m) => m.url)} name={p.name} />}
 
@@ -305,5 +309,63 @@ function MiniList({
         ))}
       </ul>
     </Card>
+  );
+}
+
+/** The product's launch post (written with its maker) and other posts that cover it, under the description. */
+function BlogStories({ name, stories }: { name: string; stories: Awaited<ReturnType<typeof postsForProduct>> }) {
+  const { launch, featuredIn } = stories;
+  if (!launch && featuredIn.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      {launch && (
+        <Link
+          href={`/blog/${launch.slug}`}
+          className="group flex flex-col gap-4 rounded-lg border border-primary/25 bg-primary/5 p-4 transition-colors hover:border-primary/50 sm:flex-row sm:items-center"
+        >
+          {launch.coverUrl && (
+            // Blog covers live on R2, which next/image would need allow-listed.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={launch.coverUrl}
+              alt=""
+              loading="lazy"
+              className="aspect-video w-full shrink-0 rounded-md border border-border object-cover sm:w-40"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">The {name} launch story</p>
+            <h2 className="mt-1 font-display text-lg font-semibold leading-snug group-hover:text-primary">
+              {launch.title}
+            </h2>
+            {launch.authors.length > 0 && (
+              <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="flex -space-x-2">
+                  {launch.authors.map((a) => (
+                    <Avatar key={a.userId} name={a.name} src={a.avatarUrl} className="size-6 ring-2 ring-card" />
+                  ))}
+                </span>
+                By {launch.authors.map((a) => a.name).join(" & ")}
+              </p>
+            )}
+          </div>
+          <span className="text-sm font-medium text-primary">Read the post →</span>
+        </Link>
+      )}
+      {featuredIn.length > 0 && (
+        <div className="text-sm">
+          <h2 className="font-medium">Featured on the DebutYard blog</h2>
+          <ul className="mt-1.5 space-y-1">
+            {featuredIn.map((f) => (
+              <li key={f.slug}>
+                <Link href={`/blog/${f.slug}`} className="text-primary hover:underline">
+                  {f.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
