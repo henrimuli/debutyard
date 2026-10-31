@@ -16,6 +16,7 @@ import type { PlanChoices } from "@/lib/products/plan-choices";
 import type { Tier } from "@/lib/products/input";
 import type { ProviderId } from "@/lib/payments/types";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 
 export type { PlanOption } from "@/lib/products/plan-choices";
 
@@ -162,7 +163,7 @@ export function PlanPicker({
         {option.picksWeek && (
           <label className="block max-w-md space-y-1.5">
             <span className="text-sm font-medium">Debut week</span>
-            <select
+            <Select
               className="h-11 w-full rounded-md border border-border bg-card px-3 text-base sm:h-10 sm:text-sm"
               value={week}
               onChange={(e) => setWeek(e.target.value)}
@@ -172,7 +173,7 @@ export function PlanPicker({
                   {w.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
 

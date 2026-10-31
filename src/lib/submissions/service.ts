@@ -51,7 +51,8 @@ const staffTrigger = "Sent by the submission service.";
 /**
  * Payment fulfilment: opens the order and emails the buyer their private
  * intake link. A "boost" (productId in the payment) starts with the product's
- * details filled in.
+ * details filled in. A package bundled with a paid debut opens without emails:
+ * the debut's own confirmation and staff email carry it (see payments/handlers).
  */
 export async function openOrderFromPayment(payment: Payment, bundled?: PackageId): Promise<SubmissionOrder> {
   const pkg = bundled ?? packageForSku(payment.sku);
@@ -103,7 +104,7 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
     .onConflictDoNothing()
     .returning();
   const order = row ?? (await db().query.submissionOrders.findFirst({ where: eq(orders.orderId, payment.id) }))!;
-  if (!row) return order;
+  if (!row || bundled) return order;
 
   const p = PACKAGES[pkg];
   await mail(
@@ -111,11 +112,7 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
     `Next step for your ${site.name} ${p.label} order`,
     [
       { heading: "One step left: tell us about your product" },
-      {
-        text: bundled
-          ? `Your Spotlight debut includes our ${p.label} directory submission package (${p.count} directories).`
-          : `Thanks for your order (${p.label}: ${p.count} directories, ${formatUsd(payment.amountCents)}).`,
-      },
+      { text: `Thanks for your order (${p.label}: ${p.count} directories, ${formatUsd(payment.amountCents)}).` },
       {
         text: "Tell us about your product: logo, descriptions, categories and a couple of preferences. It takes about five minutes, and submissions start within 48 hours of receiving it.",
       },
@@ -126,14 +123,14 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
   );
   await toStaff(
     "Orders",
-    `New submission order: ${p.label} (${bundled ? "bundled with Spotlight" : formatUsd(payment.amountCents)})`,
+    `New submission order: ${p.label} (${formatUsd(payment.amountCents)})`,
     [
       { heading: `New submission order: ${p.label}` },
       {
         facts: [
           ["Buyer", payment.email],
           ["Package", `${p.label}, ${p.count} directories`],
-          ["Paid", bundled ? "Bundled with Spotlight" : formatUsd(payment.amountCents)],
+          ["Paid", formatUsd(payment.amountCents)],
           ["Status", product ? `Boost for ${product.name}` : "Waiting for intake"],
         ],
       },
@@ -228,7 +225,8 @@ export async function submitIntake(intakeToken: string, raw: IntakeInput, now = 
   }
   // DR before/after: the "before".
   await baselineSnapshot(input.websiteUrl, now);
-  if (updated.badgePreference === "allow") await sendBadgeBlock(updated, now);
+  // The badge block rides in this email rather than a second one sent at the same moment.
+  const badges = updated.badgePreference === "allow" ? await badgeBlocks(updated) : null;
 
   await mail(
     input.contactEmail,
@@ -238,15 +236,14 @@ export async function submitIntake(intakeToken: string, raw: IntakeInput, now = 
       {
         text: `We've lined up ${targets.length} directories for ${input.productName}. You'll see each one move from queued to live on your dashboard, with every link checked by us.`,
       },
-      {
-        text:
-          input.badgePreference === "allow"
-            ? "You allowed badge directories, so we'll email you one HTML block to paste into your site footer."
-            : "You chose no badges, so we only use directories that don't ask for one.",
-      },
+      ...(input.badgePreference === "allow"
+        ? []
+        : [{ text: "You chose no badges, so we only use directories that don't ask for one." }]),
       { button: "Open your live dashboard", href: url(`/orders/${order.intakeToken}`) },
+      ...(badges ? [{ section: "One step for you: add your directory badges" }, ...badges] : []),
     ],
   );
+  if (badges) await db().update(orders).set({ badgeBlockSentAt: now }).where(eq(orders.id, order.id));
   await toStaff(
     "Orders",
     `Intake received: ${input.productName} (${PACKAGES[order.package].label})`,
@@ -686,20 +683,29 @@ export async function badgeBlockFor(orderId: string) {
   };
 }
 
-/** Emails the client their badge block (after intake, or when staff resend it). */
-export async function sendBadgeBlock(order: SubmissionOrder, now = new Date()) {
+/** The badge block and how to use it, or null when no queued directory needs a badge. */
+async function badgeBlocks(order: SubmissionOrder): Promise<Block[] | null> {
   const block = await badgeBlockFor(order.id);
-  if (!block) return false;
-  const to = order.contactEmail ?? order.email;
-  const dashboard = url(`/orders/${order.intakeToken}`);
-  const intro = `${block.directories.length} of the directories we're submitting ${order.productName ?? "your product"} to only list products that show their badge. Paste this block into your site's footer (any page we can reach from your homepage works):`;
-  const outro = `We check your site daily and submit each one as soon as its badge is up. Any still missing after ${BADGE_WAIT_DAYS} days are swapped for directories that don't need a badge.`;
-  await mail(to, "One step for your listings: add your directory badges", [
-    { heading: "Add your directory badges" },
-    { text: intro },
+  if (!block) return null;
+  return [
+    {
+      text: `${block.directories.length} of the directories we're submitting ${order.productName ?? "your product"} to only list products that show their badge. Paste this block into your site's footer (any page we can reach from your homepage works):`,
+    },
     { code: block.html },
-    { text: outro },
-    { button: "Open your dashboard", href: dashboard },
+    {
+      text: `We check your site daily and submit each one as soon as its badge is up. Any still missing after ${BADGE_WAIT_DAYS} days are swapped for directories that don't need a badge.`,
+    },
+  ];
+}
+
+/** Emails the client their badge block on its own, when staff resend it. Intake puts it in its confirmation. */
+export async function sendBadgeBlock(order: SubmissionOrder, now = new Date()) {
+  const blocks = await badgeBlocks(order);
+  if (!blocks) return false;
+  await mail(order.contactEmail ?? order.email, "One step for your listings: add your directory badges", [
+    { heading: "Add your directory badges" },
+    ...blocks,
+    { button: "Open your dashboard", href: url(`/orders/${order.intakeToken}`) },
   ]);
   await db().update(orders).set({ badgeBlockSentAt: now }).where(eq(orders.id, order.id));
   return true;

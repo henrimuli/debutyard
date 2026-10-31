@@ -1,11 +1,15 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { notifyAdminPaidTier, notifyPaidTierApplied, notifyProductSubmitted } from "@/lib/notifications";
+import { env } from "@/env";
+import { type BundledOrder, notifyPaidTierApplied, notifyStaffPaidDebut } from "@/lib/notifications";
+import { PACKAGES } from "@/lib/submissions/packages";
 import { createPerkTasks } from "@/lib/perks/service";
 import { TIERS, tierForSku } from "@/lib/products/input";
 import { applyPaidTier } from "@/lib/products/service";
 import { registerFulfillment } from "./fulfillment";
+
+const siteUrl = (path: string) => new URL(path, env().NEXT_PUBLIC_SITE_URL).toString();
 
 /** Paid debut tiers: upgrade the listing named in the order and (re)schedule it. */
 registerFulfillment("launch", async (order) => {
@@ -21,14 +25,26 @@ registerFulfillment("launch", async (order) => {
   const product = await applyPaidTier(productId, tier, weekKey);
   // Stored before the emails, so a failed send that retries fulfilment doesn't lose them.
   const perks = await createPerkTasks(order, product, tier);
-  await notifyPaidTierApplied(product, TIERS[tier].label);
-  await notifyAdminPaidTier(product, tier, perks);
-  if (before?.status !== "pending" && product.status === "pending") await notifyProductSubmitted(product);
-  // Spotlight bundles a Starter submission package, started from this listing.
+  // Spotlight bundles a Starter submission package, started from this listing. It opens
+  // quietly: the two emails below tell the maker and the team about it.
+  let bundle: BundledOrder | undefined;
   if (tier === "spotlight") {
     const { openOrderFromPayment } = await import("@/lib/submissions/service");
-    await openOrderFromPayment(order, "starter");
+    const sub = await openOrderFromPayment(order, "starter");
+    bundle = {
+      label: PACKAGES.starter.label,
+      count: PACKAGES.starter.count,
+      intakeUrl: siteUrl(`/orders/${sub.intakeToken}`),
+      opsUrl: siteUrl(`/admin/submissions/${sub.id}`),
+    };
   }
+  // One email to the maker, one to the team.
+  await notifyPaidTierApplied(product, TIERS[tier].label, bundle);
+  await notifyStaffPaidDebut(product, tier, {
+    review: before?.status !== "pending" && product.status === "pending",
+    tasks: perks,
+    bundle,
+  });
 });
 
 /** Submission packages: open the order and send the buyer their private intake link. */

@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react";
 import { addAdminAction, removeAdminAction } from "@/app/admin/users/actions";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input, Label } from "@/components/ui/primitives";
+import { Select } from "@/components/ui/select";
 
 const selectCls =
   "h-10 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -41,7 +43,7 @@ export function AddAdmin() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="admin-role">Role</Label>
-          <select
+          <Select
             id="admin-role"
             className={`${selectCls} w-full sm:w-32`}
             value={role}
@@ -49,7 +51,7 @@ export function AddAdmin() {
           >
             <option value="admin">Admin</option>
             <option value="ops">Ops</option>
-          </select>
+          </Select>
         </div>
         <Button type="submit" disabled={pending}>
           {pending ? "Adding…" : "Add"}
@@ -70,8 +72,13 @@ export function RemoveAdmin({ id, email }: { id: string; email: string }) {
         variant="ghost"
         size="sm"
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm(`Remove admin access for ${email}?`)) return;
+        onClick={async () => {
+          const ok = await confirmDialog({
+            title: `Remove admin access for ${email}?`,
+            confirmLabel: "Remove access",
+            danger: true,
+          });
+          if (!ok) return;
           setError(null);
           start(async () => {
             const res = await removeAdminAction(id);

@@ -41,7 +41,8 @@ export function Dialog({
     const id = Symbol("dialog");
     stack.push(id);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && stack.at(-1) === id) onCloseRef.current();
+      // A control inside that handled Escape itself (an open Select) prevents default.
+      if (e.key === "Escape" && !e.defaultPrevented && stack.at(-1) === id) onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => {

@@ -340,6 +340,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     expect((await subs.ordersForUser(u, `${u}@x.test`)).map((r) => r.o.id)).toEqual([boost!.id]);
 
     const q = await makeProduct(u, "spot.io");
+    const before = sent.length;
     const spotlightOrder = await buy("launch_spotlight", u, {
       productId: q.id,
       weekKey: addWeeks(weekKeyFor(new Date()), 2),
@@ -348,7 +349,14 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
       .db()
       .query.submissionOrders.findFirst({ where: eq(dbmod.schema.submissionOrders.orderId, spotlightOrder) });
     expect(bundled).toMatchObject({ package: "starter", productName: "spot.io" });
-    expect(sent.some((e) => e.text.includes("Spotlight debut includes"))).toBe(true);
+    // One email each for the maker and the team, both carrying the bundled package.
+    const mails = sent.slice(before);
+    const staff = mails.filter((e) => e.to === "ops@debutyard.test");
+    const maker = mails.filter((e) => e.to !== "ops@debutyard.test");
+    expect(maker).toHaveLength(1);
+    expect(maker[0].text).toContain(`/orders/${bundled!.intakeToken}`);
+    expect(staff).toHaveLength(1);
+    expect(staff[0].text).toContain(`/admin/submissions/${bundled!.id}`);
 
     await payments.refundOrder(spotlightOrder, "rejected");
     expect(

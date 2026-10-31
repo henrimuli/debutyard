@@ -220,10 +220,12 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
   });
 
   it("emails a badge block, holds badge rows until the badge is found, then swaps the rest", async () => {
-    expect(order.badgeBlockSentAt).toBeNull(); // set by sendBadgeBlock after the returning() snapshot
+    expect(order.badgeBlockSentAt).toBeNull(); // set after the intake email, past the returning() snapshot
     const fresh = (await subs.orderByIntakeToken(order.intakeToken))!;
     expect(fresh.badgeBlockSentAt).not.toBeNull();
-    const mail = sent.find((e) => e.subject.includes("directory badges"));
+    // The block rides in the intake confirmation, not a second email.
+    expect(sent.filter((e) => e.subject.includes("directory badges"))).toHaveLength(0);
+    const mail = sent.find((e) => e.subject.startsWith("We've got everything"));
     expect(mail?.to).toBe("ada@acme.io");
     expect(mail?.text).toContain("https://badge-a.test/b.svg");
     expect(mail?.text).toContain("https://badge-b.test/b.svg");

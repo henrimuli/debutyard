@@ -44,24 +44,29 @@ export async function toStaff(label: string, subject: string, blocks: Block[], t
   });
 }
 
+const reviewBlocks = (p: Product, tierLabel: string): Block[] => [
+  { heading: `${p.name} is waiting for review` },
+  { text: p.tagline },
+  {
+    facts: [
+      ["Tier", tierLabel],
+      ["Website", p.websiteUrl],
+    ],
+  },
+  { button: "Open the review queue", href: url("/admin/review") },
+];
+
 export async function notifyProductSubmitted(p: Product) {
   await toStaff(
     "Review",
-    `Review: ${p.name} (${p.tier})`,
-    [
-      { heading: `${p.name} is waiting for review` },
-      { text: p.tagline },
-      {
-        facts: [
-          ["Tier", p.tier],
-          ["Website", p.websiteUrl],
-        ],
-      },
-      { button: "Open the review queue", href: url("/admin/review") },
-    ],
+    `Review: ${p.name} (${TIERS[p.tier].label})`,
+    reviewBlocks(p, TIERS[p.tier].label),
     "Sent when a listing is submitted for review.",
   );
 }
+
+/** A directory package that came with a paid debut (Spotlight), told in the debut's own emails. */
+export type BundledOrder = { label: string; count: number; intakeUrl: string; opsUrl: string };
 
 export async function notifyProductApproved(p: Product) {
   const week = p.launchWeekKey!;
@@ -108,7 +113,7 @@ export async function notifyProductRejected(p: Product, refunded: boolean) {
   ]);
 }
 
-export async function notifyPaidTierApplied(p: Product, tierLabel: string) {
+export async function notifyPaidTierApplied(p: Product, tierLabel: string, bundle?: BundledOrder) {
   await toMaker(p, `${tierLabel} confirmed for ${p.name}`, [
     { heading: `${tierLabel} is on for ${p.name}` },
     { text: `Payment received: ${p.name} now has ${tierLabel}.` },
@@ -121,6 +126,16 @@ export async function notifyPaidTierApplied(p: Product, tierLabel: string) {
           : "We review new listings within 24 hours. It goes live the moment it's approved, and we'll email you then.",
     },
     { button: "Track it in your dashboard", href: url("/dashboard") },
+    ...(bundle
+      ? [
+          { section: `Also included: ${bundle.label} directory submissions` },
+          {
+            text: `Your ${tierLabel} includes our ${bundle.label} package: we submit ${p.name} to ${bundle.count} directories for you. Tell us about your product (logo, descriptions, categories and a couple of preferences). It takes about five minutes, and submissions start within 48 hours of receiving it.`,
+          },
+          { button: "Fill in your product details", href: bundle.intakeUrl },
+          { note: "This link is private to you. It also becomes your live tracking dashboard, so keep it." },
+        ]
+      : []),
   ]);
 }
 
@@ -158,32 +173,67 @@ export async function notifyBadgeMissing(p: Product, graceUntil: Date) {
   ]);
 }
 
-/** A paid debut's perks need the team: one row per to-do, linking to where it's done. */
-export async function notifyAdminPaidTier(p: Product, tier: Tier, tasks: PerkTask[]) {
-  if (tasks.length === 0) return;
+/**
+ * One staff email per paid debut: the review (when the payment just put it in the queue), the
+ * perks that need the team, and any bundled directory order. Each used to be its own email.
+ */
+export async function notifyStaffPaidDebut(
+  p: Product,
+  tier: Tier,
+  { review, tasks, bundle }: { review: boolean; tasks: PerkTask[]; bundle?: BundledOrder },
+) {
+  if (!review && tasks.length === 0 && !bundle) return;
   const label = TIERS[tier].label;
   const date = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   await toStaff(
-    "Needs attention",
-    `Needs attention: ${p.name} (${label})`,
+    review ? "Review" : "Needs attention",
+    `${review ? "Review" : "Needs attention"}: ${p.name} (${label})`,
     [
-      { heading: `${p.name} needs attention` },
-      { text: `${p.name} bought ${label}. These perks are on the team:` },
-      {
-        items: tasks.map((t) => ({
-          name: PERK_LABELS[t.kind],
-          detail:
-            t.kind === "launch_post"
-              ? `Suggested on the Blog page${t.dueAt ? `, due ${date(t.dueAt)}` : ""}`
-              : `Goes out automatically in the issue after ${formatWeekLabel(t.weekKey)} unless you skip it`,
-          href: url(t.kind === "launch_post" ? "/admin/blog" : "/admin/newsletter"),
-          chip: { label, tone: "neutral" as const },
-        })),
-      },
-      { link: `View ${p.name}`, href: url(`/p/${p.slug}`) },
+      ...(review ? reviewBlocks(p, label) : [{ heading: `${p.name} needs attention` }]),
+      ...(tasks.length > 0 ? perkBlocks(p, label, tasks, date, review) : []),
+      ...(bundle
+        ? [
+            { section: `Bundled order: ${bundle.label}` },
+            {
+              facts: [
+                ["Package", `${bundle.label}, ${bundle.count} directories`],
+                ["Paid", `Bundled with ${label}`],
+                ["Status", `Boost for ${p.name}, waiting for intake`],
+              ] as Array<[string, string]>,
+            },
+            { link: "Open in the ops console", href: bundle.opsUrl },
+          ]
+        : []),
+      ...(review ? [] : [{ link: `View ${p.name}`, href: url(`/p/${p.slug}`) }]),
     ],
-    "Sent when a paid tier with team-delivered perks is bought.",
+    "Sent when a paid debut is bought.",
   );
+}
+
+/** One row per perk the team delivers, linking to where it's done. */
+function perkBlocks(
+  p: Product,
+  label: string,
+  tasks: PerkTask[],
+  date: (d: Date) => string,
+  asSection: boolean,
+): Block[] {
+  return [
+    asSection
+      ? ({ section: "Perks for the team" } as Block)
+      : ({ text: `${p.name} bought ${label}. These perks are on the team:` } as Block),
+    {
+      items: tasks.map((t) => ({
+        name: PERK_LABELS[t.kind],
+        detail:
+          t.kind === "launch_post"
+            ? `Suggested on the Blog page${t.dueAt ? `, due ${date(t.dueAt)}` : ""}`
+            : `Goes out automatically in the issue after ${formatWeekLabel(t.weekKey)} unless you skip it`,
+        href: url(t.kind === "launch_post" ? "/admin/blog" : "/admin/newsletter"),
+        chip: { label, tone: "neutral" as const },
+      })),
+    },
+  ];
 }
 
 export async function notifyRecapDrafted(post: { id: string; title: string }) {

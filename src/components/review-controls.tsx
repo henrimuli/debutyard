@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { approveAction, rejectAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 const reasons = [
   "The website doesn't load or isn't a working product yet.",
@@ -36,7 +37,7 @@ export function ReviewControls({ productId, paid }: { productId: string; paid: b
       </div>
       {rejecting && (
         <div className="space-y-2">
-          <select
+          <Select
             className="h-11 w-full rounded-md border border-border bg-card px-2 text-base sm:h-9 sm:text-sm"
             value={reasons.includes(reason) ? reason : "custom"}
             onChange={(e) => setReason(e.target.value === "custom" ? "" : e.target.value)}
@@ -47,7 +48,7 @@ export function ReviewControls({ productId, paid }: { productId: string; paid: b
               </option>
             ))}
             <option value="custom">Custom reason…</option>
-          </select>
+          </Select>
           {!reasons.includes(reason) && (
             <textarea
               className="w-full rounded-md border border-border bg-card p-2 text-base sm:text-sm"

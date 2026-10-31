@@ -10,6 +10,7 @@ import { displayHtml, hasRemoteImages } from "@/lib/support/rules";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposeMode } from "./composer";
 import { pollInbox } from "./live-inbox";
+import { Select } from "@/components/ui/select";
 
 type Status = "open" | "done" | "spam" | "trash";
 
@@ -117,7 +118,7 @@ export function ThreadToolbar({
       />
       <label className="ml-auto flex items-center gap-2 pr-1 text-sm text-muted-foreground">
         <span className="hidden sm:inline">Assignee</span>
-        <select
+        <Select
           defaultValue={assigneeId ?? ""}
           disabled={pending}
           onChange={(e) => act(() => assignAction(threadId, e.target.value || null), false)}
@@ -129,7 +130,7 @@ export function ThreadToolbar({
               {s.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {error && <p className="w-full px-2 pb-1 text-sm text-danger">{error}</p>}
     </div>

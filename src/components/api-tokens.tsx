@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { createTokenAction, revokeTokenAction } from "@/app/dashboard/api/actions";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/primitives";
 
 type Token = { id: string; name: string; prefix: string; createdAt: Date; lastUsedAt: Date | null };
@@ -66,10 +67,15 @@ export function ApiTokens({ tokens, mcpUrl }: { tokens: Token[]; mcpUrl: string 
                 size="sm"
                 className="ml-auto text-danger"
                 disabled={pending}
-                onClick={() =>
-                  confirm(`Revoke "${t.name}"? Anything using it stops working.`) &&
-                  start(() => revokeTokenAction(t.id))
-                }
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: `Revoke "${t.name}"?`,
+                    message: "Anything using this token stops working right away.",
+                    confirmLabel: "Revoke",
+                    danger: true,
+                  });
+                  if (ok) start(() => revokeTokenAction(t.id));
+                }}
               >
                 Revoke
               </Button>

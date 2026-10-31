@@ -7,6 +7,7 @@ import { AuthorityScore } from "@/components/metrics/authority-score";
 import { Button } from "@/components/ui/button";
 import { Badge, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 
 export type OpsRow = {
   id: string;
@@ -113,7 +114,7 @@ function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boole
             </p>
           )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
-            <select
+            <Select
               value={status}
               onChange={(e) => setStatus(e.target.value as Status)}
               className="h-9 rounded-md border border-border bg-card px-2 text-sm"
@@ -121,7 +122,7 @@ function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boole
               {STATUSES.map((s) => (
                 <option key={s}>{s}</option>
               ))}
-            </select>
+            </Select>
             <Input
               value={liveUrl}
               onChange={(e) => setLiveUrl(e.target.value)}
