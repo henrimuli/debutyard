@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { signIn } from "@/lib/auth-client";
 import { AUTH_MESSAGE } from "@/lib/auth-popup";
-import { cn } from "@/lib/utils";
 
 const providerLabels = { google: "Continue with Google", github: "Continue with GitHub" } as const;
 export type SocialProvider = keyof typeof providerLabels;
@@ -13,11 +12,6 @@ export type SocialProvider = keyof typeof providerLabels;
 /** Only same-site paths, so ?next= can't be used as an open redirect. */
 export function safeNext(next: string | null | undefined, fallback = "/"): string {
   return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : fallback;
-}
-
-/** Where sign-in lands. With the digest switch on, it goes through /auth/popup, which subscribes once signed in. */
-function landingUrl(next: string, digest: boolean): string {
-  return `/auth/popup?next=${encodeURIComponent(next)}${digest ? "&newsletter=1" : ""}`;
 }
 
 /** A centred popup over the current window. */
@@ -47,7 +41,6 @@ export function SignInForm({
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [waitingFor, setWaitingFor] = useState<SocialProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [digest, setDigest] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const onSignedInRef = useRef(onSignedIn);
   useEffect(() => {
@@ -79,7 +72,7 @@ export function SignInForm({
     e.preventDefault();
     setState("sending");
     setError(null);
-    const { error } = await signIn.magicLink({ email, callbackURL: digest ? landingUrl(next, true) : next });
+    const { error } = await signIn.magicLink({ email, callbackURL: next });
     if (error) {
       setError(error.message ?? "Couldn't send the link. Try again.");
       setState("idle");
@@ -93,7 +86,7 @@ export function SignInForm({
     // Open the window inside the click so popup blockers allow it, then point it at the provider.
     const popup = openPopup();
     popupRef.current = popup;
-    const landing = landingUrl(next, digest);
+    const landing = `/auth/popup?next=${encodeURIComponent(next)}`;
     const { data, error } = await signIn.social({
       provider,
       callbackURL: landing,
@@ -169,44 +162,6 @@ export function SignInForm({
         </Button>
       </form>
       {error && <p className="text-sm text-danger">{error}</p>}
-      <DigestSwitch on={digest} onChange={setDigest} />
-    </div>
-  );
-}
-
-/** Opt-in to the weekly digest, applied once sign-in finishes (works for every sign-in method). */
-function DigestSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <div className="flex items-start gap-3 border-t border-border pt-4">
-      <button
-        type="button"
-        role="switch"
-        id="digest-switch"
-        aria-checked={on}
-        aria-labelledby="digest-switch-label"
-        aria-describedby="digest-switch-hint"
-        onClick={() => onChange(!on)}
-        className={cn(
-          "relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
-          on ? "bg-primary" : "bg-muted-foreground/45",
-        )}
-      >
-        <span
-          aria-hidden
-          className={cn(
-            "inline-block size-4 rounded-full bg-background shadow transition-transform",
-            on ? "translate-x-4.5" : "translate-x-0.5",
-          )}
-        />
-      </button>
-      <div className="text-sm">
-        <label id="digest-switch-label" htmlFor="digest-switch" className="cursor-pointer font-medium">
-          Send me the weekly digest
-        </label>
-        <p id="digest-switch-hint" className="text-muted-foreground">
-          Last week&apos;s winners and this week&apos;s debuts, every Monday. Unsubscribe any time.
-        </p>
-      </div>
     </div>
   );
 }
