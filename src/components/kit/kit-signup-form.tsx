@@ -15,12 +15,17 @@ export function KitSignupForm({
   className,
   onDone,
   autoFocus = false,
+  stacked = false,
+  submitLabel = "Send me the free kit",
 }: {
   source: KitSource;
   turnstileSiteKey: string | null;
   className?: string;
   onDone?: () => void;
   autoFocus?: boolean;
+  /** Email above a full-width button, for narrow spots like the popup. */
+  stacked?: boolean;
+  submitLabel?: string;
 }) {
   const [state, action, pending] = useActionState(subscribeKitAction, null);
   const [verifying, setVerifying] = useState(false);
@@ -45,7 +50,7 @@ export function KitSignupForm({
           if (token) form.set("cf-turnstile-response", token);
           startTransition(() => action(form));
         }}
-        className="flex flex-col gap-2 sm:flex-row"
+        className={cn("flex flex-col gap-2", !stacked && "sm:flex-row")}
       >
         <Input
           type="email"
@@ -54,12 +59,12 @@ export function KitSignupForm({
           autoFocus={autoFocus}
           placeholder="you@example.com"
           aria-label="Email"
-          className="min-w-0 flex-1"
+          className={cn("min-w-0 flex-1", stacked && "h-12 text-base")}
         />
         <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
         <input type="hidden" name="source" value={source} />
-        <Button type="submit" disabled={busy}>
-          {busy ? "Sending…" : "Send me the kit"}
+        <Button type="submit" disabled={busy} size={stacked ? "lg" : undefined}>
+          {busy ? "Sending…" : submitLabel}
         </Button>
       </form>
       {/* Empty unless Cloudflare needs a click to confirm the visitor. */}

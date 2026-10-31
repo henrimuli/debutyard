@@ -19,8 +19,8 @@ export default function ResourcesPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-primary">Resources</p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">The {KIT_NAME}</h1>
         <p className="mt-3 text-muted-foreground">
-          Five practical guides for getting a product from &ldquo;it works&rdquo; to &ldquo;people use it&rdquo;. Free
-          with the weekly digest, plus {KIT_COUPON_PERCENT}% off your first paid debut.
+          Five practical guides for getting a product from &ldquo;it works&rdquo; to &ldquo;people use it&rdquo;. 100%
+          free, plus {KIT_COUPON_PERCENT}% off your first paid debut.
         </p>
       </header>
 
@@ -40,9 +40,9 @@ export default function ResourcesPage() {
             ))}
           </ul>
           <div className="md:border-l md:border-border md:pl-6">
-            <h2 className="font-display text-xl font-semibold">Get the kit</h2>
+            <h2 className="font-display text-xl font-semibold">Get the free kit</h2>
             <p className="mt-1 mb-4 text-sm text-muted-foreground">
-              Confirm your email and the kit opens. You&apos;ll also get the weekly digest, one email each Monday.
+              Enter your email and we&apos;ll send it over. One click on the link and the kit is yours.
             </p>
             <KitSignupForm source="resources" turnstileSiteKey={turnstileSiteKey()} />
           </div>

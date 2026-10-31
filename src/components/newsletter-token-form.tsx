@@ -1,6 +1,5 @@
 "use client";
 
-import type { Route } from "next";
 import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,23 +14,20 @@ export function NewsletterTokenForm({
   label,
   done,
   failed,
-  next = { href: "/", label: "Back to this week's debuts" },
 }: {
   token: string;
   action: (prev: boolean | null, form: FormData) => Promise<boolean>;
   label: string;
   done: string;
   failed: string;
-  /** Where the success message links to. */
-  next?: { href: Route; label: string };
 }) {
   const [state, run, pending] = useActionState(action, null);
   if (state !== null) {
     return (
       <div className="space-y-3">
         <p className={state ? "text-success" : "text-danger"}>{state ? done : failed}</p>
-        <Link href={state ? next.href : "/"} className="text-sm text-primary hover:underline">
-          {state ? next.label : "Back to this week's debuts"}
+        <Link href="/" className="text-sm text-primary hover:underline">
+          Back to this week&apos;s debuts
         </Link>
       </div>
     );

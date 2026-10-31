@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { CouponCard } from "@/components/kit/coupon-card";
+import { KitWelcome } from "@/components/kit/kit-welcome";
 import { Container } from "@/components/ui/primitives";
 import { KIT_ITEMS, KIT_NAME, kitItemPath } from "@/lib/kit";
 
@@ -32,6 +34,9 @@ export default function FounderKitPage() {
           </li>
         ))}
       </ol>
+      <Suspense>
+        <KitWelcome />
+      </Suspense>
     </Container>
   );
 }
