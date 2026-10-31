@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, countDistinct, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, isNotNull, lt } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db, schema } from "@/db";
 import { env } from "@/env";
@@ -118,23 +118,6 @@ export async function subscribe(rawEmail: string, source: string | null = null):
   }
   await sendConfirm(email, token, kit);
   return "confirm_sent";
-}
-
-/**
- * Subscribes an address the person just proved they own by signing in, so
- * there's no confirm email. An existing active subscriber is left as is.
- */
-export async function subscribeVerified(rawEmail: string, source: string): Promise<void> {
-  const email = rawEmail.trim().toLowerCase();
-  const now = new Date();
-  await db()
-    .insert(subs)
-    .values({ email, token: newToken(), source, status: "active", confirmedAt: now })
-    .onConflictDoUpdate({
-      target: subs.email,
-      set: { status: "active", confirmedAt: now, unsubscribedAt: null },
-      setWhere: sql`${subs.status} <> 'active'`,
-    });
 }
 
 export async function confirmSubscription(token: string): Promise<boolean> {

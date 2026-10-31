@@ -572,22 +572,6 @@ describe.skipIf(!TEST_DB)("launch board (Postgres)", () => {
     expect(await dbmod.db().select().from(dbmod.schema.awards)).toHaveLength(2);
   });
 
-  it("subscribes a signed-in address straight to active, with no confirm email", async () => {
-    const find = (email: string) =>
-      dbmod.db().query.newsletterSubscribers.findFirst({ where: eq(dbmod.schema.newsletterSubscribers.email, email) });
-    sent.length = 0;
-    await newsletter.subscribeVerified(" Maker@Signin.test ", "sign-in");
-    expect(await find("maker@signin.test")).toMatchObject({ status: "active", source: "sign-in" });
-    expect(sent).toHaveLength(0);
-
-    // Someone who unsubscribed and turns the switch on again is resubscribed.
-    const row = (await find("maker@signin.test"))!;
-    await newsletter.unsubscribe(row.token);
-    await newsletter.subscribeVerified("maker@signin.test", "sign-in");
-    expect(await find("maker@signin.test")).toMatchObject({ status: "active", unsubscribedAt: null });
-    await newsletter.unsubscribe(row.token);
-  });
-
   it("runs newsletter double opt-in, sends the digest once per week, and unsubscribes", async () => {
     expect(await newsletter.subscribe(" Reader@X.test ", "footer")).toBe("confirm_sent");
     expect(await newsletter.subscribe("reader@x.test")).toBe("recently_sent");
