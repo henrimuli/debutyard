@@ -53,7 +53,7 @@ export async function subscribeKitAction(_prev: SubscribeState, form: FormData):
   if (result === "already_subscribed")
     return { ok: true, message: "You're already on the list, so we've emailed you the kit." };
   if (result === "recently_sent") return { ok: true, message: "We just sent you a link. Check your inbox (and spam)." };
-  return { ok: true, message: "Check your inbox: confirm your email and the kit opens." };
+  return { ok: true, message: "Check your inbox: one click on the link and the free kit is yours." };
 }
 
 /** The "send me the weekly digest" switch on the sign-in form: runs once sign-in has finished. */

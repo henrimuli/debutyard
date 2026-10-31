@@ -8,7 +8,7 @@ import { sendBatch, sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { weekBoard } from "@/lib/board/queries";
 import { markMentionsDelivered, mentionsForIssue } from "@/lib/perks/service";
-import { isKitSource, KIT_COUPON, KIT_COUPON_PERCENT, KIT_NAME, KIT_PATH } from "@/lib/kit";
+import { isKitSource, KIT_COUPON, KIT_COUPON_PERCENT, KIT_NAME, KIT_PATH, kitItemList } from "@/lib/kit";
 import { addWeeks, formatWeekLabel, weekKeyFor } from "@/lib/weeks";
 import { renderDigest, type DigestData } from "./render";
 import type { TrackedEvent } from "./webhook-rules";
@@ -47,23 +47,21 @@ async function sendConfirm(email: string, token: string, kit: boolean) {
   });
 }
 
-/** Confirm email for a Founder Kit sign-up: confirming opens the kit. */
+/** Confirm email for a Founder Kit sign-up: the one click confirms and opens the kit. */
 async function sendKitConfirm(email: string, token: string) {
-  const link = url(`/newsletter/confirm?token=${token}&kit=1`);
+  const link = url(`/newsletter/confirm/kit?token=${token}`);
   await sendEmail({
     to: email,
     ...renderEmail({
       variant: "newsletter",
       label: KIT_NAME,
-      subject: `Confirm your email to get the ${KIT_NAME}`,
+      subject: `Your free ${KIT_NAME} is one click away`,
       preheader: `One click and the kit is yours, plus ${KIT_COUPON_PERCENT}% off your first paid debut.`,
       reason: `someone asked for the DebutYard ${KIT_NAME} with this address`,
       blocks: [
-        { heading: `Your ${KIT_NAME} is one click away` },
-        {
-          text: "Confirm your email and we'll open the kit: the Directory Atlas, the Agentic Dev Starter Pack, the Vibe-Coded App Ship Checklist, the AI Search Visibility Playbook and the 30-Day Launch Playbook.",
-        },
-        { button: "Confirm and get the kit", href: link },
+        { heading: `Your free ${KIT_NAME} is one click away` },
+        { text: `Click below to confirm your email and open the kit: ${kitItemList()}.` },
+        { button: "Get my free kit", href: link },
         {
           note: "Confirming also subscribes you to the weekly DebutYard digest, one email each Monday. If you didn't ask for this, ignore this email.",
         },
@@ -84,7 +82,7 @@ async function sendKit(email: string) {
       reason: `you asked for the DebutYard ${KIT_NAME}`,
       blocks: [
         { heading: `Here's your ${KIT_NAME}` },
-        { text: "You're already on the list, so here's the kit straight away." },
+        { text: `You're already on the list, so here's the kit straight away: ${kitItemList()}.` },
         { button: "Open the kit", href: url(KIT_PATH) },
         { text: `Code ${KIT_COUPON} takes ${KIT_COUPON_PERCENT}% off your first paid debut.` },
       ],

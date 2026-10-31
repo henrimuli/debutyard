@@ -18,17 +18,12 @@ export const isKitSource = (s: string | null | undefined): s is KitSource =>
 export type KitItemSlug =
   "directory-atlas" | "agentic-dev-starter" | "ship-checklist" | "ai-search-playbook" | "launch-playbook";
 
+/** In the order the popup, the emails, /resources and the kit page all list them. */
 export const KIT_ITEMS: { slug: KitItemSlug; title: string; blurb: string }[] = [
   {
-    slug: "directory-atlas",
-    title: "Directory Atlas",
-    blurb:
-      "Every launch directory we track, tiered by what to submit first, with authority, price and link type. CSV included.",
-  },
-  {
-    slug: "agentic-dev-starter",
-    title: "Agentic Dev Starter Pack",
-    blurb: "A project setup that coding agents work well in: the instruction file, guardrails and the review loop.",
+    slug: "ai-search-playbook",
+    title: "AI Search Visibility Playbook",
+    blurb: "How to get cited by ChatGPT, Perplexity and Google's AI answers, not just ranked.",
   },
   {
     slug: "ship-checklist",
@@ -36,16 +31,28 @@ export const KIT_ITEMS: { slug: KitItemSlug; title: string; blurb: string }[] = 
     blurb: "The security, billing and reliability checks to run before strangers use what an AI helped you build.",
   },
   {
-    slug: "ai-search-playbook",
-    title: "AI Search Visibility Playbook",
-    blurb: "How to get cited by ChatGPT, Perplexity and Google's AI answers, not just ranked.",
+    slug: "directory-atlas",
+    title: "Directory Atlas",
+    blurb:
+      "Every launch directory we track, tiered by what to submit first, with authority, price and link type. CSV included.",
   },
   {
     slug: "launch-playbook",
     title: "30-Day Launch Playbook",
     blurb: "A day-by-day plan from two weeks before launch to two weeks after, with what to post where.",
   },
+  {
+    slug: "agentic-dev-starter",
+    title: "Agentic Dev Starter Pack",
+    blurb: "A project setup that coding agents work well in: the instruction file, guardrails and the review loop.",
+  },
 ];
+
+/** "the A, the B, … and the E", for email copy. */
+export const kitItemList = () => {
+  const names = KIT_ITEMS.map((i) => `the ${i.title}`);
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+};
 
 export const kitItemPath = (slug: KitItemSlug) => `${KIT_PATH}/${slug}` as Route;
 

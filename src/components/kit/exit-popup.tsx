@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { KIT_COUPON_PERCENT, KIT_ITEMS, KIT_NAME, popupAllowedOn } from "@/lib/kit";
 import { KitSignupForm } from "./kit-signup-form";
@@ -44,6 +45,8 @@ const due = () => {
 export function ExitPopup({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Two steps: what's in the kit, then the email. Asking for the email up front scares people off.
+  const [step, setStep] = useState<"info" | "email">("info");
   const allowed = popupAllowedOn(pathname);
 
   useEffect(() => {
@@ -104,42 +107,71 @@ export function ExitPopup({ turnstileSiteKey }: { turnstileSiteKey: string | nul
             <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
           </svg>
         </button>
-        <p className="text-xs font-semibold uppercase tracking-wide text-primary">Free · 5 guides</p>
-        <h2 className="mt-1.5 pr-8 font-display text-2xl font-bold tracking-tight">Before you go: the {KIT_NAME}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          What we wish every maker had before launch day, plus {KIT_COUPON_PERCENT}% off your first paid debut.
-        </p>
-        <ul className="mt-5 space-y-2.5">
-          {KIT_ITEMS.map((item) => (
-            <li key={item.slug} className="flex gap-2.5 text-sm">
-              <svg
-                aria-hidden
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.5}
-                className="mt-0.5 size-4 shrink-0 text-primary"
-              >
-                <path d="m5 12 5 5 9-10" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span>
-                <span className="font-semibold">{item.title}</span>
-                <span className="hidden text-muted-foreground sm:inline">: {item.blurb}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <KitSignupForm
-          source="exit_popup"
-          turnstileSiteKey={turnstileSiteKey}
-          onDone={onDone}
-          autoFocus
-          className="mt-6"
-        />
-        <p className="mt-3 text-xs text-muted-foreground">
-          Includes the weekly digest, one email each Monday. Unsubscribe any time.
-        </p>
+        {step === "email" ? (
+          <div className="text-center">
+            <h2 className="px-6 font-display text-2xl font-bold tracking-tight">Where should we send it?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Drop your email and we&apos;ll send you the free {KIT_NAME}.
+            </p>
+            <KitSignupForm
+              source="exit_popup"
+              turnstileSiteKey={turnstileSiteKey}
+              onDone={onDone}
+              autoFocus
+              stacked
+              submitLabel="Email me the free kit"
+              className="mt-6 text-left"
+            />
+            <button
+              type="button"
+              onClick={() => setStep("info")}
+              className="mt-3 text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← Back
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">100% free · 5 guides</p>
+            <h2 className="mt-1.5 pr-8 font-display text-2xl font-bold tracking-tight">
+              Before you go: grab the free {KIT_NAME}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              What we wish every maker had before launch day, free, plus {KIT_COUPON_PERCENT}% off your first paid
+              debut.
+            </p>
+            <KitList />
+            <Button size="lg" className="mt-6 w-full" onClick={() => setStep("email")}>
+              Send me the free kit
+            </Button>
+          </>
+        )}
       </div>
     </Dialog>
+  );
+}
+
+function KitList() {
+  return (
+    <ul className="mt-5 space-y-2.5">
+      {KIT_ITEMS.map((item) => (
+        <li key={item.slug} className="flex gap-2.5 text-sm">
+          <svg
+            aria-hidden
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+            className="mt-0.5 size-4 shrink-0 text-primary"
+          >
+            <path d="m5 12 5 5 9-10" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            <span className="font-semibold">{item.title}</span>
+            <span className="hidden text-muted-foreground sm:inline">: {item.blurb}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { NewsletterTokenForm } from "@/components/newsletter-token-form";
 import { Card, Container, Heading } from "@/components/ui/primitives";
-import { KIT_NAME, KIT_PATH } from "@/lib/kit";
 import { confirmAction } from "../actions";
 
 export const metadata: Metadata = { title: "Confirm your subscription", robots: { index: false } };
@@ -24,17 +24,8 @@ export default function Page({ searchParams }: PageProps<"/newsletter/confirm">)
 async function Form({ searchParams }: Pick<PageProps<"/newsletter/confirm">, "searchParams">) {
   const { token, kit } = await searchParams;
   if (typeof token !== "string" || !token) return <p className="text-danger">This link is missing its token.</p>;
-  if (kit === "1")
-    return (
-      <NewsletterTokenForm
-        token={token}
-        action={confirmAction}
-        label={`Confirm and open the ${KIT_NAME}`}
-        done="You're in. Your kit is ready, and the digest lands every Monday."
-        failed="That link has expired or was already used. Ask for the kit again from any page."
-        next={{ href: KIT_PATH, label: `Open the ${KIT_NAME} →` }}
-      />
-    );
+  // Kit emails sent before one-click confirm pointed here; send them through the new link.
+  if (kit === "1") redirect(`/newsletter/confirm/kit?token=${encodeURIComponent(token)}` as Route);
   return (
     <NewsletterTokenForm
       token={token}
