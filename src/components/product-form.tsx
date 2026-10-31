@@ -305,7 +305,7 @@ export function ProductForm({
         <Label htmlFor="pricingModel">Pricing</Label>
         <select
           id="pricingModel"
-          className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
+          className="h-11 w-full rounded-md border border-border bg-card px-3 text-base sm:h-10 sm:text-sm"
           value={values.pricingModel}
           onChange={(e) => {
             pricingTouched.current = true;
@@ -346,7 +346,7 @@ export function ProductForm({
         required
         rows={modal ? 8 : 6}
         maxLength={2000}
-        className="w-full rounded-md border border-border bg-card p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full rounded-md border border-border bg-card p-3 text-base sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         placeholder="Who it's for, the problem it solves, and what makes it different."
         value={values.description}
         onChange={(e) => set("description", e.target.value)}

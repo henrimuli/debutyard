@@ -163,7 +163,7 @@ export function PlanPicker({
           <label className="block max-w-md space-y-1.5">
             <span className="text-sm font-medium">Debut week</span>
             <select
-              className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm"
+              className="h-11 w-full rounded-md border border-border bg-card px-3 text-base sm:h-10 sm:text-sm"
               value={week}
               onChange={(e) => setWeek(e.target.value)}
             >

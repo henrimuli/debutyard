@@ -26,7 +26,7 @@ export function ReadinessTool() {
           name="url"
           placeholder="https://yourproduct.com"
           required
-          className="min-w-0 flex-1"
+          className="min-w-0 sm:flex-1"
           aria-label="Website URL"
         />
         <Button type="submit" disabled={pending}>

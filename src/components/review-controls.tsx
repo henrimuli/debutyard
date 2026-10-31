@@ -37,7 +37,7 @@ export function ReviewControls({ productId, paid }: { productId: string; paid: b
       {rejecting && (
         <div className="space-y-2">
           <select
-            className="h-9 w-full rounded-md border border-border bg-card px-2 text-sm"
+            className="h-11 w-full rounded-md border border-border bg-card px-2 text-base sm:h-9 sm:text-sm"
             value={reasons.includes(reason) ? reason : "custom"}
             onChange={(e) => setReason(e.target.value === "custom" ? "" : e.target.value)}
           >
@@ -50,7 +50,7 @@ export function ReviewControls({ productId, paid }: { productId: string; paid: b
           </select>
           {!reasons.includes(reason) && (
             <textarea
-              className="w-full rounded-md border border-border bg-card p-2 text-sm"
+              className="w-full rounded-md border border-border bg-card p-2 text-base sm:text-sm"
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}

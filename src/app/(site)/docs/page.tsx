@@ -111,6 +111,15 @@ export default function DocsPage() {
   -d '{"websiteUrl":"https://acme.io","name":"Acme","tagline":"Invoices that chase themselves",
        "description":"Acme sends polite, automatic reminders so clients pay on time.",
        "categories":["productivity"],"pricingModel":"freemium"}'`}</Code>
+      <p className="mt-4 text-sm text-muted-foreground">
+        On Windows PowerShell, <code>curl.exe</code> loses the quotes inside the JSON. Use{" "}
+        <code>Invoke-RestMethod</code> instead:
+      </p>
+      <Code>{`$body = @{ websiteUrl = "https://acme.io"; name = "Acme"; tagline = "Invoices that chase themselves"
+  description = "Acme sends polite, automatic reminders so clients pay on time."
+  categories = @("productivity"); pricingModel = "freemium" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri ${base}/api/v1/submissions \`
+  -Headers @{ Authorization = "Bearer dy_your_token" } -ContentType "application/json" -Body $body`}</Code>
       <p className="mt-6 text-sm text-muted-foreground">
         Readiness checks and each free tool are limited to 15 an hour per caller. Questions: <a href={`mailto:${site.supportEmail}`} className="text-primary hover:underline">{site.supportEmail}</a>.
       </p>
