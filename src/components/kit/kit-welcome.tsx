@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 const HIDE_AFTER_MS = 8_000;
 
 /**
- * The "you're in" toast after the one-click confirm in the kit email, which lands here with
+ * The "you're in" toast, just under the sticky site header (h-16), after the one-click confirm in the kit email, which lands here with
  * ?welcome=1. The param is dropped from the address bar so a bookmark or reload doesn't repeat it.
  */
 export function KitWelcome() {
@@ -26,7 +26,7 @@ export function KitWelcome() {
   return (
     <div
       role="status"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-start gap-3 rounded-lg border border-success/40 bg-card p-4 shadow-lg"
+      className="fixed inset-x-4 top-20 z-50 mx-auto flex max-w-md items-start gap-3 rounded-lg border border-success/40 bg-card p-4 shadow-lg"
     >
       <svg
         aria-hidden

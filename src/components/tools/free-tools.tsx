@@ -96,7 +96,7 @@ export function DrChecker({ turnstileSiteKey }: { turnstileSiteKey: string | nul
         }}
         className="flex flex-col gap-2 sm:flex-row"
       >
-        <Input name="domain" required placeholder="yourproduct.com" className="min-w-0 flex-1" aria-label="Domain" />
+        <Input name="domain" required placeholder="yourproduct.com" className="min-w-0 sm:flex-1" aria-label="Domain" />
         <Button type="submit" disabled={busy}>
           {busy ? "Checking…" : "Check score"}
         </Button>

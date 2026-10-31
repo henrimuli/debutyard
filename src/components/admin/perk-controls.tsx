@@ -34,7 +34,7 @@ function Skip({ taskId, run, pending }: { taskId: string; run: Run; pending: boo
   return (
     <div className="flex w-full flex-wrap items-center gap-2">
       <Input
-        className="h-8 min-w-48 flex-1"
+        className="min-w-48 flex-1 sm:h-8"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Why it's skipped (e.g. refunded, maker asked)"
@@ -59,7 +59,7 @@ export function MentionControls({ taskId, blurb, tagline }: { taskId: string; bl
   return (
     <div className="space-y-2">
       <textarea
-        className="w-full rounded-md border border-border bg-card p-2 text-sm placeholder:text-muted-foreground"
+        className="w-full rounded-md border border-border bg-card p-2 text-base sm:text-sm placeholder:text-muted-foreground"
         rows={2}
         maxLength={280}
         value={value}

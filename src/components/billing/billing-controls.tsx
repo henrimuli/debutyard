@@ -54,7 +54,7 @@ export function FeaturedListingPicker({
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Featured listing</span>
         <select
-          className="h-10 w-full max-w-sm rounded-md border border-border bg-card px-3 text-sm"
+          className="h-11 w-full max-w-sm rounded-md border border-border bg-card px-3 text-base sm:h-10 sm:text-sm"
           value={value}
           disabled={pending}
           onChange={(e) => {

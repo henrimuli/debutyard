@@ -106,7 +106,7 @@ async function List({ searchParams }: Pick<PageProps<"/directories">, "searchPar
             defaultValue={filters.q}
             placeholder="Search…"
             aria-label="Search directories"
-            className="h-8 w-40 rounded-full border border-border bg-card px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-40 rounded-full border border-border bg-card px-3 text-base sm:h-8 sm:text-xs focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </form>
       </div>

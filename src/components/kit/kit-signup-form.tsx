@@ -59,7 +59,7 @@ export function KitSignupForm({
           autoFocus={autoFocus}
           placeholder="you@example.com"
           aria-label="Email"
-          className={cn("min-w-0 flex-1", stacked && "h-12 text-base")}
+          className={cn("min-w-0", stacked ? "h-12 sm:h-12 sm:text-base" : "sm:flex-1")}
         />
         <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
         <input type="hidden" name="source" value={source} />

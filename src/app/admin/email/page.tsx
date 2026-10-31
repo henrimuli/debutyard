@@ -153,7 +153,7 @@ async function ThreadList({ p, me }: { p: Params; me: string }) {
           defaultValue={p.q}
           placeholder={`Search ${label?.toLowerCase() ?? "mail"}`}
           aria-label="Search mail"
-          className="h-10 w-full rounded-full bg-muted px-4 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-11 w-full rounded-full bg-muted px-4 text-base outline-none sm:h-10 sm:text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         />
       </form>
       <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
