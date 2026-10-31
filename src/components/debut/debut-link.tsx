@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { type ComponentProps, createContext, type ReactNode, useContext } from "react";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -17,13 +16,13 @@ export function DebutModalScope({ children }: { children: ReactNode }) {
  * navigates to the homepage with it. `url` prefills the wizard.
  */
 export function DebutLink({ url, ...props }: Omit<ComponentProps<typeof ButtonLink>, "href"> & { url?: string }) {
-  const pathname = usePathname();
   const inPlace = useContext(ModalMounted);
   const query = `debut=1${url ? `&url=${encodeURIComponent(url)}` : ""}`;
   return (
     <ButtonLink
       {...props}
-      href={inPlace ? `${pathname}?${query}` : `/?${query}`}
+      // A query-only href resolves against the current page, and reading the pathname here would block prerendering.
+      href={inPlace ? `?${query}` : `/?${query}`}
       scroll={false}
       onClick={(e) => {
         props.onClick?.(e);
@@ -34,7 +33,7 @@ export function DebutLink({ url, ...props }: Omit<ComponentProps<typeof ButtonLi
         next.set("debut", "1");
         if (url) next.set("url", url);
         else next.delete("url");
-        window.history.pushState(null, "", `${pathname}?${next}${window.location.hash}`);
+        window.history.pushState(null, "", `${window.location.pathname}?${next}${window.location.hash}`);
       }}
     />
   );
