@@ -4,7 +4,8 @@ import { resolveTxt } from "node:dns/promises";
 import { db, schema } from "@/db";
 import { env } from "@/env";
 import { site } from "@/config/site";
-import { safeFetchText, UnsafeUrlError } from "@/lib/net";
+import { fetchPage } from "@/lib/fetch-page";
+import { UnsafeUrlError } from "@/lib/net";
 import { notifyBadgeMissing } from "@/lib/notifications";
 import { detectBadge, dnsRecordValue } from "./detect";
 import { nextBadgeState } from "./state";
@@ -23,10 +24,10 @@ async function htmlCheck(websiteUrl: string): Promise<{ ok: boolean; detail: str
   let lastDetail = "No link to DebutYard found on the page.";
   for (const page of pages) {
     try {
-      const res = await safeFetchText(page, { timeoutMs: 10_000 });
-      if (res.status >= 400) {
+      const res = await fetchPage(page, { purpose: "verify", timeoutMs: 10_000 });
+      if (res.status >= 400 || res.blocked) {
         lastDetail =
-          res.status === 403 || res.status === 503
+          res.blocked || res.status === 503
             ? `Your site returned HTTP ${res.status} to our checker (bot protection?). Use the DNS option.`
             : `Your site returned HTTP ${res.status}.`;
         continue;

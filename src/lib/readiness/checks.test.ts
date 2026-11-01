@@ -24,6 +24,13 @@ describe("pageChecks", () => {
     expect(scoreChecks(checks)).toBe(100);
   });
 
+  it("warns when only Firecrawl could get past the site's bot protection", () => {
+    const checks = pageChecks({ ...facts(good), blocksBots: true }, null);
+    expect(checks.filter((c) => c.status !== "pass")).toMatchObject([{ id: "bots", status: "warn" }]);
+    expect(checks.find((c) => c.id === "bots")?.detail).toContain("blocks simple bots");
+    expect(scoreChecks(checks)).toBeLessThan(100);
+  });
+
   it("flags http, missing meta, noindex and a missing badge", () => {
     const checks = pageChecks(
       facts(`<html><head><meta name="robots" content="noindex"></head></html>`, "http://acme.io/"),

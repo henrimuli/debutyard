@@ -63,6 +63,7 @@ export function setupChecklist(e: Env): SetupItem[] {
       required: false,
       hint: "WORKER_URL, WORKER_SECRET",
     },
+    { label: "Blocked-site fetches", ok: has("FIRECRAWL_API_KEY"), required: false, hint: "FIRECRAWL_API_KEY" },
     {
       label: "Social sign-in",
       ok: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") || has("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),

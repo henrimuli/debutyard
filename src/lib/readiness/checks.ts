@@ -15,6 +15,8 @@ export type PageFacts = {
   html: string;
   prefill: Prefill;
   badge: BadgeCheck;
+  /** Our plain fetch was turned away and we only got the page another way. */
+  blocksBots?: boolean;
 };
 
 const points: Record<CheckStatus, number> = { pass: 1, warn: 0.5, fail: 0 };
@@ -71,6 +73,16 @@ export function pageChecks(page: PageFacts, existing: Existing): Check[] {
       : `Responded ${page.status}. Reviewers will reject a page that doesn't load.`,
     weight: 20,
   });
+
+  if (page.blocksBots) {
+    checks.push({
+      id: "bots",
+      label: "Open to bots",
+      status: "warn",
+      detail: "Your site blocks simple bots. Some directories and AI crawlers may not see it.",
+      weight: 5,
+    });
+  }
 
   const title = pageTitle(page.html)?.trim();
   checks.push({

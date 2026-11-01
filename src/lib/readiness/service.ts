@@ -5,7 +5,8 @@ import { db, schema } from "@/db";
 import { env } from "@/env";
 import { detectBadge } from "@/lib/badges/detect";
 import { ourHosts } from "@/lib/badges/service";
-import { safeFetchText, UnsafeUrlError } from "@/lib/net";
+import { fetchPage } from "@/lib/fetch-page";
+import { UnsafeUrlError } from "@/lib/net";
 import { extractPrefill } from "@/lib/products/prefill";
 import { bookableWeeks, nextFreeWeek } from "@/lib/products/service";
 import { domainOf } from "@/lib/slug";
@@ -74,7 +75,7 @@ export async function checkReadiness(
   let checks;
   let suggested = null;
   try {
-    const page = await safeFetchText(url, { timeoutMs: 8000 });
+    const page = await fetchPage(url, { purpose: "read", timeoutMs: 8000 });
     const prefill = extractPrefill(page.body, page.url);
     checks = pageChecks(
       {
@@ -83,6 +84,7 @@ export async function checkReadiness(
         html: page.body,
         prefill,
         badge: detectBadge(page.body, page.url, ourHosts()),
+        blocksBots: page.via === "firecrawl" && page.directBlocked,
       },
       existing,
     );

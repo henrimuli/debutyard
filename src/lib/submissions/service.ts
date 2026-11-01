@@ -14,7 +14,7 @@ import { effectiveLinkType } from "@/lib/directories/service";
 import { verifySubmission } from "@/lib/directories/verify";
 import { monitorEnd, trackSubmission } from "@/lib/links/service";
 import { baselineSnapshot } from "@/lib/metrics/service";
-import { safeFetchText } from "@/lib/net";
+import { fetchPage } from "@/lib/fetch-page";
 import { formatUsd } from "@/lib/payments/skus";
 import { domainOf } from "@/lib/slug";
 import { BADGE_WAIT_DAYS, badgeBlockHtml, MAX_BADGES } from "./badge-block";
@@ -735,9 +735,11 @@ export async function checkBadgeBlocks(now = new Date()) {
     let html = "";
     let pageUrl = order.websiteUrl!;
     try {
-      const page = await safeFetchText(order.websiteUrl!, { timeoutMs: 10_000 });
-      html = page.body;
-      pageUrl = page.url;
+      const page = await fetchPage(order.websiteUrl!, { purpose: "verify", timeoutMs: 10_000 });
+      if (page.status < 400 && !page.blocked) {
+        html = page.body;
+        pageUrl = page.url;
+      }
     } catch {
       // Unreachable today: try again tomorrow (the wait still runs).
     }

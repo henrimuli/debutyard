@@ -2,7 +2,8 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { captureEvidence, evidenceKey } from "@/lib/evidence";
-import { safeFetchText, UnsafeUrlError } from "@/lib/net";
+import { fetchPage } from "@/lib/fetch-page";
+import { UnsafeUrlError } from "@/lib/net";
 import { domainOf } from "@/lib/slug";
 import { inspectBacklink } from "./backlink";
 
@@ -42,9 +43,10 @@ export type LinkCheckResult = {
 /** Fetches a page and looks for a link to `domain`: reachable, present, rel, anchor. Never throws. */
 export async function checkLink(url: string, domain: string): Promise<LinkCheckResult> {
   try {
-    const page = await safeFetchText(url, { timeoutMs: 10_000 });
-    if (page.status >= 400) {
-      return { verdict: "unreachable", httpStatus: page.status, rel: null, anchor: null, error: `HTTP ${page.status}` };
+    const page = await fetchPage(url, { purpose: "verify", timeoutMs: 10_000 });
+    if (page.status >= 400 || page.blocked) {
+      const error = page.status >= 400 ? `HTTP ${page.status}` : "Blocked by a bot check";
+      return { verdict: "unreachable", httpStatus: page.status, rel: null, anchor: null, error };
     }
     const link = inspectBacklink(page.body, page.url, domain);
     return { verdict: link.verdict, httpStatus: page.status, rel: link.rel, anchor: link.anchor, error: null };
