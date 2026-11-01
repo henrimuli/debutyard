@@ -2,7 +2,7 @@ import type { SkuId } from "@/lib/payments/skus";
 
 /** Bookable featured placements (PLAN §5.2). Pure config, shared by server and client. */
 
-export type Placement = "leaderboard" | "home_rail" | "home_top" | "category" | "newsletter";
+export type Placement = "leaderboard" | "home_rail" | "home_top" | "home_sidebar" | "category" | "newsletter";
 export type Duration = "week" | "month";
 
 export type PlacementConfig = {
@@ -39,6 +39,14 @@ export const PLACEMENTS: Record<Placement, PlacementConfig> = {
     description: "The single banner at the top of the homepage. One sponsor at a time.",
     cap: 1,
     skus: { week: "featured_home_top_week", month: "featured_home_top_month" },
+    cpcGuarantee: false,
+  },
+  home_sidebar: {
+    id: "home_sidebar",
+    label: "Homepage sidebar",
+    description: "A card in the homepage sidebar, mixed in beside this week's board.",
+    cap: 10,
+    skus: { week: "featured_home_sidebar_week", month: "featured_home_sidebar_month" },
     cpcGuarantee: false,
   },
   category: {

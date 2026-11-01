@@ -97,6 +97,20 @@ export const SKUS = [
     17900,
     "The single top sponsor slot.",
   ),
+  oneTime(
+    "featured",
+    "featured_home_sidebar_week",
+    "Homepage sidebar (1 week)",
+    2000,
+    "A card in the homepage sidebar.",
+  ),
+  oneTime(
+    "featured",
+    "featured_home_sidebar_month",
+    "Homepage sidebar (1 month)",
+    5900,
+    "A card in the homepage sidebar.",
+  ),
   oneTime("featured", "featured_category_week", "Category sponsor (1 week)", 1900, "Sponsor one category page."),
   oneTime(
     "featured",

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ad_placement" ADD VALUE 'home_sidebar' BEFORE 'category';

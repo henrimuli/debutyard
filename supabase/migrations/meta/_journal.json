@@ -218,6 +218,13 @@
       "when": 1793441915774,
       "tag": "20261031101835_founder_kit",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793534911957,
+      "tag": "20261101120831_home_sidebar_placement",
+      "breakpoints": true
     }
   ]
 }
