@@ -12,8 +12,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: { default: `${site.name}: ${site.tagline}`, template: `%s · ${site.name}` },
   description: site.description,
-  openGraph: { siteName: site.name, type: "website" },
-  twitter: { card: "summary_large_image" },
+  openGraph: {
+    siteName: site.name,
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: `${site.name}: ${site.tagline}` }],
+  },
+  twitter: { card: "summary_large_image", images: ["/og-image.png"] },
   // The icon suite lives in public/ (see public/icons/README.md).
   icons: {
     icon: [
