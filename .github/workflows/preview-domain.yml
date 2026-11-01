@@ -22,9 +22,6 @@ jobs:
   assign:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - name: Assign the domain
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -36,4 +33,11 @@ jobs:
             echo "Not a preview deployment, leaving the domain alone."
             exit 0
           fi
-          npx --yes vercel@65.9.0 alias set "${DEPLOYMENT_URL#https://}" preview.debutyard.com --token "$VERCEL_TOKEN" --scope henmuli
+          host="${DEPLOYMENT_URL#https://}"
+          host="${host%%/*}"
+          # The API rather than the CLI, because the CLI loads the user first and a project-scoped token can't.
+          curl --silent --show-error --fail-with-body --request POST \
+            "https://api.vercel.com/v2/deployments/$host/aliases" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"alias":"preview.debutyard.com"}'
