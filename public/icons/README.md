@@ -20,11 +20,12 @@ triangle on a brand disc). If the mark changes, regenerate every file here and
 
 `../logos/` holds the full logo, the mark then the name, in the homepage's colours, as SVG and PNG:
 
-| File                                     | Use                                       |
-| ---------------------------------------- | ----------------------------------------- |
-| `logo-white`                             | On a white background                     |
-| `logo-black`                             | On the site's dark background (`#0d1714`) |
-| `logo-transparent-for-light-backgrounds` | No background, dark name                  |
-| `logo-transparent-for-dark-backgrounds`  | No background, light name                 |
+| File                                              | Use                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| `logo-white`                                      | On a white background                                        |
+| `logo-black`                                      | On the site's dark background (`#0d1714`)                    |
+| `logo-transparent-for-light-backgrounds`          | No background, dark name                                     |
+| `logo-transparent-for-dark-backgrounds`           | No background, light name                                    |
+| `logo-square-name-dark`, `logo-square-name-light` | Small square slots such as Google sign-in (120 px, PNG only) |
 
 `../og-image.png` (1200×630) is the site's default social share image.
