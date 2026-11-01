@@ -68,17 +68,18 @@ Without `RESEND_API_KEY`, sign-in links and order emails are printed to the term
 
 ### Scripts
 
-| Command                                      | Does                                                                                                      |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `pnpm dev` / `build` / `start`               | Next.js                                                                                                   |
-| `pnpm lint`, `pnpm typecheck`, `pnpm format` | Code quality                                                                                              |
-| `pnpm test`                                  | Unit tests. Set `TEST_DATABASE_URL` to also run the Postgres integration tests (that database gets wiped) |
-| `pnpm db:generate`                           | Create a migration after editing `src/db/schema/*`                                                        |
-| `pnpm db:migrate`                            | Apply pending migrations with the Supabase CLI (`supabase db push`, uses `DIRECT_DATABASE_URL`)           |
-| `pnpm db:status`                             | Show which migrations are applied (`supabase migration list`)                                             |
-| `pnpm db:studio`                             | Browse the database                                                                                       |
-| `pnpm payments:sync-plans`                   | Create the subscription plans on Paystack/PayPal and store their ids                                      |
-| `pnpm db:seed`                               | Fill a local database with sample makers, products, applause and comments (refuses to run in production)  |
+| Command                                      | Does                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev` / `build` / `start`               | Next.js                                                                                                                                   |
+| `pnpm lint`, `pnpm typecheck`, `pnpm format` | Code quality                                                                                                                              |
+| `pnpm test`                                  | Unit tests. Set `TEST_DATABASE_URL` to also run the Postgres integration tests (that database gets wiped)                                 |
+| `pnpm db:generate`                           | Create a migration after editing `src/db/schema/*`                                                                                        |
+| `pnpm db:migrate`                            | Apply pending migrations with the Supabase CLI (`supabase db push`, uses `DIRECT_DATABASE_URL`)                                           |
+| `pnpm db:migrate --master`                   | Apply them to the real production database (uses `DIRECT_DATABASE_URL_MASTER`). Never use the `_MASTER` variables for testing of any kind |
+| `pnpm db:status`                             | Show which migrations are applied (`supabase migration list`)                                                                             |
+| `pnpm db:studio`                             | Browse the database                                                                                                                       |
+| `pnpm payments:sync-plans`                   | Create the subscription plans on Paystack/PayPal and store their ids                                                                      |
+| `pnpm db:seed`                               | Fill a local database with sample makers, products, applause and comments (refuses to run in production)                                  |
 
 ## Setting up the services
 
