@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, queryRows, schema } from "@/db";
-import { safeFetchText } from "@/lib/net";
+import { fetchPage, type PageResult } from "@/lib/fetch-page";
 import { weekKeyFor } from "@/lib/weeks";
 import { formatPostDate } from "../service";
 
@@ -242,14 +242,14 @@ export type ProductPage = { url: string; text: string };
  */
 export async function readProductSite(websiteUrl: string, maxPages = 4): Promise<ProductPage[]> {
   const pages: ProductPage[] = [];
-  let home: Awaited<ReturnType<typeof safeFetchText>>;
+  let home: PageResult;
   try {
-    home = await safeFetchText(websiteUrl, { timeoutMs: 8000 });
+    home = await fetchPage(websiteUrl, { purpose: "read", markdown: true, timeoutMs: 8000 });
   } catch {
     return pages;
   }
-  if (home.status >= 400) return pages;
-  pages.push({ url: home.url, text: pageText(home.body).slice(0, 6000) });
+  if (home.status >= 400 || home.blocked) return pages;
+  pages.push({ url: home.url, text: (home.markdown || pageText(home.body)).slice(0, 6000) });
   const base = new URL(home.url);
   const links = new Set<string>();
   for (const m of home.body.matchAll(/href=["']([^"'#]+)["']/gi)) {
@@ -262,8 +262,15 @@ export async function readProductSite(websiteUrl: string, maxPages = 4): Promise
   const more = await Promise.all(
     [...links].slice(0, maxPages - 1).map(async (url) => {
       try {
-        const r = await safeFetchText(url, { timeoutMs: 8000 });
-        return r.status < 400 ? { url: r.url, text: pageText(r.body).slice(0, 5000) } : null;
+        const r = await fetchPage(url, {
+          purpose: "read",
+          markdown: true,
+          timeoutMs: 8000,
+          fallback: home.via === "firecrawl",
+        });
+        return r.status < 400 && !r.blocked
+          ? { url: r.url, text: (r.markdown || pageText(r.body)).slice(0, 5000) }
+          : null;
       } catch {
         return null;
       }

@@ -78,7 +78,7 @@ export async function assertPublicUrl(raw: string, resolve: Resolver = defaultRe
 export type SafeResponse = { url: string; status: number; contentType: string; body: string };
 export type SafeBytes = { url: string; status: number; contentType: string; body: Uint8Array; truncated: boolean };
 
-type FetchOpts = { timeoutMs?: number; maxBytes?: number; resolve?: Resolver; fetchImpl?: typeof fetch };
+export type FetchOpts = { timeoutMs?: number; maxBytes?: number; resolve?: Resolver; fetchImpl?: typeof fetch };
 
 /** GETs a public URL and returns up to maxBytes of the body. Follows up to 5 redirects, re-checking each hop. */
 async function safeFetch(raw: string, accept: string, opts: FetchOpts, defaultMax: number): Promise<SafeBytes> {

@@ -72,6 +72,7 @@ async function List() {
                     {d.isActive ? `audit failed ×${d.auditFailures}` : "down (audit)"}
                   </Badge>
                 )}
+                {d.auditFailures === 0 && d.auditError && <Badge title={d.auditError}>blocked</Badge>}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">
                 {d.acceptanceRate !== null ? `${Math.round(d.acceptanceRate * 100)}%` : "–"}

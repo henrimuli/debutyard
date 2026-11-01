@@ -29,6 +29,8 @@ vi.mock("@/lib/net", async (importOriginal) => {
       if (!page) throw new Error("connect ECONNREFUSED");
       return { url, status: page.status, contentType: "text/html", body: page.body };
     }),
+    // The .test hosts don't resolve; only the Firecrawl fallback looks them up.
+    assertPublicUrl: vi.fn(async (url: string) => new URL(url)),
   };
 });
 
@@ -147,7 +149,7 @@ describe.skipIf(!TEST_DB)("monitoring (Postgres)", () => {
     pages.set("https://down.test", { status: 503, body: "" });
 
     const t0 = Date.now();
-    expect(await audit.auditDirectories(new Date(t0))).toEqual({ audited: 2, failed: 1, deactivated: 0 });
+    expect(await audit.auditDirectories(new Date(t0))).toEqual({ audited: 2, failed: 1, blocked: 0, deactivated: 0 });
     // Healthy ones wait a month; failing ones are retried after a few days.
     expect(await audit.auditDirectories(new Date(t0 + 4 * DAY))).toMatchObject({ audited: 1 });
     expect(await audit.auditDirectories(new Date(t0 + 8 * DAY))).toMatchObject({ audited: 1, deactivated: 1 });
@@ -156,5 +158,58 @@ describe.skipIf(!TEST_DB)("monitoring (Postgres)", () => {
     expect(await row(up.id)).toMatchObject({ isActive: true, auditFailures: 0 });
     expect(sent.find((e) => e.subject.includes("deactivated"))?.text).toContain("Down: https://down.test (HTTP 503)");
     expect(await audit.auditDirectories(new Date(t0 + 31 * DAY))).toMatchObject({ audited: 1, failed: 0 });
+  });
+
+  it("never retires a directory for turning our bot away, and lets Firecrawl get through", async () => {
+    const { db, schema } = dbmod;
+    await db().execute(sql`truncate directories cascade`);
+    const [walled, rescued] = await db()
+      .insert(schema.directories)
+      .values([
+        // Two strikes from before blocked sites stopped counting.
+        { slug: "walled", name: "Walled", url: "https://walled.test", auditFailures: 2, auditError: "HTTP 403" },
+        { slug: "rescued", name: "Rescued", url: "https://rescued.test" },
+      ])
+      .returning();
+    pages.set("https://walled.test", { status: 403, body: "Forbidden" });
+    pages.set("https://rescued.test", { status: 429, body: "Slow down" });
+    const row = (id: string) => db().query.directories.findFirst({ where: eq(schema.directories.id, id) });
+
+    // Without a key, both stay active and neither is counted as a failure.
+    expect(await audit.auditDirectories()).toEqual({ audited: 2, failed: 0, blocked: 2, deactivated: 0 });
+    expect(await row(walled.id)).toMatchObject({
+      isActive: true,
+      auditFailures: 0,
+      auditError: "Blocked (HTTP 403)",
+    });
+    expect(await row(rescued.id)).toMatchObject({ auditFailures: 0, auditError: "Blocked (HTTP 429)" });
+    const mail = sent.find((e) => e.subject === "Directory audit: 2 directories blocked");
+    expect(mail?.text).toContain("Walled: https://walled.test (HTTP 403)");
+    expect(mail?.text).not.toContain("no longer picked for orders");
+
+    // With one, Firecrawl gets through to the second and is turned away by the first.
+    process.env.FIRECRAWL_API_KEY = "fc-test";
+    (await import("@/env")).resetEnvForTests();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const statusCode = JSON.parse(String(init.body)).url === "https://rescued.test" ? 200 : 403;
+        return Response.json({ success: true, data: { rawHtml: "<h1>hi</h1>", metadata: { statusCode } } });
+      }),
+    );
+    try {
+      expect(await audit.auditDirectories(new Date(Date.now() + 31 * DAY))).toEqual({
+        audited: 2,
+        failed: 0,
+        blocked: 1,
+        deactivated: 0,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      delete process.env.FIRECRAWL_API_KEY;
+      (await import("@/env")).resetEnvForTests();
+    }
+    expect(await row(walled.id)).toMatchObject({ isActive: true, auditError: "Blocked (HTTP 403)" });
+    expect(await row(rescued.id)).toMatchObject({ isActive: true, auditFailures: 0, auditError: null });
   });
 });

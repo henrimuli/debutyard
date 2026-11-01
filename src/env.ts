@@ -66,6 +66,9 @@ const schema = z.object({
   WORKER_URL: optional,
   WORKER_SECRET: optional,
 
+  // Firecrawl (firecrawl.dev): the fallback for pages that block or fail our direct fetch. Unset: direct fetches only.
+  FIRECRAWL_API_KEY: optional,
+
   // SERP API for the weekly "is this listing indexed by Google?" check. Unset hides it.
   SERP_PROVIDER: z.enum(["serpapi", "dataforseo"]).optional().catch(undefined),
   /** SerpApi: its API key. DataForSEO: "login:password". */

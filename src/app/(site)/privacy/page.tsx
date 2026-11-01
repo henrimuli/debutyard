@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy policy" updated="October 30, 2026">
+    <LegalPage title="Privacy policy" updated="November 1, 2026">
       <p>
         This policy explains what {site.legalName} ({site.country}) collects when you use {site.name}, why, and your
         choices. We follow Kenya&apos;s Data Protection Act, 2019, and aim to meet the GDPR standard for visitors from
@@ -37,8 +37,9 @@ export default function PrivacyPage() {
       <h2>Who we share it with</h2>
       <p>
         Service providers that run parts of {site.name} for us: hosting (Vercel), database (Supabase), file storage and
-        bot protection (Cloudflare), email (Resend) and payments (Paystack, PayPal). For the submission service, we
-        share the product details you give us with the directories we submit to. We don&apos;t sell personal data.
+        bot protection (Cloudflare), email (Resend), payments (Paystack, PayPal) and fetching public web pages our own
+        checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give us with
+        the directories we submit to. We don&apos;t sell personal data.
       </p>
 
       <h2>Bot protection</h2>
