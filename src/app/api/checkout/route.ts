@@ -43,6 +43,7 @@ export async function POST(request: Request) {
         provider: input.provider,
         userId: user.id,
         email: user.email,
+        returnTo: input.returnTo,
       });
       return Response.json({ url });
     }

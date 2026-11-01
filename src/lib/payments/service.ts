@@ -1,7 +1,8 @@
 import "server-only";
-import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { env } from "@/env";
+import { planForSku, planRank } from "@/lib/billing/plans";
 import { getProvider } from "./index";
 import { runFulfillment } from "./fulfillment";
 import "./handlers";
@@ -346,6 +347,23 @@ export async function refundOrder(orderId: string, reason: string, amountCents?:
 }
 
 /** Starts a subscription checkout. Plans must exist (run `pnpm payments:sync-plans`). */
+/** Upgrading is fine; a plan they already pay for, or one below it, would just charge them twice. */
+async function assertCanBuyPlan(userId: string, skuId: string) {
+  const buying = planForSku(skuId);
+  if (!buying) return;
+  const held = await db()
+    .select({ sku: subscriptions.sku })
+    .from(subscriptions)
+    .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.status, ["active", "past_due"])));
+  const clash = held.map((s) => planForSku(s.sku)).find((p) => p && planRank(p.id) >= planRank(buying.id));
+  if (!clash) return;
+  throw new CheckoutError(
+    clash.id === buying.id
+      ? `You're already on ${clash.label}.`
+      : `You're on ${clash.label}. Cancel it first to move down to ${buying.label}.`,
+  );
+}
+
 export async function startSubscription(input: {
   skuId: string;
   provider: ProviderId;
@@ -356,6 +374,7 @@ export async function startSubscription(input: {
 }) {
   const sku = getSku(input.skuId);
   if (!sku || sku.type !== "recurring") throw new CheckoutError("Unknown plan.");
+  await assertCanBuyPlan(input.userId, sku.id);
 
   const plan = await db().query.providerPlans.findFirst({
     where: and(eq(providerPlans.sku, sku.id), eq(providerPlans.provider, input.provider)),

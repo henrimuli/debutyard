@@ -8,8 +8,8 @@ import { renderEmail } from "@/lib/email-template";
 import { cancelSubscription, startCheckout, startSubscription } from "@/lib/payments/service";
 import { formatUsd } from "@/lib/payments/skus";
 import type { ProviderId } from "@/lib/payments/types";
-import { can } from "@/lib/billing/entitlements";
-import { PRO_EXTRA_WEEKS } from "@/lib/billing/plans";
+import { limit } from "@/lib/billing/entitlements";
+import { MAX_EXTRA_BOOKING_WEEKS } from "@/lib/billing/plans";
 import { withRef } from "@/lib/board/links";
 import { addWeeks, formatWeekLabel, formatWeekRange, upcomingWeekKeys, weekBounds, weekKeyFor } from "@/lib/weeks";
 import {
@@ -78,7 +78,7 @@ async function slotUsage(
 /**
  * Weeks that can be booked: whole weeks from next Monday on, so nobody pays
  * for a week that's half over. For newsletters the week is the issue that
- * goes out on its Monday. Maker Pro books `PRO_EXTRA_WEEKS` further ahead.
+ * goes out on its Monday. Maker plans book further ahead.
  */
 export function bookableWeeks(now = new Date(), extraWeeks = 0): string[] {
   return upcomingWeekKeys(now, BOOKING_HORIZON_WEEKS + extraWeeks);
@@ -86,7 +86,7 @@ export function bookableWeeks(now = new Date(), extraWeeks = 0): string[] {
 
 /** Extra weeks of booking horizon for this user's plan. */
 export async function extraWeeksFor(userId: string, now = new Date()) {
-  return (await can(userId, "early_booking", now)) ? PRO_EXTRA_WEEKS : 0;
+  return limit(userId, "extraBookingWeeks", now);
 }
 
 export async function availability(
@@ -157,7 +157,7 @@ export async function bookSlot(input: BookInput, now = new Date()): Promise<{ bo
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ads:${input.placement}:${categorySlug ?? ""}`}))`);
     // A recurring slot needs every week anyone could book, the longest calendar included.
     const covered = Array.from(
-      { length: input.recurring ? BOOKING_HORIZON_WEEKS + PRO_EXTRA_WEEKS : weeks },
+      { length: input.recurring ? BOOKING_HORIZON_WEEKS + MAX_EXTRA_BOOKING_WEEKS : weeks },
       (_, i) => {
         const key = addWeeks(input.weekKey, i);
         return { key, ...weekBounds(key) };
@@ -536,6 +536,17 @@ export async function bookingsForUser(userId: string) {
     .innerJoin(products, eq(products.id, adBookings.productId))
     .leftJoin(orders, eq(orders.id, adBookings.orderId))
     .where(and(eq(adBookings.userId, userId), inArray(adBookings.status, ["active", "completed"])))
+    .orderBy(desc(adBookings.startsAt));
+}
+
+/** The user's recurring slots with their subscriptions (billing page). */
+export async function recurringSlots(userId: string) {
+  return db()
+    .select({ b: adBookings, productName: products.name, sub: subscriptions })
+    .from(adBookings)
+    .innerJoin(subscriptions, eq(subscriptions.id, adBookings.subscriptionId))
+    .innerJoin(products, eq(products.id, adBookings.productId))
+    .where(and(eq(adBookings.userId, userId), inArray(subscriptions.status, ["active", "non_renewing", "past_due"])))
     .orderBy(desc(adBookings.startsAt));
 }
 

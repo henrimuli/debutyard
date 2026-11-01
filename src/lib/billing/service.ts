@@ -7,8 +7,8 @@ import { renderEmail } from "@/lib/email-template";
 import { getProvider } from "@/lib/payments";
 import { getSku, isAdPlan } from "@/lib/payments/skus";
 import type { SubscriptionState } from "@/lib/payments/types";
-import { can, entitled } from "./entitlements";
-import { ALWAYS_FEATURED_SKUS, planForSku, quarterKey } from "./plans";
+import { entitled, limit, plansFor } from "./entitlements";
+import { fastTrackSlots, MAKER_SKUS, planForSku, planRank, PLANS, quarterKey } from "./plans";
 
 const { subscriptions, products, planCredits } = schema;
 export type Subscription = typeof subscriptions.$inferSelect;
@@ -45,13 +45,52 @@ async function mailUser(userId: string, subject: string, lines: string[]) {
 const planName = (sub: Subscription) => planForSku(sub.sku)?.label ?? getSku(sub.sku)?.name ?? "plan";
 
 const WELCOME: Record<string, string> = {
-  link_monitor_100: "Add the pages that link to you on your Link Monitor page and we'll check them every week.",
-  link_monitor_500: "Add the pages that link to you on your Link Monitor page and we'll check them every week.",
   maker_pro:
-    "Your perks: a free Fast Track each quarter (pick it when you submit), Authority Score tracking, 100 monitored links, the Pro badge on your profile and listings, and featured slots bookable 4 extra weeks ahead.",
-  always_featured:
-    "Pick the listing to feature on your billing page. It shows in the homepage featured rail and rotates as a category sponsor while your plan is active.",
+    "Your perks: 100 listings, 100 monitored links, a free Fast Track each quarter (pick it when you submit), Authority Score tracking for 100 domains, the Pro badge on your profile and listings, and sponsor slots bookable 16 weeks ahead.",
+  maker_unlimited:
+    "Your perks: unlimited listings, monitored links and Authority Score tracking, 3 free Fast Tracks each quarter (pick one when you submit), the Pro badge on your profile and listings, and sponsor slots bookable 20 weeks ahead.",
 };
+
+/**
+ * An upgrade: once a plan is paid for, the user's lower plans stop charging. No refund, and they
+ * stay on until their period ends. Quiet, since the welcome email says it. A failure is logged and
+ * retried by the daily sync, so it can't lose the payment that got us here.
+ */
+async function endLowerPlans(sub: Subscription, now: Date): Promise<string[]> {
+  const plan = planForSku(sub.sku);
+  if (!plan || sub.status !== "active") return [];
+  const lower = PLANS.filter((p) => planRank(p.id) < planRank(plan.id)).flatMap((p) => p.skus);
+  if (lower.length === 0) return [];
+  const rows = await db()
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.userId, sub.userId),
+        inArray(subscriptions.sku, lower),
+        inArray(subscriptions.status, ["active", "past_due"]),
+      ),
+    );
+  const ended: string[] = [];
+  for (const old of rows) {
+    try {
+      if (old.providerSubscriptionId) {
+        await getProvider(old.provider).cancelSubscription({
+          providerSubscriptionId: old.providerSubscriptionId,
+          providerToken: old.providerToken,
+        });
+      }
+      await db()
+        .update(subscriptions)
+        .set({ status: old.currentPeriodEnd ? "non_renewing" : "cancelled", cancelledAt: now })
+        .where(eq(subscriptions.id, old.id));
+      ended.push(planName(old));
+    } catch (err) {
+      console.error(`ending plan ${old.id} after upgrade`, err);
+    }
+  }
+  return ended;
+}
 
 /**
  * Applies a status from a webhook or the daily sync, with its side effects:
@@ -90,6 +129,7 @@ export async function applySubscriptionState(
     const { syncRecurringBooking } = await import("@/lib/ads/service");
     await syncRecurringBooking(updated, now);
   }
+  const replaced = await endLowerPlans(updated, now);
   if (status === sub.status) return updated;
 
   const name = planName(updated);
@@ -101,6 +141,7 @@ export async function applySubscriptionState(
       await mailUser(updated.userId, `Welcome to ${name}`, [
         `Your ${name} plan is active${periodEnd ? ` and renews on ${date(periodEnd)}` : ""}.`,
         plan ? (WELCOME[plan.id] ?? "") : "",
+        ...replaced.map((old) => `Your ${old} plan has been cancelled, so it won't charge you again.`),
       ]);
   } else if (status === "active" && sub.status === "past_due") {
     await mailUser(updated.userId, `Your ${name} payment went through`, [
@@ -113,9 +154,11 @@ export async function applySubscriptionState(
       ad
         ? `You've cancelled ${name}. Your ad keeps running for the time you've paid for, then the slot is released. You won't be charged again.`
         : `You've cancelled ${name}. You keep everything until ${date(periodEnd)}, and you won't be charged again.`,
-      "Changed your mind? You can subscribe again from the pricing page at any time.",
+      "Changed your mind? You can subscribe again from your billing page at any time.",
     ]);
   } else if (status === "cancelled" && sub.status !== "pending") {
+    // Replaced by an upgrade: they still have everything it gave them.
+    if (plan && (await plansFor(updated.userId, now)).some((p) => planRank(p.id) > planRank(plan.id))) return updated;
     await mailUser(updated.userId, `Your ${name} plan has ended`, [
       ad
         ? `Your ${name} plan has ended and its slot has been released. Your listing and its stats are still here.`
@@ -232,72 +275,40 @@ export async function receiptsFor(userId: string) {
     .limit(50);
 }
 
-/** Always Featured: picks which approved listing of the subscriber's to feature. */
-export async function setFeaturedListing(userId: string, subscriptionId: string, productId: string | null) {
-  const sub = await db().query.subscriptions.findFirst({
-    where: and(eq(subscriptions.id, subscriptionId), eq(subscriptions.userId, userId)),
-  });
-  if (!sub || planForSku(sub.sku)?.id !== "always_featured") throw new BillingError("Subscription not found.");
-  if (productId) {
-    const p = await db().query.products.findFirst({
-      where: and(eq(products.id, productId), eq(products.createdBy, userId)),
-      columns: { status: true },
-    });
-    if (!p) throw new BillingError("Pick one of your listings.");
-    if (p.status !== "approved") throw new BillingError("Only approved listings can be featured.");
-  }
-  await db().update(subscriptions).set({ featuredProductId: productId }).where(eq(subscriptions.id, sub.id));
-}
-
-/** Listings featured by an active Always Featured plan right now. */
-export async function alwaysFeatured(now = new Date()) {
-  return db()
-    .select({
-      id: products.id,
-      slug: products.slug,
-      name: products.name,
-      tagline: products.tagline,
-      logoUrl: products.logoUrl,
-    })
-    .from(subscriptions)
-    .innerJoin(products, eq(products.id, subscriptions.featuredProductId))
+/** How many of this quarter's free Fast Tracks the user has left. */
+export async function fastTrackCredit(userId: string, now = new Date()) {
+  const allowed = await limit(userId, "fastTracks", now);
+  if (allowed === 0) return { eligible: false, available: false, remaining: 0, allowed };
+  const [used] = await db()
+    .select({ n: sql<number>`count(*)::int` })
+    .from(planCredits)
     .where(
       and(
-        inArray(subscriptions.sku, ALWAYS_FEATURED_SKUS),
-        entitled(now),
-        eq(products.status, "approved"),
-        sql`${products.createdBy} = ${subscriptions.userId}`,
+        eq(planCredits.userId, userId),
+        eq(planCredits.kind, "fast_track"),
+        inArray(planCredits.periodKey, fastTrackSlots(quarterKey(now))),
       ),
-    )
-    .orderBy(subscriptions.createdAt);
-}
-
-/** Has the user used this quarter's free Fast Track? */
-export async function fastTrackCredit(userId: string, now = new Date()) {
-  if (!(await can(userId, "free_fast_track", now))) return { eligible: false, available: false };
-  const used = await db().query.planCredits.findFirst({
-    where: and(
-      eq(planCredits.userId, userId),
-      eq(planCredits.kind, "fast_track"),
-      eq(planCredits.periodKey, quarterKey(now)),
-    ),
-  });
-  return { eligible: true, available: !used };
+    );
+  const remaining = Math.max(0, allowed - used.n);
+  return { eligible: true, available: remaining > 0, remaining, allowed };
 }
 
 /**
- * Claims this quarter's free Fast Track for a product. The unique key on
- * (user, kind, quarter) makes the claim, so it can't be used twice.
+ * Claims one of this quarter's free Fast Tracks for a product. The unique key on
+ * (user, kind, slot) makes each claim, so none can be used twice.
  */
 export async function claimFastTrackCredit(userId: string, productId: string, now = new Date()) {
-  if (!(await can(userId, "free_fast_track", now))) throw new BillingError("Free Fast Track comes with Maker Pro.");
-  const [row] = await db()
-    .insert(planCredits)
-    .values({ userId, kind: "fast_track", periodKey: quarterKey(now), targetId: productId })
-    .onConflictDoNothing()
-    .returning();
-  if (!row) throw new BillingError("You've used this quarter's free Fast Track.");
-  return row;
+  const allowed = await limit(userId, "fastTracks", now);
+  if (allowed === 0) throw new BillingError("Free Fast Tracks come with a Maker plan.");
+  for (const periodKey of fastTrackSlots(quarterKey(now), allowed)) {
+    const [row] = await db()
+      .insert(planCredits)
+      .values({ userId, kind: "fast_track", periodKey, targetId: productId })
+      .onConflictDoNothing()
+      .returning();
+    if (row) return row;
+  }
+  throw new BillingError("You've used this quarter's free Fast Tracks.");
 }
 
 /** Releases a claim if applying it failed. */
@@ -306,8 +317,8 @@ export async function releaseFastTrackCredit(id: string) {
 }
 
 /**
- * Maker Pro: upgrades one of the user's listings to Fast Track with this
- * quarter's credit, no payment. Same effect as buying it.
+ * Maker plans: upgrades one of the user's listings to Fast Track with one of
+ * this quarter's credits, no payment. Same effect as buying it.
  */
 export async function redeemFastTrack(userId: string, productId: string, now = new Date()) {
   const { applyPaidTier, assertHasScreenshot } = await import("@/lib/products/service");
@@ -325,7 +336,7 @@ export async function redeemFastTrack(userId: string, productId: string, now = n
   const credit = await claimFastTrackCredit(userId, productId, now);
   try {
     const updated = await applyPaidTier(productId, "fast_track", null);
-    await notify.notifyPaidTierApplied(updated, `${TIERS.fast_track.label} (Maker Pro credit)`);
+    await notify.notifyPaidTierApplied(updated, `${TIERS.fast_track.label} (plan credit)`);
     if (p.status !== "pending" && updated.status === "pending") await notify.notifyProductSubmitted(updated);
     return updated;
   } catch (err) {
@@ -340,12 +351,6 @@ export async function proUserIds(userIds: string[], now = new Date()): Promise<S
   const rows = await db()
     .select({ userId: subscriptions.userId })
     .from(subscriptions)
-    .where(
-      and(
-        inArray(subscriptions.userId, userIds),
-        inArray(subscriptions.sku, ["sub_maker_pro_monthly", "sub_maker_pro_yearly"]),
-        entitled(now),
-      ),
-    );
+    .where(and(inArray(subscriptions.userId, userIds), inArray(subscriptions.sku, MAKER_SKUS), entitled(now)));
   return new Set(rows.map((r) => r.userId));
 }

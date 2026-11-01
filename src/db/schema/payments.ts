@@ -132,8 +132,6 @@ export const subscriptions = pgTable(
     pastDueAt: timestamp("past_due_at", { withTimezone: true }),
     /** Dunning emails sent for the current past-due spell (day 0, 3, 7). */
     dunningStage: integer("dunning_stage").notNull().default(0),
-    /** Always Featured: the subscriber's approved listing to feature. */
-    featuredProductId: uuid("featured_product_id"),
     /** Last time status was confirmed with the provider (webhook or sync). */
     syncedAt: timestamp("synced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

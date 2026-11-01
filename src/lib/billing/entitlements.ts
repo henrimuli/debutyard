@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { combine, planForSku, type Feature, type Limit, type Plan } from "./plans";
+import { combine, planForSku, planRank, type Feature, type Limit, type Plan } from "./plans";
 
 const { subscriptions } = schema;
 
@@ -30,10 +30,10 @@ export async function plansFor(userId: string, now = new Date()): Promise<Plan[]
   return rows.map((r) => planForSku(r.sku)).filter((p): p is Plan => p !== null);
 }
 
-/** The user's main plan (the one with the most features), or null on the free tier. */
+/** The user's highest plan, or null on the free tier. */
 export async function planFor(userId: string, now = new Date()): Promise<Plan | null> {
   const plans = await plansFor(userId, now);
-  return plans.sort((a, b) => b.features.length - a.features.length || b.limits.links - a.limits.links)[0] ?? null;
+  return plans.sort((a, b) => planRank(b.id) - planRank(a.id))[0] ?? null;
 }
 
 export async function can(userId: string, feature: Feature, now = new Date()): Promise<boolean> {

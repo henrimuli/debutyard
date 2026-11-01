@@ -309,9 +309,8 @@ All packages replace rejected directories. Rationale: Nick charges $99/$149/$199
 
 | Plan | Price | For |
 |---|---|---|
-| **Link Monitor** | **$9/mo** (100 links) · $19/mo (500 links) | Weekly re-checks, rel/indexation alerts, add your own links |
-| **Maker Pro** | **$12/mo** or **$99/yr** | Matches Uneed Pro's $99/yr. 1 free Fast Track per quarter, DR tracking + alerts, advanced analytics, Link Monitor (100 links), Pro badge, early booking of featured slots, partner perks. **No vote multiplier** |
-| **Always Featured** | **$49/mo** | Startup Fame Highlight-style: rotating featured rail + category sponsor, cancel anytime |
+| **Maker Pro** | **$12/mo** or **$99/yr** | Matches Uneed Pro's $99/yr. 100 listings, 100 monitored links, 1 free Fast Track per quarter, Authority Score tracking + alerts for 100 domains, Pro badge, sponsor slots bookable 16 weeks ahead. **No vote multiplier** |
+| **Maker Unlimited** | **$29/mo** or **$249/yr** | Unlimited listings, monitored links and Authority Score tracking (fair use), 3 free Fast Tracks per quarter, Pro badge, sponsor slots bookable 20 weeks ahead. **No vote multiplier** |
 | **Distribution Suite** (later) | **$79–99/mo** | AI-visibility prompt tracking, Search Console rankings, written posts. Nick has announced this at $99, so treat it as a Phase 5 option, not a launch item |
 
 ### 5.5 Launch promotions

@@ -6,7 +6,6 @@ import { SimpleList } from "@/components/board/simple-list";
 import { BoardSkeleton } from "@/components/board/week-board";
 import { Container, Heading } from "@/components/ui/primitives";
 import { liveAds } from "@/lib/ads/service";
-import { alwaysFeaturedSponsor } from "@/lib/board/featured";
 import { categoryProducts, getCategory } from "@/lib/board/queries";
 
 export async function generateMetadata(props: PageProps<"/category/[slug]">): Promise<Metadata> {
@@ -34,8 +33,7 @@ async function Category({ params }: { params: PageProps<"/category/[slug]">["par
   const { slug } = await params;
   const category = await getCategory(slug);
   if (!category) notFound();
-  const [items, [booked]] = await Promise.all([categoryProducts(slug), liveAds("category", { categorySlug: slug })]);
-  const sponsor = booked ?? (await alwaysFeaturedSponsor(slug));
+  const [items, [sponsor]] = await Promise.all([categoryProducts(slug), liveAds("category", { categorySlug: slug })]);
   return (
     <>
       <Heading>{category.name}</Heading>

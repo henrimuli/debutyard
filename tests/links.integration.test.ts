@@ -317,10 +317,10 @@ describe.skipIf(!TEST_DB)("Link Monitor (Postgres)", () => {
     await expect(links.addManualLink(u, { url: "https://dir0.example/p", domain: "maker.io" })).rejects.toThrow();
 
     // An expired plan doesn't count; an active one (or one cancelled but still paid up) does.
-    await subscribe(u, "sub_link_monitor_100", new Date(now.getTime() - DAY));
+    await subscribe(u, "sub_maker_pro_monthly", new Date(now.getTime() - DAY));
     expect((await links.linkUsage(u, now)).limit).toBe(10);
     await dbmod.db().delete(dbmod.schema.subscriptions);
-    await subscribe(u, "sub_link_monitor_100", new Date(now.getTime() + 30 * DAY), "non_renewing");
+    await subscribe(u, "sub_maker_pro_monthly", new Date(now.getTime() + 30 * DAY), "non_renewing");
     expect(await links.linkUsage(u, now)).toMatchObject({ used: 10, limit: 100 });
     for (let i = 10; i < 15; i++) {
       await links.addManualLink(u, { url: `https://dir${i}.example/p`, domain: "maker.io" }, now);
@@ -369,7 +369,7 @@ describe.skipIf(!TEST_DB)("Link Monitor (Postgres)", () => {
     const end = new Date(after.monitorUntil!.getTime() + 60_000);
     expect(await links.monitorLinks(end)).toMatchObject({ stopped: 1, kept: 0, checked: 0 });
     expect(sent[0]).toMatchObject({ to: "ada@acme.io", subject: "Link Monitor for Acme has ended" });
-    expect(sent[0].text).toContain("/dashboard/billing#plans");
+    expect(sent[0].text).toContain("/dashboard/links");
     expect((await linkFor(rows[0].s.id))?.active).toBe(false);
     // Handled once, and ops re-verifying the row doesn't quietly restart it.
     expect(await links.monitorLinks(end)).toMatchObject({ stopped: 0 });
@@ -378,7 +378,7 @@ describe.skipIf(!TEST_DB)("Link Monitor (Postgres)", () => {
 
     // A buyer with a Link Monitor plan keeps monitoring; the links now count toward it.
     const u = await makeUser();
-    await subscribe(u, "sub_link_monitor_100", new Date(Date.now() + 365 * DAY));
+    await subscribe(u, "sub_maker_pro_monthly", new Date(Date.now() + 365 * DAY));
     const mine = await buyOrder(u);
     await subs.updateOrderSubmission(mine.rows[0].s.id, { status: "live", liveUrl: "https://dir.example/acme" });
     await subs.deliverOrder(mine.order.id, delivered);

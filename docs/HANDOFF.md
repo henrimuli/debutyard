@@ -84,7 +84,7 @@ Suggested order: **A → B → C → D → E → F**. Do one branch and one PR p
   - Show plan usage ("37 / 100 links").
 - **Limits:**
   - Free accounts: links from their own tracker and orders are monitored.
-  - Manual links: only up to a small free allowance (e.g. 10), or the plan limit (Link Monitor 100 / 500, Maker Pro 100).
+  - Manual links: only up to a small free allowance (e.g. 10), or the plan limit (Maker Pro 100, Maker Unlimited unlimited).
   - Submission orders include monitoring for **3 / 6 / 12 months** (Starter / Growth / Scale; see `src/lib/submissions/packages.ts`). Store `monitor_until` on the order or its links. When it ends, email an upsell to the Link Monitor plan and stop checking.
 - **API and MCP:** add `get_my_links` (read-only) to `src/lib/api/mcp.ts` and `GET /api/v1/me/links`.
 - **Done when:** integration tests cover auto-create from tracker and order, the schedule (daily, then weekly), change detection and alert emails, plan limits and the end of included monitoring.
@@ -94,7 +94,6 @@ Suggested order: **A → B → C → D → E → F**. Do one branch and one PR p
 - **Make plans purchasable:** let `isPurchasable()` allow the recurring SKUs. `/pricing` already renders them with `BuyButton`, and the checkout API calls `startSubscription`. Run `scripts/sync-plans.ts` to create provider plans; document it in the README.
 - **Entitlements module** `src/lib/billing/entitlements.ts`: `planFor(userId)` → active SKUs, and `can(user, feature)` / `limit(user, "links")`. Status `active` or `non_renewing` counts until `current_period_end`.
 - **Plan features:**
-  - **Link Monitor 100 / 500:** link limits from A.
   - **Maker Pro** (monthly or yearly):
     - 100 monitored links
     - one free Fast Track per quarter: issue a single-use 100% coupon on activation and each quarter, or check a quarterly credit in the submit flow
@@ -102,8 +101,7 @@ Suggested order: **A → B → C → D → E → F**. Do one branch and one PR p
     - a "Pro" badge on their builder profile and listings
     - booking featured slots 4 extra weeks ahead: `BOOKING_HORIZON_WEEKS` in `src/lib/ads/placements.ts` becomes per-user
     - **no vote multiplier, ever**
-  - **Always Featured:** while active, the user's chosen approved listing appears in the homepage featured rail (extend `featuredNow()` in `src/lib/board/featured.ts`) and rotates as a category sponsor. Let them pick the listing on the billing page.
-- **Billing page** `/dashboard/billing`: current plan, renewal date, cancel (calls `cancelSubscription`), invoices or receipts if the providers expose them, and the listing picker for Always Featured.
+- **Billing page** `/dashboard/billing`: current plan, renewal date, cancel (calls `cancelSubscription`), invoices or receipts if the providers expose them.
 - **Sync and dunning:** add a daily `subscriptions.sync` job.
   - Re-fetch status from Paystack and PayPal for subscriptions not updated in 24h.
   - On `past_due`, email the user (day 0, day 3, day 7). Then drop the entitlements but keep the data.

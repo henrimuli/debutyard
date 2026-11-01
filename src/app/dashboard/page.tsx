@@ -10,6 +10,7 @@ import { Badge, Card } from "@/components/ui/primitives";
 import { bookingsForUser } from "@/lib/ads/service";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/billing/entitlements";
+import { formatLimit } from "@/lib/billing/plans";
 import { isFollowed } from "@/lib/board/links";
 import { linkUsage } from "@/lib/links/service";
 import { drEnabled, drHistory } from "@/lib/metrics/service";
@@ -219,7 +220,7 @@ async function Overview({ searchParams }: { searchParams: PageProps<"/dashboard"
                 href="/dashboard/links"
                 icon="links"
                 label="Link Monitor"
-                value={`${usage.used} / ${usage.limit}`}
+                value={`${usage.used} / ${formatLimit(usage.limit)}`}
               />
               <GrowthRow
                 href="/dashboard/orders"
