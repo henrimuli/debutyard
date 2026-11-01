@@ -4,6 +4,7 @@ import type { JSONContent } from "@tiptap/core";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { geminiImage, geminiJson, geminiResearch, geminiStream, model, user, type Research } from "@/lib/ai/gemini";
+import { withLogo } from "@/lib/ai/image-logo";
 import { countWords, outboundProductSlugs, textOf, walk } from "@/lib/blog/content";
 import {
   autocomplete,
@@ -461,15 +462,15 @@ function splitImageKind(text: string): { kind: string; description: string } {
 
 /** DebutYard's look, so every generated image belongs to the same publication. */
 const IMAGE_STYLE =
-  "Style: clean, modern editorial flat illustration for a startup publication. Soft off-white or very light mint background (#f3f7f5), deep green-black ink (#10201b) for lines and text, emerald green (#0e9f6a) as the main accent and warm amber (#f2b84b) as a secondary accent. Generous whitespace, rounded shapes, subtle grain, no gradients that look like stock art, no 3D clip-art, no watermarks, no brand logos.";
+  "Style: clean, modern editorial flat illustration for a startup publication. Soft off-white or very light mint background (#f3f7f5), deep green-black ink (#10201b) for lines and text, emerald green (#0e9f6a) as the main accent and warm amber (#f2b84b) as a secondary accent. Generous whitespace, rounded shapes, subtle grain, no gradients that look like stock art, no 3D clip-art, no watermarks, no brand logos. Keep the bottom-left corner empty (about a quarter of the width and a tenth of the height): our logo is added there afterwards.";
 
 const KIND_GUIDE: Record<string, string> = {
   Infographic:
     "Make an infographic. Use short labels only, large and perfectly legible, spelled exactly as given. Clear visual hierarchy, top to bottom or left to right.",
   Chart:
-    "Make a clean data chart. Plot exactly the numbers given, with labelled axes, units and the source in small text at the bottom. Do not add, round or invent numbers.",
+    "Make a clean data chart. Plot exactly the numbers given, with labelled axes, units and the source in small text at the bottom right. Do not add, round or invent numbers.",
   Graph:
-    "Make a clean data chart. Plot exactly the numbers given, with labelled axes, units and the source in small text at the bottom. Do not add, round or invent numbers.",
+    "Make a clean data chart. Plot exactly the numbers given, with labelled axes, units and the source in small text at the bottom right. Do not add, round or invent numbers.",
   Diagram: "Make a simple explanatory diagram with boxes, arrows and short labels, spelled exactly as given.",
   Illustration: "Make an editorial illustration with no text in the image.",
   Banner:
@@ -478,7 +479,7 @@ const KIND_GUIDE: Record<string, string> = {
 
 async function generateImage(description: string, kind: string, aspect: "16:9" | "4:3" | "1:1"): Promise<ImageResult> {
   const prompt = `${KIND_GUIDE[kind] ?? KIND_GUIDE.Illustration}\n\n${description}\n\n${IMAGE_STYLE}`;
-  const img = await geminiImage(prompt, aspect);
+  const img = await withLogo(await geminiImage(prompt, aspect));
   const now = new Date();
   const ext = img.mimeType === "image/jpeg" ? "jpg" : img.mimeType === "image/webp" ? "webp" : "png";
   const key = `blog/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${ext}`;

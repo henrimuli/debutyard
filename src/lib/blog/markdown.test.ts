@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeMarkdown, excerptFrom, renderMarkdown, safeHref } from "./markdown";
+import { aiOutputToHtml, escapeMarkdown, excerptFrom, renderMarkdown, safeHref } from "./markdown";
 
 describe("renderMarkdown", () => {
   it("renders common markdown", () => {
@@ -45,5 +45,63 @@ describe("helpers", () => {
   it("builds plain excerpts", () => {
     expect(excerptFrom("# Title\n\nHello [world](/x), this is **it**.")).toBe("Hello world, this is it.");
     expect(excerptFrom("a ".repeat(200), 20)).toHaveLength(20);
+  });
+});
+
+describe("aiOutputToHtml", () => {
+  it("leaves plain HTML exactly as it came", () => {
+    const html =
+      '<h2>Hi</h2>\n<p>Some <strong>bold</strong> and a <a href="https://x.test">link</a>.</p>\n<ul><li>One</li></ul>';
+    expect(aiOutputToHtml(html)).toBe(html);
+  });
+
+  it("recovers a draft that switches from HTML to Markdown after a callout", () => {
+    const html = aiOutputToHtml(
+      `<p>Intro paragraph.</p>
+<aside data-callout="image">Screenshot needed: the dashboard.</aside>
+As of 2026, PayPal is a platform <a href="https://business.org" rel="nofollow">Business.org, 2026</a>.
+
+## How to handle seasonal cash flow
+
+Managing spikes is hard.
+
+* **No monthly fees:** you avoid costs.
+* **No minimum balance:** ideal for startups.
+
+## Sources
+* <a href="https://paypal.com">PayPal, 2026</a>`,
+    );
+    expect(html).toContain("<p>Intro paragraph.</p>");
+    expect(html).toContain('<aside data-callout="image">Screenshot needed: the dashboard.</aside>');
+    expect(html).toContain('<p>As of 2026, PayPal is a platform <a href="https://business.org" rel="nofollow">');
+    expect(html).toContain("<h2>How to handle seasonal cash flow</h2>");
+    expect(html).toContain("<li><strong>No monthly fees:</strong> you avoid costs.</li>");
+    expect(html).toContain('<li><a href="https://paypal.com">PayPal, 2026</a></li>');
+    expect(html).not.toMatch(/##|\*\*/);
+  });
+
+  it("reads an answer that's all Markdown, while it's still streaming too", () => {
+    expect(aiOutputToHtml("## Hi\n\nSome text")).toContain("<h2>Hi</h2>");
+    expect(aiOutputToHtml("* One\n* Tw")).toContain("<li>Tw</li>");
+  });
+
+  it("keeps the FAQ block and indented HTML intact next to Markdown", () => {
+    const faq =
+      "<div data-faq><details data-faq-item><summary>Why?</summary><div data-faq-a>Because.</div></details></div>";
+    const html = aiOutputToHtml(`## Intro
+
+${faq}
+
+<ul>
+    <li><p>One</p>
+    <li>Two</li>
+</ul>`);
+    expect(html).toContain("<h2>Intro</h2>");
+    expect(html.replace(/s+/g, "")).toContain(faq.replace(/s+/g, ""));
+    expect(html).not.toContain("<pre>");
+  });
+
+  it("turns stray bold inside an HTML block into a tag", () => {
+    expect(aiOutputToHtml("<p>A **big** word.</p>")).toContain("<strong>big</strong>");
   });
 });

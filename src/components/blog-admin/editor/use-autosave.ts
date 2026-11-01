@@ -33,6 +33,20 @@ export function clearBackup(id: string): void {
   }
 }
 
+/** JSON with sorted keys. Postgres's jsonb reorders them, so a plain stringify calls equal drafts different. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : v,
+  );
+}
+
+/** Does this backup hold work the server doesn't have? */
+export function backupHasNewWork(b: Backup, saved: { fields: BlogFields; updatedAt: string | Date }): boolean {
+  return b.at > new Date(saved.updatedAt).getTime() && canonical(b.fields) !== canonical(saved.fields);
+}
+
 function writeBackup(id: string, b: Backup): void {
   try {
     localStorage.setItem(backupKey(id), JSON.stringify(b));
