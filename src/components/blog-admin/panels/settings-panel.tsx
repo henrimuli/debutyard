@@ -234,13 +234,19 @@ export function SettingsPanel({
             />
           </div>
           {slugChanged ? (
-            <div className="mt-2 flex items-center gap-2">
-              <Button size="sm" onClick={() => void saveSlug()} disabled={slugBusy || !cleanSlug}>
+            <div className="mt-2 flex items-start gap-2">
+              <Button
+                size="sm"
+                className="h-auto min-h-8 min-w-0 whitespace-normal break-all py-1.5 text-left"
+                onClick={() => void saveSlug()}
+                disabled={slugBusy || !cleanSlug}
+              >
                 {slugBusy ? "Saving…" : `Use /blog/${cleanSlug || "…"}`}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
+                className="shrink-0"
                 onClick={() => {
                   setSlugDraft(slug);
                   setSlugError(null);

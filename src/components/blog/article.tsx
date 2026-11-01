@@ -55,11 +55,6 @@ export function ArticleView({ post, related = [] }: { post: PublicPost; related?
             · {post.readingMinutes} min read
           </span>
         </div>
-        {launch ? (
-          <p className="mt-4 rounded-md border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground">
-            Written with {post.product!.name}&apos;s maker, who checked the facts. Links to their site are sponsored.
-          </p>
-        ) : null}
       </div>
 
       {post.cover ? (

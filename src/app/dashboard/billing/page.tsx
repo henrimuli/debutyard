@@ -3,6 +3,7 @@ import Link from "next/link";
 import { and, eq } from "drizzle-orm";
 import { Suspense } from "react";
 import { CancelPlan, FeaturedListingPicker } from "@/components/billing/billing-controls";
+import { PlanCards } from "@/components/billing/plan-cards";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card, Heading } from "@/components/ui/primitives";
 import { db, schema } from "@/db";
@@ -10,9 +11,8 @@ import { requireUser } from "@/lib/auth";
 import { planForSku } from "@/lib/billing/plans";
 import { fastTrackCredit, receiptsFor, subscriptionsFor } from "@/lib/billing/service";
 import { linkUsage } from "@/lib/links/service";
-import { BuyButton } from "@/components/buy-button";
 import { enabledProviders } from "@/lib/payments";
-import { formatUsd, getSku, isPurchasable, SKUS } from "@/lib/payments/skus";
+import { formatUsd, getSku } from "@/lib/payments/skus";
 
 export const metadata: Metadata = { title: "Billing & plans", robots: { index: false } };
 
@@ -27,7 +27,7 @@ const STATUS = {
 
 export default function BillingPage() {
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <Heading className="text-2xl sm:text-3xl">Billing &amp; plans</Heading>
       <Suspense fallback={<div className="mt-8 h-64 animate-pulse rounded-lg bg-muted/50" />}>
         <Billing />
@@ -138,37 +138,18 @@ async function Billing() {
         </p>
       </Card>
 
-      <Plans current={new Set(subs.map((s) => s.sku))} />
+      <Plans current={subs.map((s) => s.sku)} />
     </div>
   );
 }
 
 /** Subscription plans and their prices. Plans that aren't on sale (Agency) stay hidden. */
-function Plans({ current }: { current: Set<string> }) {
-  const providers = enabledProviders();
-  const plans = SKUS.filter((s) => s.type === "recurring" && isPurchasable(s));
+function Plans({ current }: { current: string[] }) {
   return (
     <section id="plans" className="scroll-mt-20 pt-4">
       <h2 className="font-display text-xl font-semibold">Plans</h2>
       <p className="mt-1 text-sm text-muted-foreground">Monthly or yearly, cancel anytime.</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {plans.map((sku) => (
-          <Card key={sku.id} className="flex flex-col p-5">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-medium">{sku.name}</h3>
-              {current.has(sku.id) && <Badge tone="success">Current</Badge>}
-            </div>
-            <p className="mt-1 font-display text-2xl font-bold">
-              {formatUsd(sku.amountCents)}
-              <span className="text-sm font-normal text-muted-foreground">
-                /{sku.type === "recurring" && sku.interval === "monthly" ? "mo" : "yr"}
-              </span>
-            </p>
-            <p className="mt-2 flex-1 text-sm text-muted-foreground">{sku.description}</p>
-            {!current.has(sku.id) && <BuyButton sku={sku.id} recurring providers={providers} className="mt-4" />}
-          </Card>
-        ))}
-      </div>
+      <PlanCards current={current} providers={enabledProviders()} className="mt-4" />
     </section>
   );
 }

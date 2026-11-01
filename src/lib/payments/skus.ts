@@ -138,10 +138,24 @@ export const SKUS = [
     "Weekly checks on 100 backlinks you add, with an email when one is removed or turns nofollow.",
   ),
   recurring(
+    "sub_link_monitor_100_yearly",
+    "Link Monitor (100 links, yearly)",
+    9000,
+    "annually",
+    "Weekly checks on 100 backlinks you add, with an email when one is removed or turns nofollow.",
+  ),
+  recurring(
     "sub_link_monitor_500",
     "Link Monitor (500 links)",
     1900,
     "monthly",
+    "Weekly checks on 500 backlinks you add, with an email when one is removed or turns nofollow.",
+  ),
+  recurring(
+    "sub_link_monitor_500_yearly",
+    "Link Monitor (500 links, yearly)",
+    19000,
+    "annually",
     "Weekly checks on 500 backlinks you add, with an email when one is removed or turns nofollow.",
   ),
   recurring(
@@ -157,6 +171,13 @@ export const SKUS = [
     "Always Featured",
     4900,
     "monthly",
+    "One listing in the homepage featured rail and rotating as a category sponsor.",
+  ),
+  recurring(
+    "sub_always_featured_yearly",
+    "Always Featured (yearly)",
+    49000,
+    "annually",
     "One listing in the homepage featured rail and rotating as a category sponsor.",
   ),
   recurring("sub_agency", "Agency", 79900, "monthly", "5 client submissions a month with white-label reports."),

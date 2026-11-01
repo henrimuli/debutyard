@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useContext, useEffect, useState, useTransition } from "react";
 import { availabilityAction, bookAction } from "@/app/(site)/advertise/actions";
+import { BookingPlacementContext } from "@/components/ads/booking-modal";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { PLACEMENTS, WEEKS_PER, type Duration, type Placement } from "@/lib/ads/placements";
@@ -31,7 +32,9 @@ export function BookingForm({
   /** "dashboard": checkout comes back to the dashboard instead of the main site. */
   returnTo?: "dashboard";
 }) {
-  const [placement, setPlacement] = useState<Placement>("leaderboard");
+  // Opened from a placement's card, the form starts on that placement.
+  const startPlacement = useContext(BookingPlacementContext) ?? "leaderboard";
+  const [placement, setPlacement] = useState<Placement>(startPlacement);
   const [chosenDuration, setDuration] = useState<Duration>("week");
   const [category, setCategory] = useState(categories[0]?.slug ?? "");
   const [productId, setProductId] = useState(products[0]?.id ?? "");
@@ -56,6 +59,16 @@ export function BookingForm({
       setWeeks(await availabilityAction(nextPlacement, nextPlacement === "category" ? nextCategory : null)),
     );
   }
+
+  // initialWeeks are the leaderboard's; any other starting placement needs its own.
+  useEffect(() => {
+    if (startPlacement === "leaderboard") return;
+    startLoading(async () =>
+      setWeeks(await availabilityAction(startPlacement, startPlacement === "category" ? categories[0]?.slug : null)),
+    );
+    // Only on opening; changing the placement afterwards goes through reload().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // A multi-week booking needs room in every week it covers.
   const fits = (key: string) =>

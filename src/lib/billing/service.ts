@@ -8,7 +8,7 @@ import { getProvider } from "@/lib/payments";
 import { getSku } from "@/lib/payments/skus";
 import type { SubscriptionState } from "@/lib/payments/types";
 import { can, entitled } from "./entitlements";
-import { planForSku, quarterKey } from "./plans";
+import { ALWAYS_FEATURED_SKUS, planForSku, quarterKey } from "./plans";
 
 const { subscriptions, products, planCredits } = schema;
 export type Subscription = typeof subscriptions.$inferSelect;
@@ -247,7 +247,7 @@ export async function alwaysFeatured(now = new Date()) {
     .innerJoin(products, eq(products.id, subscriptions.featuredProductId))
     .where(
       and(
-        eq(subscriptions.sku, "sub_always_featured"),
+        inArray(subscriptions.sku, ALWAYS_FEATURED_SKUS),
         entitled(now),
         eq(products.status, "approved"),
         sql`${products.createdBy} = ${subscriptions.userId}`,

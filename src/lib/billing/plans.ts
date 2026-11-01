@@ -14,18 +14,20 @@ export type Plan = {
 /** Manual links anyone can monitor without a plan. */
 export const FREE_LIMITS: Record<Limit, number> = { links: 10 };
 
+export const ALWAYS_FEATURED_SKUS = ["sub_always_featured", "sub_always_featured_yearly"];
+
 export const PLANS: Plan[] = [
   {
     id: "link_monitor_100",
     label: "Link Monitor",
-    skus: ["sub_link_monitor_100"],
+    skus: ["sub_link_monitor_100", "sub_link_monitor_100_yearly"],
     features: [],
     limits: { links: 100 },
   },
   {
     id: "link_monitor_500",
     label: "Link Monitor 500",
-    skus: ["sub_link_monitor_500"],
+    skus: ["sub_link_monitor_500", "sub_link_monitor_500_yearly"],
     features: [],
     limits: { links: 500 },
   },
@@ -39,11 +41,19 @@ export const PLANS: Plan[] = [
   {
     id: "always_featured",
     label: "Always Featured",
-    skus: ["sub_always_featured"],
+    skus: ALWAYS_FEATURED_SKUS,
     features: ["always_featured"],
     limits: { links: 0 },
   },
 ];
+
+/** The plan cards on the billing page: one per plan, with a SKU for each way of paying. */
+export const PLAN_CARDS = [
+  { label: "Maker Pro", monthly: "sub_maker_pro_monthly", yearly: "sub_maker_pro_yearly" },
+  { label: "Link Monitor 100", monthly: "sub_link_monitor_100", yearly: "sub_link_monitor_100_yearly" },
+  { label: "Link Monitor 500", monthly: "sub_link_monitor_500", yearly: "sub_link_monitor_500_yearly" },
+  { label: "Always Featured", monthly: "sub_always_featured", yearly: "sub_always_featured_yearly" },
+] as const;
 
 export const planForSku = (sku: string) => PLANS.find((p) => p.skus.includes(sku)) ?? null;
 

@@ -68,10 +68,13 @@ describe("SKU catalog", () => {
       "submission_growth",
       "submission_scale",
       "sub_link_monitor_100",
+      "sub_link_monitor_100_yearly",
       "sub_link_monitor_500",
+      "sub_link_monitor_500_yearly",
       "sub_maker_pro_monthly",
       "sub_maker_pro_yearly",
       "sub_always_featured",
+      "sub_always_featured_yearly",
     ]);
   });
 });
