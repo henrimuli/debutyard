@@ -11,3 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Production database: hands off
 
 `DATABASE_URL_MASTER` and `DIRECT_DATABASE_URL_MASTER` point at the real production database. They exist only for `pnpm db:migrate --master` (and `pnpm db:status --master`), run by the owner. Never use them for testing of any kind: not tests, seeds, dev servers, scripts or one-off queries, and never run `--master` unless the owner asks for it.
+
+## Branches
+
+`main` is the staging branch and deploys to the Vercel preview domain. `master` is production. Branch from `main` and open every PR against `main` first (`gh pr create --base main`). Don't open or merge anything into `master` unless the owner asks.
