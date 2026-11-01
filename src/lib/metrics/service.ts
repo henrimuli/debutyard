@@ -5,6 +5,8 @@ import { env } from "@/env";
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { entitled } from "@/lib/billing/entitlements";
+import { MAKER_SKUS, planForSku } from "@/lib/billing/plans";
+import { roundRobin } from "@/lib/fair-share";
 import { domainOf } from "@/lib/slug";
 import { BULK_MAX, createDrProvider, DR_DROP_ALERT, type DrProvider, type DrReading } from "./providers";
 
@@ -92,7 +94,10 @@ export async function baselineSnapshot(websiteUrl: string | null, now = new Date
 
 type Watcher = { email: string; href: string };
 
-/** Domains we track weekly, and who hears about a drop: Maker Pro products and submission orders. */
+/**
+ * Domains we track weekly, and who hears about a drop: Maker plan products (each user's
+ * oldest, up to their plan's limit, which only bites after a downgrade) and submission orders.
+ */
 async function trackedDomains(now: Date): Promise<Map<string, Watcher[]>> {
   const out = new Map<string, Watcher[]>();
   const add = (domain: string, w: Watcher) => {
@@ -101,18 +106,34 @@ async function trackedDomains(now: Date): Promise<Map<string, Watcher[]>> {
     out.set(domain, list);
   };
   const pro = await db()
-    .selectDistinct({ domain: products.domain, email: schema.user.email })
+    .select({
+      domain: products.domain,
+      email: schema.user.email,
+      userId: products.createdBy,
+      sku: subscriptions.sku,
+    })
     .from(products)
     .innerJoin(subscriptions, eq(subscriptions.userId, products.createdBy))
     .innerJoin(schema.user, eq(schema.user.id, products.createdBy))
     .where(
       and(
-        inArray(subscriptions.sku, ["sub_maker_pro_monthly", "sub_maker_pro_yearly"]),
+        inArray(subscriptions.sku, MAKER_SKUS),
         entitled(now),
         inArray(products.status, ["draft", "pending", "approved"]),
       ),
-    );
-  for (const r of pro) if (r.domain) add(r.domain, { email: r.email, href: url("/dashboard") });
+    )
+    .orderBy(asc(products.createdAt));
+  const caps = new Map<string, number>();
+  for (const r of pro) caps.set(r.userId, Math.max(caps.get(r.userId) ?? 0, planForSku(r.sku)?.limits.domains ?? 0));
+  const kept = new Map<string, Set<string>>();
+  for (const r of pro) {
+    if (!r.domain) continue;
+    const domains = kept.get(r.userId) ?? new Set<string>();
+    kept.set(r.userId, domains);
+    if (!domains.has(r.domain) && domains.size >= caps.get(r.userId)!) continue;
+    domains.add(r.domain);
+    add(r.domain, { email: r.email, href: url("/dashboard") });
+  }
 
   const orders = await db()
     .select({
@@ -153,7 +174,14 @@ export async function snapshotDomains(now = new Date(), { batch = 100 } = {}) {
         .where(gt(domainMetrics.measuredAt, ts(new Date(now.getTime() - (SNAPSHOT_EVERY_DAYS - 0.5) * DAY))))
     ).map((r) => r.domain),
   );
-  const due = [...watched.keys()].filter((d) => !recent.has(d)).slice(0, batch);
+  // Taking turns between owners, so one big account can't fill the batch.
+  const byOwner = new Map<string, string[]>();
+  for (const [domain, watchers] of watched) {
+    if (recent.has(domain)) continue;
+    const owner = watchers[0].email;
+    byOwner.set(owner, [...(byOwner.get(owner) ?? []), domain]);
+  }
+  const due = roundRobin([...byOwner.values()], batch);
 
   let measured = 0;
   let alerts = 0;

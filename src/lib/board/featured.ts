@@ -11,8 +11,7 @@ export type FeaturedItem = {
   name: string;
   tagline: string;
   logoUrl: string | null;
-  /** "always": an Always Featured subscription. */
-  tier: "fast_track" | "pro" | "premium" | "spotlight" | "always";
+  tier: "fast_track" | "pro" | "premium" | "spotlight";
   hero: boolean;
 };
 
@@ -36,13 +35,8 @@ export function isHeroNow(tier: string, weekKey: string, approvedAt: Date | null
   return tier === "spotlight" && isFeaturedNow(tier, weekKey, approvedAt, now);
 }
 
-/**
- * What's in the featured rail now: paid debuts inside their window, plus
- * listings on an active Always Featured plan (first, once each).
- */
+/** What's in the featured rail now: paid debuts inside their window. */
 export async function featuredNow(now = new Date()): Promise<FeaturedItem[]> {
-  const { alwaysFeatured } = await import("@/lib/billing/service");
-  const always = await alwaysFeatured(now);
   const current = weekKeyFor(now);
   const rows = (await queryRows(sql`
     select slug, name, tagline, logo_url, tier, launch_week_key, approved_at
@@ -58,14 +52,6 @@ export async function featuredNow(now = new Date()): Promise<FeaturedItem[]> {
     launch_week_key: string;
     approved_at: Date | string | null;
   }>;
-  const subscribed: FeaturedItem[] = always.map((a) => ({
-    slug: a.slug,
-    name: a.name,
-    tagline: a.tagline,
-    logoUrl: a.logoUrl,
-    tier: "always",
-    hero: false,
-  }));
   const paid = rows
     .filter((r) => isFeaturedNow(r.tier, r.launch_week_key, r.approved_at ? new Date(r.approved_at) : null, now))
     .map((r) => ({
@@ -76,38 +62,7 @@ export async function featuredNow(now = new Date()): Promise<FeaturedItem[]> {
       tier: r.tier,
       hero: isHeroNow(r.tier, r.launch_week_key, r.approved_at ? new Date(r.approved_at) : null, now),
     }));
-  const seen = new Set(paid.filter((p) => p.hero).map((p) => p.slug));
-  return [
-    ...paid.filter((p) => p.hero),
-    ...subscribed.filter((a) => !seen.has(a.slug) && seen.add(a.slug)),
-    ...paid.filter((p) => !p.hero && !seen.has(p.slug)),
-  ];
-}
-
-/**
- * Category pages without a booked sponsor show an Always Featured listing
- * from that category, rotating daily between subscribers.
- */
-export async function alwaysFeaturedSponsor(categorySlug: string, now = new Date()) {
-  const { alwaysFeatured } = await import("@/lib/billing/service");
-  const always = await alwaysFeatured(now);
-  if (always.length === 0) return null;
-  const inCategory = (await queryRows(sql`
-    select product_id from product_categories where category_slug = ${categorySlug}
-  `)) as unknown as Array<{ product_id: string }>;
-  const ids = new Set(inCategory.map((r) => r.product_id));
-  const pool = always.filter((a) => ids.has(a.id));
-  if (pool.length === 0) return null;
-  const pick = pool[Math.floor(now.getTime() / 86_400_000) % pool.length];
-  return {
-    bookingId: null,
-    placement: "category" as const,
-    slug: pick.slug,
-    name: pick.name,
-    tagline: pick.tagline,
-    logoUrl: pick.logoUrl,
-    href: `/p/${pick.slug}`,
-  };
+  return [...paid.filter((p) => p.hero), ...paid.filter((p) => !p.hero)];
 }
 
 export type CardMedia = { imageUrl: string | null; websiteUrl: string };

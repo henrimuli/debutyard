@@ -1,0 +1,1 @@
+ALTER TABLE "subscriptions" DROP COLUMN "featured_product_id";

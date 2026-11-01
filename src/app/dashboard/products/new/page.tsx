@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { DebutPageFlow } from "@/components/debut/debut-wizard";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/primitives";
 import { requireUser } from "@/lib/auth";
+import { listingLimitReached } from "@/lib/products/service";
 
 export const metadata: Metadata = { title: "Debut a product", robots: { index: false } };
 
@@ -23,6 +26,17 @@ export default function NewProductPage() {
 }
 
 async function Flow() {
-  await requireUser("/dashboard/products/new");
+  const user = await requireUser("/dashboard/products/new");
+  const full = await listingLimitReached(user.id);
+  if (full) {
+    return (
+      <Card className="text-center">
+        <p className="font-medium">{full}</p>
+        <ButtonLink href="/dashboard/billing#plans" className="mt-4">
+          See plans
+        </ButtonLink>
+      </Card>
+    );
+  }
   return <DebutPageFlow />;
 }

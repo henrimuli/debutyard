@@ -1,7 +1,7 @@
 /**
  * Subscriptions and entitlements against a real Postgres with a fake
  * provider: purchase → active → perks, dunning, cancellation, sync and
- * Always Featured. Runs when TEST_DATABASE_URL is set; the database is wiped.
+ * plan upgrades. Runs when TEST_DATABASE_URL is set; the database is wiped.
  */
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,7 +59,6 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
   let billing: typeof import("@/lib/billing/service");
   let ent: typeof import("@/lib/billing/entitlements");
   let products: typeof import("@/lib/products/service");
-  let featured: typeof import("@/lib/board/featured");
   let ads: typeof import("@/lib/ads/service");
 
   beforeAll(async () => {
@@ -73,7 +72,6 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     billing = await import("@/lib/billing/service");
     ent = await import("@/lib/billing/entitlements");
     products = await import("@/lib/products/service");
-    featured = await import("@/lib/board/featured");
     ads = await import("@/lib/ads/service");
   });
 
@@ -93,14 +91,12 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
       .db()
       .insert(dbmod.schema.providerPlans)
       .values(
-        ["sub_link_monitor_100", "sub_maker_pro_monthly", "sub_always_featured", "sub_ad_leaderboard_week"].map(
-          (sku) => ({
-            sku,
-            provider: "paystack" as const,
-            planId: `PLN_${sku}`,
-            amountCents: 900,
-          }),
-        ),
+        ["sub_maker_pro_monthly", "sub_maker_unlimited_monthly", "sub_ad_leaderboard_week"].map((sku) => ({
+          sku,
+          provider: "paystack" as const,
+          planId: `PLN_${sku}`,
+          amountCents: 900,
+        })),
       );
   });
 
@@ -299,7 +295,6 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     expect(sent.find((e) => e.subject === "Welcome to Maker Pro")?.text).toContain("free Fast Track");
     expect((await ent.planFor(u))?.id).toBe("maker_pro");
     expect(await ent.can(u, "dr_tracking")).toBe(true);
-    expect(await ent.can(u, "always_featured")).toBe(false);
     expect(await ent.limit(u, "links")).toBe(100);
     expect((await billing.proUserIds([u, "nobody"])).has(u)).toBe(true);
     // Featured slots: 4 more weeks to book.
@@ -316,10 +311,10 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
       pricingModel: "freemium",
       screenshots: ["https://pro.io/shot.png"],
     });
-    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: true });
+    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: true, remaining: 1, allowed: 1 });
     const upgraded = await billing.redeemFastTrack(u, p.id);
     expect(upgraded).toMatchObject({ tier: "fast_track", status: "pending" });
-    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: false });
+    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: false, remaining: 0, allowed: 1 });
     const q = await products.saveProduct(u, {
       websiteUrl: "https://pro2.io/",
       name: "pro2.io",
@@ -336,17 +331,17 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
       .db()
       .update(dbmod.schema.subscriptions)
       .set({ currentPeriodEnd: new Date(nextQuarter.getTime() + 30 * DAY) });
-    expect(await billing.fastTrackCredit(u, nextQuarter)).toEqual({ eligible: true, available: true });
+    expect(await billing.fastTrackCredit(u, nextQuarter)).toMatchObject({ eligible: true, available: true });
 
     // Without Pro there's no credit.
     const free = await makeUser();
-    expect(await billing.fastTrackCredit(free)).toEqual({ eligible: false, available: false });
+    expect(await billing.fastTrackCredit(free)).toMatchObject({ eligible: false, available: false });
     await expect(billing.redeemFastTrack(free, q.id)).rejects.toThrow();
   });
 
   it("past_due → dunning on day 0, 3 and 7 → the plan ends, data kept", async () => {
     const u = await makeUser();
-    const sub = await subscribe(u, "sub_link_monitor_100");
+    const sub = await subscribe(u, "sub_maker_pro_monthly");
     await dbmod.db().insert(dbmod.schema.trackedLinks).values({
       ownerUserId: u,
       url: "https://dir.example/p",
@@ -359,7 +354,7 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     fake.state = { status: "past_due" };
     const due = await event(sub, "past_due");
     expect(due).toMatchObject({ status: "past_due", dunningStage: 1 });
-    expect(sent.map((e) => e.subject)).toEqual(["Your Link Monitor payment didn't go through"]);
+    expect(sent.map((e) => e.subject)).toEqual(["Your Maker Pro payment didn't go through"]);
     // Still entitled while dunning runs.
     expect(await ent.limit(u, "links")).toBe(100);
 
@@ -368,11 +363,11 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     sent.length = 0;
     expect((await billing.syncSubscriptions(at(1))).dunning).toBe(0);
     expect((await billing.syncSubscriptions(at(3))).dunning).toBe(1);
-    expect(sent.map((e) => e.subject)).toEqual(["Reminder: your Link Monitor payment is still failing"]);
+    expect(sent.map((e) => e.subject)).toEqual(["Reminder: your Maker Pro payment is still failing"]);
     expect((await billing.syncSubscriptions(at(4))).dunning).toBe(0);
     sent.length = 0;
     expect((await billing.syncSubscriptions(at(7))).dunning).toBe(1);
-    expect(sent.map((e) => e.subject)).toEqual(["Your Link Monitor plan has ended"]);
+    expect(sent.map((e) => e.subject)).toEqual(["Your Maker Pro plan has ended"]);
     const ended = await dbmod.db().query.subscriptions.findFirst({ where: eq(dbmod.schema.subscriptions.id, sub.id) });
     expect(ended).toMatchObject({ status: "cancelled", dunningStage: 3 });
     expect(await ent.limit(u, "links")).toBe(10);
@@ -382,12 +377,12 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
 
   it("a payment that recovers during dunning keeps the plan", async () => {
     const u = await makeUser();
-    const sub = await subscribe(u, "sub_link_monitor_100");
+    const sub = await subscribe(u, "sub_maker_pro_monthly");
     await event(sub, "past_due");
     sent.length = 0;
     const back = await event(sub, "active");
     expect(back).toMatchObject({ status: "active", pastDueAt: null, dunningStage: 0 });
-    expect(sent.map((e) => e.subject)).toEqual(["Your Link Monitor payment went through"]);
+    expect(sent.map((e) => e.subject)).toEqual(["Your Maker Pro payment went through"]);
   });
 
   it("cancel → non_renewing until the period ends, even if the provider says cancelled", async () => {
@@ -423,7 +418,7 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
   it("ends non-renewing plans at period end even without hearing from the provider", async () => {
     const u = await makeUser();
     const periodEnd = new Date(Date.now() + 5 * DAY);
-    const sub = await subscribe(u, "sub_link_monitor_100", periodEnd);
+    const sub = await subscribe(u, "sub_maker_pro_monthly", periodEnd);
     await payments.cancelSubscription(sub.id, u);
     // No provider id to re-fetch with, so only the period end applies.
     await dbmod
@@ -436,7 +431,7 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
 
   it("re-fetches subscriptions we haven't heard about in a day", async () => {
     const u = await makeUser();
-    const sub = await subscribe(u, "sub_link_monitor_100");
+    const sub = await subscribe(u, "sub_maker_pro_monthly");
     expect((await billing.syncSubscriptions()).synced).toBe(0);
     fake.state = { status: "past_due" };
     sent.length = 0;
@@ -447,29 +442,74 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     expect(sent[0].subject).toContain("didn't go through");
   });
 
-  it("Always Featured puts the chosen listing in the rail and on its category page", async () => {
+  it("Maker Unlimited gets 3 free Fast Tracks a quarter, numbered per quarter", async () => {
     const u = await makeUser();
-    const p = await approvedProduct(u, "always.io");
-    const sub = await subscribe(u, "sub_always_featured");
-    expect(sent.find((e) => e.subject === "Welcome to Always Featured")).toBeDefined();
-    expect((await featured.featuredNow()).map((f) => f.slug)).not.toContain(p.slug);
+    await subscribe(u, "sub_maker_unlimited_monthly");
+    expect(await ent.limit(u, "links")).toBe(10_000);
+    expect(await ads.extraWeeksFor(u)).toBe(8);
+    expect((await billing.proUserIds([u])).has(u)).toBe(true);
+    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: true, remaining: 3, allowed: 3 });
+    const claims = [
+      await billing.claimFastTrackCredit(u, crypto.randomUUID()),
+      await billing.claimFastTrackCredit(u, crypto.randomUUID()),
+      await billing.claimFastTrackCredit(u, crypto.randomUUID()),
+    ];
+    expect(new Set(claims.map((c) => c.periodKey)).size).toBe(3);
+    expect(await billing.fastTrackCredit(u)).toEqual({ eligible: true, available: false, remaining: 0, allowed: 3 });
+    await expect(billing.claimFastTrackCredit(u, crypto.randomUUID())).rejects.toThrow("used this quarter");
+  });
 
-    const other = await makeUser();
-    const theirs = await approvedProduct(other, "theirs.io");
-    await expect(billing.setFeaturedListing(u, sub.id, theirs.id)).rejects.toThrow("your listings");
-    await billing.setFeaturedListing(u, sub.id, p.id);
+  it("upgrading ends the lower plan when the new one is paid, quietly and with no refund", async () => {
+    const u = await makeUser();
+    const pro = await subscribe(u, "sub_maker_pro_monthly");
+    sent.length = 0;
+    await subscribe(u, "sub_maker_unlimited_monthly", new Date(Date.now() + 365 * DAY));
+    expect(fake.cancelled).toContain(pro.providerSubscriptionId);
+    expect(await subRow(pro.id)).toMatchObject({ status: "non_renewing" });
+    expect((await ent.planFor(u))?.id).toBe("maker_unlimited");
+    expect(sent.map((e) => e.subject)).toEqual(["Welcome to Maker Unlimited"]);
+    expect(sent[0].text).toContain("Your Maker Pro plan has been cancelled");
 
-    const rail = await featured.featuredNow();
-    expect(rail[0]).toMatchObject({ slug: p.slug, tier: "always", hero: false });
-    expect(await featured.alwaysFeaturedSponsor("ai")).toMatchObject({ slug: p.slug, bookingId: null });
-    expect(await featured.alwaysFeaturedSponsor("finance")).toBeNull();
+    // When Pro's time runs out and the provider says so, there's nothing to tell them.
+    sent.length = 0;
+    const after = new Date(pro.currentPeriodEnd!.getTime() + DAY);
+    await billing.applySubscriptionState((await subRow(pro.id))!, { status: "cancelled" }, after);
+    expect(sent).toEqual([]);
+  });
 
-    // Ends with the plan.
+  it("won't sell a plan they already pay for, or a lower one until they cancel", async () => {
+    const u = await makeUser();
+    const unlimited = await subscribe(u, "sub_maker_unlimited_monthly");
+    const buy = (skuId: string) =>
+      payments.startSubscription({ skuId, provider: "paystack", userId: u, email: "u@x.test" });
+    await expect(buy("sub_maker_unlimited_monthly")).rejects.toThrow("already on Maker Unlimited");
+    await expect(buy("sub_maker_pro_monthly")).rejects.toThrow("Cancel it first");
+
+    await payments.cancelSubscription(unlimited.id, u);
+    await expect(buy("sub_maker_pro_monthly")).resolves.toMatchObject({ subscriptionId: expect.any(String) });
+  });
+
+  it("limits listings by plan, counting everything but archived", async () => {
+    const u = await makeUser();
+    const listing = (domain: string) =>
+      products.saveProduct(u, {
+        websiteUrl: `https://${domain}/`,
+        name: domain,
+        tagline: `${domain} does useful things`,
+        description: "A".repeat(60),
+        categories: ["ai"],
+        pricingModel: "freemium",
+        screenshots: [`https://${domain}/shot.png`],
+      });
+    await listing("one.io");
+    expect(await products.listingLimitReached(u)).toBeNull();
+    const two = await listing("two.io");
+    expect(await products.listingLimitReached(u)).toContain("Your plan covers 2 listings");
     await dbmod
       .db()
-      .update(dbmod.schema.subscriptions)
-      .set({ status: "cancelled" })
-      .where(eq(dbmod.schema.subscriptions.id, sub.id));
-    expect((await featured.featuredNow()).map((f) => f.slug)).not.toContain(p.slug);
+      .update(dbmod.schema.products)
+      .set({ status: "archived" })
+      .where(eq(dbmod.schema.products.id, two.id));
+    expect(await products.listingLimitReached(u)).toBeNull();
   });
 });

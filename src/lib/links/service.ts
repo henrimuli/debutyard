@@ -6,6 +6,8 @@ import { env } from "@/env";
 import { sendEmail } from "@/lib/email";
 import { renderEmail, type Block, type Tone } from "@/lib/email-template";
 import { limit } from "@/lib/billing/entitlements";
+import { formatLimit } from "@/lib/billing/plans";
+import { formatUsd, getSku } from "@/lib/payments/skus";
 import { checkLink, targetDomain, type LinkCheckResult } from "@/lib/directories/verify";
 import { captureEvidence, evidenceKey } from "@/lib/evidence";
 import {
@@ -147,7 +149,7 @@ export async function addManualLink(userId: string, raw: z.input<typeof addLinkI
   const [used, max] = await Promise.all([manualCount(userId), limit(userId, "links", now)]);
   if (used >= max) {
     throw new LinkError(
-      `You're monitoring ${used} of ${max} links on your plan. Remove one or upgrade to monitor more.`,
+      `You're monitoring ${used} of ${formatLimit(max)} links on your plan. Remove one or upgrade to monitor more.`,
     );
   }
   const dupe = await db().query.trackedLinks.findFirst({
@@ -414,8 +416,8 @@ export const monitorEnd = (deliveredAt: Date, months: number) => addMonths(deliv
 
 /**
  * Orders whose included monitoring has ended: their links move onto the
- * buyer's plan if it has room, otherwise monitoring stops and we suggest the
- * Link Monitor plan. Each order is handled once.
+ * buyer's plan if it has room, otherwise monitoring stops and we suggest
+ * Maker Pro. Each order is handled once.
  */
 export async function endIncludedMonitoring(now = new Date()) {
   const due = await db()
@@ -477,10 +479,10 @@ export async function endIncludedMonitoring(now = new Date()) {
           },
           {
             callout: "Keep getting alerts",
-            text: "Directories change their link policies and remove listings over time. The Link Monitor plan is $9/month for 100 links, with weekly checks.",
+            text: `Directories change their link policies and remove listings over time. Maker Pro is ${formatUsd(getSku("sub_maker_pro_monthly")!.amountCents)}/month and covers 100 links, with weekly checks.`,
           },
         ],
-        { label: "Keep monitoring", href: url("/dashboard/billing#plans") },
+        { label: "Keep monitoring", href: url("/dashboard/links") },
       );
     }
   }
@@ -488,8 +490,8 @@ export async function endIncludedMonitoring(now = new Date()) {
 }
 
 /**
- * Daily: checks links that are due (oldest first, in a bounded batch), then
- * emails each owner what changed. Ends included monitoring first.
+ * Daily: checks links that are due (oldest first, taking turns between owners so
+ * one big account can't fill the bounded batch), then emails each owner what changed. Ends included monitoring first.
  */
 export async function monitorLinks(now = new Date()) {
   const ended = await endIncludedMonitoring(now);
@@ -497,7 +499,10 @@ export async function monitorLinks(now = new Date()) {
     .select()
     .from(trackedLinks)
     .where(and(eq(trackedLinks.active, true), lte(trackedLinks.nextCheckAt, ts(now))))
-    .orderBy(asc(trackedLinks.nextCheckAt))
+    .orderBy(
+      sql`row_number() over (partition by ${trackedLinks.ownerUserId} order by ${trackedLinks.nextCheckAt})`,
+      asc(trackedLinks.nextCheckAt),
+    )
     .limit(BATCH_SIZE);
   const skip = await overLimit(due, now);
   const later = new Date(now.getTime() + 7 * 86_400_000);

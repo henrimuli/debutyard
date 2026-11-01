@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
-const sizes = { sm: "max-w-md", md: "max-w-xl", xl: "max-w-6xl" } as const;
+const sizes = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl", xl: "max-w-6xl" } as const;
 
 // Open dialogs, innermost last: Escape closes only the top one (e.g. a screenshot viewer over the debut modal).
 const stack: symbol[] = [];

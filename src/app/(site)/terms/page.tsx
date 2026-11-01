@@ -21,7 +21,11 @@ export default function TermsPage() {
           A directory submission service: we submit your product to third-party directories by hand and report the
           result of each submission.
         </li>
-        <li>Subscriptions such as link monitoring and Maker Pro.</li>
+        <li>
+          Subscriptions such as Maker Pro and Maker Unlimited. &quot;Unlimited&quot; is subject to fair use: normal use
+          by one maker or team, not reselling or automated bulk use. If an account goes well beyond that, we&apos;ll
+          contact you before limiting anything.
+        </li>
       </ul>
 
       <h2>Your account and listings</h2>

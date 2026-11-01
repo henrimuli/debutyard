@@ -2,6 +2,8 @@ import "server-only";
 import { and, count, eq, gt, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db, schema } from "@/db";
+import { limit } from "@/lib/billing/entitlements";
+import { formatLimit, PLANS } from "@/lib/billing/plans";
 import { domainOf, slugify, uniqueSlug } from "@/lib/slug";
 import { upcomingWeekKeys, weekBounds, weekKeyFor } from "@/lib/weeks";
 import { tierRank, type ProductInput, type Tier } from "./input";
@@ -82,6 +84,24 @@ async function assertNotDuplicate(domain: string, exceptId?: string) {
 }
 
 /** Creates or updates a draft (or a pending listing, before review). */
+/**
+ * Why the user can't add another listing, or null if they can. Everything but archived
+ * listings counts. Anyone over their limit keeps what they have.
+ */
+export async function listingLimitReached(userId: string, now = new Date()): Promise<string | null> {
+  const [max, [row]] = await Promise.all([
+    limit(userId, "listings", now),
+    db()
+      .select({ n: count() })
+      .from(schema.products)
+      .where(and(eq(schema.products.createdBy, userId), ne(schema.products.status, "archived"))),
+  ]);
+  if (row.n < max) return null;
+  const next = PLANS.find((p) => p.limits.listings > max);
+  if (!next) return `You've reached the fair-use limit of ${max} listings. Email us and we'll sort it out.`;
+  return `Your plan covers ${max} listings. Archive one, or upgrade to ${next.label} for ${formatLimit(next.limits.listings).toLowerCase()}.`;
+}
+
 export async function saveProduct(userId: string, input: ProductInput, productId?: string): Promise<Product> {
   const domain = domainOf(input.websiteUrl);
   await assertNotDuplicate(domain, productId);

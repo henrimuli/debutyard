@@ -14,7 +14,14 @@ import { planChoices, type PlanChoices } from "@/lib/products/plan-choices";
 import { prefillFromSite } from "@/lib/products/prefill-service";
 import { listCategories, screenshotsEnabled, uploadsEnabled } from "@/lib/products/queries";
 import { captureHomepage, importOgImage, SCREENSHOTS_PER_HOUR } from "@/lib/products/screenshots";
-import { assertHasScreenshot, bookableWeeks, ProductError, saveProduct, submitForReview } from "@/lib/products/service";
+import {
+  assertHasScreenshot,
+  bookableWeeks,
+  listingLimitReached,
+  ProductError,
+  saveProduct,
+  submitForReview,
+} from "@/lib/products/service";
 import { joinSpotlightWaitlist, spotlightAvailable } from "@/lib/products/spotlight";
 import { createUploadUrl, MAX_UPLOAD_BYTES } from "@/lib/storage";
 import { spend, ToolError } from "@/lib/tools/service";
@@ -79,6 +86,10 @@ export async function saveProductAction(input: ProductInput, productId?: string)
     return { ok: false, error: "Please fix the highlighted fields.", fieldErrors };
   }
   try {
+    if (!productId) {
+      const full = await listingLimitReached(user.id);
+      if (full) return { ok: false, error: full };
+    }
     const product = await saveProduct(user.id, parsed.data, productId);
     return { ok: true, data: { id: product.id } };
   } catch (err) {

@@ -3,11 +3,12 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { env } from "@/env";
+import { isUnlimited } from "@/lib/billing/plans";
 import { getProductPage } from "@/lib/board/queries";
 import { dashboardProducts } from "@/lib/products/dashboard";
 import { productInput } from "@/lib/products/input";
 import { listCategories } from "@/lib/products/queries";
-import { isLiveCondition, ProductError, saveProduct } from "@/lib/products/service";
+import { isLiveCondition, listingLimitReached, ProductError, saveProduct } from "@/lib/products/service";
 import { checkReadiness, ReadinessError } from "@/lib/readiness/service";
 import { checkDofollow, checkDr, ToolError } from "@/lib/tools/service";
 import { formatWeekLabel } from "@/lib/weeks";
@@ -178,6 +179,8 @@ export async function draftSubmission(raw: unknown, user: ApiUser | null, via: "
   const unknown = parsed.data.categories.filter((c) => !known.has(c));
   if (unknown.length) throw new ApiError(`Unknown categories: ${unknown.join(", ")}. Call list_categories.`);
   try {
+    const full = await listingLimitReached(user.id);
+    if (full) throw new ApiError(full);
     const p = await saveProduct(user.id, parsed.data);
     await db().update(schema.products).set({ createdVia: via }).where(eq(schema.products.id, p.id));
     return {
@@ -217,7 +220,11 @@ export async function myLinks(user: ApiUser | null) {
   const { linksForUser, linkUsage } = await import("@/lib/links/service");
   const [rows, usage] = await Promise.all([linksForUser(user.id), linkUsage(user.id)]);
   return {
-    usage: { manualLinks: usage.used, limit: usage.limit, monitored: usage.monitored },
+    usage: {
+      manualLinks: usage.used,
+      limit: isUnlimited(usage.limit) ? null : usage.limit,
+      monitored: usage.monitored,
+    },
     links: rows.map(({ link: l, directory }) => ({
       id: l.id,
       url: l.url,

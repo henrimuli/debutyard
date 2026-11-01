@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { LinkPlansButton } from "@/components/billing/link-plans-button";
 import { LaunchWallToggle } from "@/components/links/launch-wall-toggle";
 import { LinksTable } from "@/components/links/links-table";
-import { ButtonLink } from "@/components/ui/button";
 import { Card, Heading } from "@/components/ui/primitives";
+import { site } from "@/config/site";
 import { requireUser } from "@/lib/auth";
+import { formatLimit, planForSku, planRank, PLAN_CARDS, PLANS } from "@/lib/billing/plans";
+import { subscriptionsFor } from "@/lib/billing/service";
 import { linksForUser, linkUsage, pausedLinkIds } from "@/lib/links/service";
 import { onLaunchWall } from "@/lib/links/wall";
+import { drEnabled } from "@/lib/metrics/service";
+import { enabledProviders } from "@/lib/payments";
+import { formatUsd, getSku } from "@/lib/payments/skus";
 
 export const metadata: Metadata = { title: "Link Monitor", robots: { index: false } };
 
@@ -28,16 +34,23 @@ export default function LinksPage() {
 
 async function Links() {
   const user = await requireUser("/dashboard/links");
-  const [rows, usage, paused, wall] = await Promise.all([
+  const [rows, usage, paused, wall, subs] = await Promise.all([
     linksForUser(user.id),
     linkUsage(user.id),
     pausedLinkIds(user.id),
     onLaunchWall(user.id),
+    subscriptionsFor(user.id),
   ]);
   const active = rows.filter((r) => r.link.active);
   const n = (v: string) => active.filter((r) => r.link.lastVerdict === v).length;
   const attention = active.filter((r) => r.link.lastVerdict && r.link.lastVerdict !== "dofollow").length;
   const indexChecked = active.filter((r) => r.link.indexed !== null);
+  // Only plans with more links than they have now. Unlimited has none left to offer.
+  const upgrades = PLAN_CARDS.map((card) => ({ card, links: planForSku(card.monthly)!.limits.links })).filter(
+    (u) => u.links > usage.limit,
+  );
+  const paying = subs.filter((s) => s.status !== "non_renewing").map((s) => planForSku(s.sku));
+  const currentPlan = PLANS[Math.max(-1, ...paying.map((p) => (p ? planRank(p.id) : -1)))]?.label;
 
   return (
     <div className="mt-8 space-y-6">
@@ -46,7 +59,7 @@ async function Links() {
           ["Monitored", usage.monitored],
           ["Dofollow", n("dofollow")],
           ["Need attention", attention],
-          ["Your added links", `${usage.used} / ${usage.limit}`],
+          ["Your added links", `${usage.used} / ${formatLimit(usage.limit)}`],
           ...(indexChecked.length
             ? [["Indexed by Google", `${indexChecked.filter((r) => r.link.indexed).length} / ${indexChecked.length}`]]
             : []),
@@ -63,13 +76,27 @@ async function Links() {
             <span className="font-medium">
               {paused.size > 0
                 ? `${paused.size} of your links are over your plan and aren't being checked.`
-                : `You've used all ${usage.limit} links on your plan.`}
+                : `You've used all ${formatLimit(usage.limit)} links on your plan.`}
             </span>{" "}
-            <span className="text-muted-foreground">Link Monitor covers 100 links for $9/month, or 500 for $19.</span>
+            <span className="text-muted-foreground">
+              {upgrades.length > 0
+                ? `${upgrades
+                    .map(
+                      (u) =>
+                        `${u.card.label} covers ${formatLimit(u.links).toLowerCase()} links for ${formatUsd(getSku(u.card.monthly)!.amountCents)}/month`,
+                    )
+                    .join(", and ")}.`
+                : `Email ${site.supportEmail} and we'll sort it out.`}
+            </span>
           </p>
-          <ButtonLink href="/dashboard/billing#plans" size="sm">
-            See plans
-          </ButtonLink>
+          {upgrades.length > 0 && (
+            <LinkPlansButton
+              planIds={upgrades.map((u) => u.card.id)}
+              currentPlan={currentPlan}
+              providers={enabledProviders()}
+              authority={drEnabled()}
+            />
+          )}
         </Card>
       )}
       <Card className="p-5">

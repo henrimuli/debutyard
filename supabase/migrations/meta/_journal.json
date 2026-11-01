@@ -232,6 +232,13 @@
       "when": 1793541057833,
       "tag": "20261101135057_recurring_ad_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793546237467,
+      "tag": "20261101151717_remove_featured_product",
+      "breakpoints": true
     }
   ]
 }

@@ -181,7 +181,7 @@ export function PlanPicker({
           <div className="rounded-md bg-primary/10 p-4 text-sm">
             {freeFastTrack ? (
               <>
-                <p className="font-medium">Maker Pro: your free Fast Track for this quarter is available.</p>
+                <p className="font-medium">Your plan includes a free Fast Track, and you have one left this quarter.</p>
                 <Button className="mt-3" onClick={redeem} disabled={pending || !option.available}>
                   {pending ? "Applying…" : "Use my free Fast Track"}
                 </Button>
