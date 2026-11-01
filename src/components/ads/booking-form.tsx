@@ -36,6 +36,7 @@ export function BookingForm({
   const startPlacement = useContext(BookingPlacementContext) ?? "leaderboard";
   const [placement, setPlacement] = useState<Placement>(startPlacement);
   const [chosenDuration, setDuration] = useState<Duration>("week");
+  const [wantsRecurring, setRecurring] = useState(false);
   const [category, setCategory] = useState(categories[0]?.slug ?? "");
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [weeks, setWeeks] = useState<Week[]>(initialWeeks);
@@ -46,10 +47,17 @@ export function BookingForm({
   const [paying, setPaying] = useState<ProviderId | null>(null);
 
   const config = PLACEMENTS[placement];
-  const durations = (Object.keys(config.skus) as Duration[]).filter((d) => config.skus[d]);
-  const duration: Duration = config.skus[chosenDuration] ? chosenDuration : "week";
-  const sku = getSku(config.skus[duration]!)!;
+  const recurring = wantsRecurring && Boolean(config.recurring);
+  const prices = (recurring ? config.recurring : config.skus)!;
+  const durations = (Object.keys(prices) as Duration[]).filter((d) => prices[d]);
+  const duration: Duration = prices[chosenDuration] ? chosenDuration : "week";
+  const sku = getSku(prices[duration]!)!;
   const span = WEEKS_PER[duration];
+  // A recurring slot starts next week and needs every later week free.
+  const recurringWeek = weeks[0]?.key ?? null;
+  const recurringFull = weeks.find((w) => w.remaining === 0);
+  const weekKey = recurring ? recurringWeek : week;
+  const canPay = Boolean(weekKey) && !(recurring && recurringFull);
 
   function reload(nextPlacement: Placement, nextCategory: string) {
     setPlacement(nextPlacement);
@@ -77,7 +85,7 @@ export function BookingForm({
     );
 
   async function pay(provider: ProviderId) {
-    if (!week) return setError("Pick a start week.");
+    if (!weekKey) return setError("Pick a start week.");
     setError(null);
     setPaying(provider);
     const res = await bookAction({
@@ -85,10 +93,11 @@ export function BookingForm({
       duration,
       productId,
       categorySlug: placement === "category" ? category : null,
-      weekKey: week,
+      weekKey,
       provider,
-      coupon: coupon || undefined,
+      coupon: (!recurring && coupon) || undefined,
       returnTo,
+      recurring,
     });
     if (res.ok) {
       window.location.assign(res.url);
@@ -143,9 +152,27 @@ export function BookingForm({
             </Select>
           </div>
         )}
+        {config.recurring && (
+          <div className="space-y-1.5">
+            <Label>Payment</Label>
+            <div className="flex gap-2">
+              {[false, true].map((on) => (
+                <Button
+                  key={String(on)}
+                  type="button"
+                  variant={on === recurring ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setRecurring(on)}
+                >
+                  {on ? "Recurring" : "One-time"}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         {durations.length > 1 && (
           <div className="space-y-1.5">
-            <Label>Length</Label>
+            <Label>{recurring ? "Renews" : "Length"}</Label>
             <div className="flex gap-2">
               {durations.map((d) => (
                 <Button
@@ -155,7 +182,8 @@ export function BookingForm({
                   size="sm"
                   onClick={() => setDuration(d)}
                 >
-                  {d === "week" ? "1 week" : "4 weeks"} · {formatUsd(getSku(config.skus[d]!)!.amountCents)}
+                  {recurring ? (d === "week" ? "Weekly" : "Monthly") : d === "week" ? "1 week" : "4 weeks"} ·{" "}
+                  {formatUsd(getSku(prices[d]!)!.amountCents)}
                 </Button>
               ))}
             </div>
@@ -164,45 +192,72 @@ export function BookingForm({
       </div>
       <p className="text-sm text-muted-foreground">{config.description}</p>
 
-      <div>
-        <p className="mb-2 text-sm font-medium">
-          {placement === "newsletter" ? "Issue (sent Monday of)" : "Start week"}{" "}
-          <span className="font-normal text-muted-foreground">
-            · {config.cap} slot{config.cap === 1 ? "" : "s"} per week
-          </span>
-        </p>
-        <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", loading && "opacity-50")}>
-          {weeks.map((w) => {
-            const ok = fits(w.key);
-            return (
-              <button
-                key={w.key}
-                type="button"
-                disabled={!ok}
-                onClick={() => setWeek(w.key)}
-                className={cn(
-                  "rounded-md border p-2 text-left text-sm transition-colors",
-                  week === w.key ? "border-primary bg-primary/10" : "border-border bg-card hover:border-foreground/30",
-                  !ok && "cursor-not-allowed opacity-50",
-                )}
-              >
-                <span className="block font-medium">{w.label.replace(/, \d{4}$/, "")}</span>
-                <span className="block text-xs text-muted-foreground">{w.range}</span>
-                <span className={cn("text-xs", w.remaining === 0 ? "text-danger" : "text-muted-foreground")}>
-                  {w.remaining === 0 ? "Sold out" : `${w.remaining} left`}
-                </span>
-              </button>
-            );
-          })}
+      {recurring ? (
+        <div className={cn("rounded-md border border-border bg-card p-3 text-sm", loading && "opacity-50")}>
+          {recurringFull ? (
+            <p className="text-danger">
+              {recurringFull.label} is sold out, so this slot can&apos;t renew every week. Book it one-time instead.
+            </p>
+          ) : (
+            <>
+              <p className="font-medium">Starts {weeks[0]?.label}</p>
+              <p className="mt-1 text-muted-foreground">
+                Your slot is reserved {duration === "week" ? "week after week" : "month after month"} for as long as
+                your plan is paid. You&apos;re charged today, then every {duration}. Cancel any time from Billing and
+                your ad runs to the end of what you&apos;ve paid for.
+                {duration === "month" && " A month covers 4 or 5 weeks, so there's never a gap between charges."}
+              </p>
+            </>
+          )}
         </div>
-      </div>
+      ) : (
+        <div>
+          <p className="mb-2 text-sm font-medium">
+            {placement === "newsletter" ? "Issue (sent Monday of)" : "Start week"}{" "}
+            <span className="font-normal text-muted-foreground">
+              · {config.cap} slot{config.cap === 1 ? "" : "s"} per week
+            </span>
+          </p>
+          <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", loading && "opacity-50")}>
+            {weeks.map((w) => {
+              const ok = fits(w.key);
+              return (
+                <button
+                  key={w.key}
+                  type="button"
+                  disabled={!ok}
+                  onClick={() => setWeek(w.key)}
+                  className={cn(
+                    "rounded-md border p-2 text-left text-sm transition-colors",
+                    week === w.key
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:border-foreground/30",
+                    !ok && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  <span className="block font-medium">{w.label.replace(/, \d{4}$/, "")}</span>
+                  <span className="block text-xs text-muted-foreground">{w.range}</span>
+                  <span className={cn("text-xs", w.remaining === 0 ? "text-danger" : "text-muted-foreground")}>
+                    {w.remaining === 0 ? "Sold out" : `${w.remaining} left`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-4 border-t border-border pt-5">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="coupon">Coupon</Label>
-          <Input id="coupon" value={coupon} onChange={(e) => setCoupon(e.target.value)} className="w-40" />
-        </div>
-        <p className="font-display text-2xl font-bold">{formatUsd(sku.amountCents)}</p>
+        {!recurring && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="coupon">Coupon</Label>
+            <Input id="coupon" value={coupon} onChange={(e) => setCoupon(e.target.value)} className="w-40" />
+          </div>
+        )}
+        <p className="font-display text-2xl font-bold">
+          {formatUsd(sku.amountCents)}
+          {recurring && <span className="text-base font-medium text-muted-foreground">/{duration}</span>}
+        </p>
         <div className="flex flex-wrap gap-2 sm:ml-auto">
           {providers.length === 0 ? (
             <Button disabled variant="outline">
@@ -210,7 +265,7 @@ export function BookingForm({
             </Button>
           ) : (
             providers.map((p) => (
-              <Button key={p} onClick={() => pay(p)} disabled={!week || paying !== null}>
+              <Button key={p} onClick={() => pay(p)} disabled={!canPay || paying !== null}>
                 {paying === p ? "Redirecting…" : providerLabels[p]}
               </Button>
             ))

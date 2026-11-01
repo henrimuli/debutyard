@@ -1,0 +1,2 @@
+ALTER TABLE "ad_bookings" ADD COLUMN "subscription_id" uuid;--> statement-breakpoint
+ALTER TABLE "ad_bookings" ADD CONSTRAINT "ad_bookings_subscription_id_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."subscriptions"("id") ON DELETE set null ON UPDATE no action;

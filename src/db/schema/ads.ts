@@ -1,7 +1,7 @@
 import { index, integer, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { categories, products } from "./board";
-import { orders } from "./payments";
+import { orders, subscriptions } from "./payments";
 
 export const adPlacement = pgEnum("ad_placement", [
   "leaderboard",
@@ -17,6 +17,8 @@ export const bookingStatus = pgEnum("booking_status", ["held", "active", "comple
  * A paid featured slot. `held` reserves inventory while the buyer pays;
  * paying makes it `active`. Inventory counts `startsAt..paidEndsAt`; serving
  * uses `startsAt..endsAt`, which the CPC guarantee can push past the paid end.
+ * A recurring slot is one booking with a subscription: each renewal moves its end,
+ * and while the subscription lives it holds inventory for every later week too.
  */
 export const adBookings = pgTable(
   "ad_bookings",
@@ -30,6 +32,7 @@ export const adBookings = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     orderId: uuid("order_id").references(() => orders.id),
+    subscriptionId: uuid("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
     sku: text("sku").notNull(),
     /** First booked week (for newsletter: the week whose Monday issue it sponsors). */
     weekKey: text("week_key").notNull(),

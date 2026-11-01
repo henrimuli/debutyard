@@ -42,7 +42,7 @@ export function BookingStatsTable({
                 </td>
                 <td className="whitespace-nowrap px-3 py-2">
                   {formatWeekLabel(b.weekKey)}
-                  {b.weeks > 1 && ` +${b.weeks - 1}w`}
+                  {b.subscriptionId ? " · recurring" : b.weeks > 1 && ` +${b.weeks - 1}w`}
                   {b.extensions > 0 && <span className="text-success"> +{b.extensions} free</span>}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{b.impressions}</td>

@@ -1,11 +1,11 @@
 import "server-only";
-import { and, desc, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { env } from "@/env";
 import { site } from "@/config/site";
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
-import { startCheckout } from "@/lib/payments/service";
+import { cancelSubscription, startCheckout, startSubscription } from "@/lib/payments/service";
 import { formatUsd } from "@/lib/payments/skus";
 import type { ProviderId } from "@/lib/payments/types";
 import { can } from "@/lib/billing/entitlements";
@@ -16,6 +16,7 @@ import {
   BOOKING_HORIZON_WEEKS,
   cpcCents,
   HOLD_MINUTES,
+  paidEndForNextCharge,
   PLACEMENTS,
   remainingByWeek,
   shouldExtend,
@@ -24,7 +25,7 @@ import {
   type Placement,
 } from "./placements";
 
-const { adBookings, products, orders } = schema;
+const { adBookings, products, orders, subscriptions } = schema;
 export type Booking = typeof adBookings.$inferSelect;
 
 export class BookingError extends Error {}
@@ -40,6 +41,39 @@ const sameSlot = (placement: Placement, categorySlug: string | null) =>
     eq(adBookings.placement, placement),
     placement === "category" && categorySlug ? eq(adBookings.categorySlug, categorySlug) : sql`true`,
   );
+
+/** While its subscription is in one of these, a recurring booking keeps its slot. */
+const RENEWING = ["pending", "active", "past_due"] as const;
+/** Past any week on the calendar. */
+const FOREVER = new Date(8.64e15);
+
+/** Bookings using this slot between two dates. A recurring one that's still renewing uses every week from its start. */
+async function slotUsage(
+  q: Pick<ReturnType<typeof db>, "select">,
+  placement: Placement,
+  categorySlug: string | null,
+  now: Date,
+  from: Date,
+  to: Date,
+) {
+  const rows = await q
+    .select({
+      startsAt: adBookings.startsAt,
+      paidEndsAt: adBookings.paidEndsAt,
+      renewing: sql<boolean>`coalesce(${inArray(subscriptions.status, [...RENEWING])}, false)`,
+    })
+    .from(adBookings)
+    .leftJoin(subscriptions, eq(subscriptions.id, adBookings.subscriptionId))
+    .where(
+      and(
+        sameSlot(placement, categorySlug),
+        holdsInventory(now),
+        lt(adBookings.startsAt, to),
+        or(gt(adBookings.paidEndsAt, from), inArray(subscriptions.status, [...RENEWING])),
+      ),
+    );
+  return rows.map((r) => ({ startsAt: r.startsAt, paidEndsAt: r.renewing ? FOREVER : r.paidEndsAt }));
+}
 
 /**
  * Weeks that can be booked: whole weeks from next Monday on, so nobody pays
@@ -65,17 +99,7 @@ export async function availability(
   const weeks = keys.map((key) => ({ key, ...weekBounds(key) }));
   const from = weeks[0].startsAt;
   const to = weeks[weeks.length - 1].endsAt;
-  const live = await db()
-    .select({ startsAt: adBookings.startsAt, paidEndsAt: adBookings.paidEndsAt })
-    .from(adBookings)
-    .where(
-      and(
-        sameSlot(placement, categorySlug),
-        holdsInventory(now),
-        lt(adBookings.startsAt, to),
-        gt(adBookings.paidEndsAt, from),
-      ),
-    );
+  const live = await slotUsage(db(), placement, categorySlug, now, from, to);
   const remaining = remainingByWeek(weeks, live, PLACEMENTS[placement].cap);
   return weeks.map((w) => ({
     key: w.key,
@@ -97,15 +121,20 @@ export type BookInput = {
   couponCode?: string | null;
   /** "dashboard": the provider returns the buyer to the dashboard after checkout. */
   returnTo?: "dashboard";
+  /** Renews until cancelled, keeping the slot. Starts next week and needs every later week free. */
+  recurring?: boolean;
 };
 
 /** Reserves the slot (serialised per placement) and starts checkout. */
 export async function bookSlot(input: BookInput, now = new Date()): Promise<{ bookingId: string; url: string }> {
   const config = PLACEMENTS[input.placement];
-  const skuId = config.skus[input.duration];
+  const skuId = input.recurring ? config.recurring?.[input.duration] : config.skus[input.duration];
   if (!skuId) throw new BookingError("That duration isn't available for this placement.");
   if (!bookableWeeks(now, await extraWeeksFor(input.userId, now)).includes(input.weekKey)) {
     throw new BookingError("Pick a week from the calendar.");
+  }
+  if (input.recurring && input.weekKey !== bookableWeeks(now)[0]) {
+    throw new BookingError("Recurring slots start next week.");
   }
   if (input.placement === "category" && !input.categorySlug) throw new BookingError("Pick a category to sponsor.");
   const categorySlug = input.placement === "category" ? input.categorySlug : null;
@@ -126,24 +155,29 @@ export async function bookSlot(input: BookInput, now = new Date()): Promise<{ bo
 
   const booking = await db().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ads:${input.placement}:${categorySlug ?? ""}`}))`);
-    const overlapping = await tx
-      .select({ startsAt: adBookings.startsAt, paidEndsAt: adBookings.paidEndsAt })
-      .from(adBookings)
-      .where(
-        and(
-          sameSlot(input.placement, categorySlug),
-          holdsInventory(now),
-          lt(adBookings.startsAt, paidEndsAt),
-          gt(adBookings.paidEndsAt, startsAt),
-        ),
-      );
-    const covered = Array.from({ length: weeks }, (_, i) => {
-      const key = addWeeks(input.weekKey, i);
-      return { key, ...weekBounds(key) };
-    });
+    // A recurring slot needs every week anyone could book, the longest calendar included.
+    const covered = Array.from(
+      { length: input.recurring ? BOOKING_HORIZON_WEEKS + PRO_EXTRA_WEEKS : weeks },
+      (_, i) => {
+        const key = addWeeks(input.weekKey, i);
+        return { key, ...weekBounds(key) };
+      },
+    );
+    const overlapping = await slotUsage(
+      tx,
+      input.placement,
+      categorySlug,
+      now,
+      startsAt,
+      covered[covered.length - 1].endsAt,
+    );
     const remaining = remainingByWeek(covered, overlapping, config.cap);
     const full = covered.find((w) => remaining[w.key] === 0);
-    if (full) throw new BookingError(`${formatWeekLabel(full.key)} is sold out for this placement.`);
+    if (full) {
+      throw new BookingError(
+        `${formatWeekLabel(full.key)} is sold out for this placement${input.recurring ? ", so it can't renew every week. Book it one-time instead." : "."}`,
+      );
+    }
 
     const [row] = await tx
       .insert(adBookings)
@@ -166,6 +200,17 @@ export async function bookSlot(input: BookInput, now = new Date()): Promise<{ bo
   });
 
   try {
+    if (input.recurring) {
+      const { subscriptionId, url } = await startSubscription({
+        skuId,
+        provider: input.provider,
+        userId: input.userId,
+        email: input.email,
+        returnTo: input.returnTo,
+      });
+      await db().update(adBookings).set({ subscriptionId }).where(eq(adBookings.id, booking.id));
+      return { bookingId: booking.id, url };
+    }
     const { orderId, url } = await startCheckout({
       skuId,
       provider: input.provider,
@@ -201,7 +246,11 @@ export async function activateBooking(bookingId: string, now = new Date()) {
 
   const product = await db().query.products.findFirst({ where: eq(products.id, row.productId) });
   const label = PLACEMENTS[row.placement].label;
-  const when = row.weeks > 1 ? `${formatWeekLabel(row.weekKey)} for ${row.weeks} weeks` : formatWeekLabel(row.weekKey);
+  const when = row.subscriptionId
+    ? `From ${formatWeekLabel(row.weekKey)}, renewing until you cancel`
+    : row.weeks > 1
+      ? `${formatWeekLabel(row.weekKey)} for ${row.weeks} weeks`
+      : formatWeekLabel(row.weekKey);
   const owner = row.userId ? await db().query.user.findFirst({ where: eq(schema.user.id, row.userId) }) : null;
   if (owner) {
     const dash = new URL("/dashboard", env().NEXT_PUBLIC_SITE_URL).toString();
@@ -254,6 +303,27 @@ export async function activateBooking(bookingId: string, now = new Date()) {
     });
   }
   return row;
+}
+
+/**
+ * A recurring slot's subscription changed. Its first payment activates the booking, and
+ * each later one moves the booking's end. Works from the next charge date, not from
+ * counting charges, so webhooks and the daily sync can both call it any number of times.
+ */
+export async function syncRecurringBooking(
+  sub: { id: string; status: string; currentPeriodEnd: Date | null },
+  now = new Date(),
+) {
+  if (sub.status !== "active") return;
+  const booking = await db().query.adBookings.findFirst({ where: eq(adBookings.subscriptionId, sub.id) });
+  if (!booking || booking.status === "completed") return;
+  await activateBooking(booking.id, now);
+  if (!sub.currentPeriodEnd) return;
+  const paidEnd = paidEndForNextCharge(sub.currentPeriodEnd);
+  await db()
+    .update(adBookings)
+    .set({ paidEndsAt: paidEnd, endsAt: paidEnd })
+    .where(and(eq(adBookings.id, booking.id), lt(adBookings.paidEndsAt, paidEnd)));
 }
 
 export type AdItem = {
@@ -360,7 +430,9 @@ export async function recordClick(bookingId: string, count: boolean): Promise<st
 /**
  * Daily: ends slots whose time is up. Under the CPC guarantee a slot still
  * costing over $1 a click runs another week for free; otherwise it completes
- * and the buyer gets a performance report. Also releases lapsed holds.
+ * and the buyer gets a performance report. Also releases lapsed holds. A recurring
+ * slot only completes once its subscription has ended, and stops charging if its
+ * listing is taken down.
  */
 export async function settleBookings(now = new Date()) {
   await db()
@@ -368,12 +440,36 @@ export async function settleBookings(now = new Date()) {
     .set({ status: "cancelled" })
     .where(and(eq(adBookings.status, "held"), lt(adBookings.heldUntil, new Date(now.getTime() - 24 * 3600_000))));
 
+  const takenDown = await db()
+    .select({ id: subscriptions.id, userId: subscriptions.userId })
+    .from(adBookings)
+    .innerJoin(products, eq(products.id, adBookings.productId))
+    .innerJoin(subscriptions, eq(subscriptions.id, adBookings.subscriptionId))
+    .where(
+      and(
+        inArray(adBookings.status, ["held", "active"]),
+        inArray(products.status, ["rejected", "archived"]),
+        inArray(subscriptions.status, ["active", "past_due"]),
+      ),
+    );
+  for (const sub of takenDown) {
+    await cancelSubscription(sub.id, sub.userId).catch((err) => console.error(`ad plan cancel ${sub.id}`, err));
+  }
+
   const due = await db()
     .select({ b: adBookings, paidCents: orders.amountCents, productName: products.name })
     .from(adBookings)
     .innerJoin(products, eq(products.id, adBookings.productId))
     .leftJoin(orders, eq(orders.id, adBookings.orderId))
-    .where(and(eq(adBookings.status, "active"), lte(adBookings.endsAt, now), isNull(adBookings.settledAt)));
+    .leftJoin(subscriptions, eq(subscriptions.id, adBookings.subscriptionId))
+    .where(
+      and(
+        eq(adBookings.status, "active"),
+        lte(adBookings.endsAt, now),
+        isNull(adBookings.settledAt),
+        or(isNull(subscriptions.id), notInArray(subscriptions.status, [...RENEWING])),
+      ),
+    );
 
   const result = { extended: 0, completed: 0 };
   for (const { b, paidCents, productName } of due) {
