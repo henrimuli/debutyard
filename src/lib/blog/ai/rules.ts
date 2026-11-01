@@ -7,7 +7,7 @@ import type { PostKind } from "@/lib/blog/types";
  * order) are enforced by lib/blog/seo/analyze.ts; the model is told the same
  * numbers so it writes to them, and the analyzer checks the result.
  */
-export const BLOG_RULES_VERSION = "2026-10-31.1";
+export const BLOG_RULES_VERSION = "2026-11-01.1";
 
 export const ALLOWED_HTML =
   'h2, h3, h4, p, ul, ol, li, strong, em, a (href, and rel="nofollow" for cited sources only), blockquote, table, thead, tbody, tr, th, td, hr, aside[data-callout] (data-callout is one of: info, tip, warning, cta, image, generate), and the FAQ block: div[data-faq] containing one or more details[data-faq-item] > summary (the question) + div[data-faq-a] (the answer), e.g. <div data-faq><details data-faq-item><summary>Question?</summary><div data-faq-a>Answer.</div></details></div>';
@@ -79,7 +79,7 @@ export const BLOG_SYSTEM_PROMPT = `You are DebutYard's senior editor and SEO str
 - Write like an experienced human editor. Vary sentence length. Be specific.
 
 ## Output format
-- When asked for HTML, use ONLY these tags: ${ALLOWED_HTML}. No h1, no inline styles, no classes, no scripts, no markdown fences.
+- When asked for HTML, use ONLY these tags: ${ALLOWED_HTML}. No h1, no inline styles, no classes, no scripts, no markdown fences. Every part of the answer is HTML, to the last line: never switch to Markdown (no ##, no * bullets, no **bold**) part-way through, including after a callout.
 - When asked for JSON, return exactly the requested schema.
 - No commentary outside the requested format.
 

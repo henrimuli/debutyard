@@ -14,7 +14,13 @@ import {
 } from "@/components/blog-admin/editor/editor-actions";
 import { PublishDialog } from "@/components/blog-admin/editor/publish-dialog";
 import { RevisionsDialog } from "@/components/blog-admin/editor/revisions-dialog";
-import { clearBackup, readBackup, useAutosave, type Backup } from "@/components/blog-admin/editor/use-autosave";
+import {
+  backupHasNewWork,
+  clearBackup,
+  readBackup,
+  useAutosave,
+  type Backup,
+} from "@/components/blog-admin/editor/use-autosave";
 import {
   IconArrowLeft,
   IconClock,
@@ -202,16 +208,20 @@ export function BlogEditor({
   }, []);
 
   // ---- recover unsaved work from a crashed or closed tab -------------------------------
+  // Once, when the editor opens. The page re-renders while it's open (a server action that
+  // refreshes the session cookie is enough, and the inbox badge polls one), and by then a backup
+  // is just this tab's own edits waiting for their save.
+  const recoveryChecked = useRef(false);
   useEffect(() => {
+    if (recoveryChecked.current) return;
+    recoveryChecked.current = true;
     const b = readBackup(postId);
     if (!b) return;
-    const newer = b.at > new Date(initial.updatedAt).getTime();
-    const differs = JSON.stringify(b.fields) !== JSON.stringify(initial.fields);
     // localStorage is only readable after hydration, so this cannot be initial state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (newer && differs) setBackup(b);
+    if (backupHasNewWork(b, initial)) setBackup(b);
     else clearBackup(postId);
-  }, [postId, initial.updatedAt, initial.fields]);
+  }, [postId, initial]);
 
   // ---- live SEO analysis ---------------------------------------------------------------
   const deferred = useDeferredValue(fields);

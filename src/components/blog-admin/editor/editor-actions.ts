@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { DOMParser as PMDOMParser, type Node as PMNode } from "@tiptap/pm/model";
 import { phraseRegex } from "@/lib/blog/links";
+import { aiOutputToHtml } from "@/lib/blog/markdown";
 
 /** Operations that modify the live editor from a suggestion (links, text edits, AI output). */
 
@@ -81,9 +82,7 @@ export function applyTextEdit(editor: Editor, find: string, replace: string): bo
 
 /** Model output can carry fences or an H1; strip them before it reaches the editor schema. */
 export function cleanAiHtml(raw: string): string {
-  return raw
-    .replace(/^\s*```(?:html)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
+  return aiOutputToHtml(raw.replace(/^\s*```(?:html)?\s*/i, "").replace(/\s*```\s*$/i, ""))
     .replace(/<h1(\s[^>]*)?>/gi, "<h2>")
     .replace(/<\/h1>/gi, "</h2>")
     .trim();
