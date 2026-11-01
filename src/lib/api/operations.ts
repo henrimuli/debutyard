@@ -3,6 +3,7 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { env } from "@/env";
+import { canOverrideFreeRules } from "@/lib/auth";
 import { isUnlimited } from "@/lib/billing/plans";
 import { getProductPage } from "@/lib/board/queries";
 import { dashboardProducts } from "@/lib/products/dashboard";
@@ -179,7 +180,7 @@ export async function draftSubmission(raw: unknown, user: ApiUser | null, via: "
   const unknown = parsed.data.categories.filter((c) => !known.has(c));
   if (unknown.length) throw new ApiError(`Unknown categories: ${unknown.join(", ")}. Call list_categories.`);
   try {
-    const full = await listingLimitReached(user.id);
+    const full = await listingLimitReached(user.id, { override: await canOverrideFreeRules(user) });
     if (full) throw new ApiError(full);
     const p = await saveProduct(user.id, parsed.data);
     await db().update(schema.products).set({ createdVia: via }).where(eq(schema.products.id, p.id));

@@ -87,8 +87,14 @@ async function assertNotDuplicate(domain: string, exceptId?: string) {
 /**
  * Why the user can't add another listing, or null if they can. Everything but archived
  * listings counts. Anyone over their limit keeps what they have.
+ * `override` (owners and admins, see canOverrideFreeRules) skips the limit.
  */
-export async function listingLimitReached(userId: string, now = new Date()): Promise<string | null> {
+export async function listingLimitReached(
+  userId: string,
+  opts: { override?: boolean } = {},
+  now = new Date(),
+): Promise<string | null> {
+  if (opts.override) return null;
   const [max, [row]] = await Promise.all([
     limit(userId, "listings", now),
     db()
