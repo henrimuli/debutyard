@@ -93,12 +93,14 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
       .db()
       .insert(dbmod.schema.providerPlans)
       .values(
-        ["sub_link_monitor_100", "sub_maker_pro_monthly", "sub_always_featured"].map((sku) => ({
-          sku,
-          provider: "paystack" as const,
-          planId: `PLN_${sku}`,
-          amountCents: 900,
-        })),
+        ["sub_link_monitor_100", "sub_maker_pro_monthly", "sub_always_featured", "sub_ad_leaderboard_week"].map(
+          (sku) => ({
+            sku,
+            provider: "paystack" as const,
+            planId: `PLN_${sku}`,
+            amountCents: 900,
+          }),
+        ),
       );
   });
 
@@ -151,6 +153,8 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
       where: eq(dbmod.schema.subscriptions.id, subscriptionId),
     }))!;
   }
+  const subRow = async (id: string) =>
+    (await dbmod.db().query.subscriptions.findFirst({ where: eq(dbmod.schema.subscriptions.id, id) }))!;
   async function event(sub: { id: string }, status: "active" | "past_due" | "cancelled" | "non_renewing") {
     fake.nextEvent = {
       eventId: `evt:${sub.id}:${status}:${Math.random()}`,
@@ -162,6 +166,128 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     await payments.handleWebhook("paystack", "{}", new Headers());
     return (await dbmod.db().query.subscriptions.findFirst({ where: eq(dbmod.schema.subscriptions.id, sub.id) }))!;
   }
+
+  describe("recurring ad slots", () => {
+    const bookRecurring = (userId: string, productId: string, extra: { weekKey?: string; recurring?: boolean } = {}) =>
+      ads.bookSlot({
+        userId,
+        email: `${userId}@x.test`,
+        placement: "leaderboard",
+        duration: "week",
+        productId,
+        categorySlug: null,
+        weekKey: ads.bookableWeeks()[0],
+        provider: "paystack",
+        recurring: true,
+        ...extra,
+      });
+    const bookingRow = async (id: string) =>
+      (await dbmod.db().query.adBookings.findFirst({ where: eq(dbmod.schema.adBookings.id, id) }))!;
+    const paid = async (subscriptionId: string, nextCharge: Date) => {
+      fake.nextEvent = {
+        eventId: `paid:${subscriptionId}:${nextCharge.getTime()}`,
+        type: "test",
+        kind: "subscription_updated",
+        providerSubscriptionId: `SUB-${subscriptionId}`,
+        status: "active",
+        providerToken: "tok",
+        currentPeriodEnd: nextCharge,
+      };
+      await payments.handleWebhook("paystack", "{}", new Headers());
+    };
+    const lastWeekLeft = async () => (await ads.availability("leaderboard", null)).at(-1)!.remaining;
+
+    it("renews, holds every later week, and frees the slot when the plan ends", async () => {
+      const u = await makeUser();
+      const p = await approvedProduct(u, "recurring.io");
+      await expect(bookRecurring(u, p.id, { weekKey: ads.bookableWeeks()[1] })).rejects.toThrow("start next week");
+
+      const { bookingId } = await bookRecurring(u, p.id);
+      const held = await bookingRow(bookingId);
+      expect(held).toMatchObject({ status: "held", sku: "sub_ad_leaderboard_week" });
+      expect(held.subscriptionId).toBeTruthy();
+      const subId = held.subscriptionId!;
+      expect(await lastWeekLeft()).toBe(2);
+
+      // The first payment activates it, with the Booked email in place of a welcome.
+      const week = 7 * DAY;
+      const firstCharge = new Date(Date.now() + week);
+      await paid(subId, firstCharge);
+      const active = await bookingRow(bookingId);
+      expect(active.status).toBe("active");
+      expect(active.paidEndsAt.getTime()).toBeGreaterThan(firstCharge.getTime());
+      expect(sent.some((e) => e.subject.startsWith("Booked:"))).toBe(true);
+      expect(sent.some((e) => e.subject.startsWith("Welcome"))).toBe(false);
+
+      // Each payment moves the end on, and hearing about one twice changes nothing.
+      const nextCharge = new Date(firstCharge.getTime() + week);
+      await paid(subId, nextCharge);
+      const renewed = await bookingRow(bookingId);
+      expect(renewed.paidEndsAt.getTime()).toBe(active.paidEndsAt.getTime() + week);
+      expect(renewed.endsAt).toEqual(renewed.paidEndsAt);
+      await billing.applySubscriptionState(await subRow(subId), {
+        status: "active",
+        currentPeriodEnd: firstCharge,
+      });
+      expect((await bookingRow(bookingId)).paidEndsAt).toEqual(renewed.paidEndsAt);
+
+      // A failed payment: the ad stops when its paid time runs out, the slot stays held.
+      await event({ id: subId }, "past_due");
+      const after = new Date(renewed.paidEndsAt.getTime() + 3600_000);
+      expect(await ads.liveAds("leaderboard", { now: after })).toEqual([]);
+      expect(await ads.settleBookings(after)).toMatchObject({ completed: 0, extended: 0 });
+      expect((await bookingRow(bookingId)).status).toBe("active");
+      expect(await lastWeekLeft()).toBe(2);
+
+      // The plan ends: the booking completes without CPC extensions, and the slot is free.
+      await event({ id: subId }, "cancelled");
+      expect(await lastWeekLeft()).toBe(3);
+      expect(await ads.settleBookings(after)).toMatchObject({ completed: 1, extended: 0 });
+      expect((await bookingRow(bookingId)).status).toBe("completed");
+    });
+
+    it("keeps the paid time after cancelling, then releases the slot", async () => {
+      const u = await makeUser();
+      const p = await approvedProduct(u, "cancels.io");
+      const { bookingId } = await bookRecurring(u, p.id);
+      const subId = (await bookingRow(bookingId)).subscriptionId!;
+      await paid(subId, new Date(Date.now() + 7 * DAY));
+      const before = await bookingRow(bookingId);
+
+      await payments.cancelSubscription(subId, u);
+      expect(await subRow(subId)).toMatchObject({ status: "non_renewing" });
+      const during = new Date(before.paidEndsAt.getTime() - 3600_000);
+      expect((await ads.liveAds("leaderboard", { now: during })).map((a) => a.bookingId)).toEqual([bookingId]);
+      expect(await lastWeekLeft()).toBe(3);
+      expect(await ads.settleBookings(new Date(before.paidEndsAt.getTime() + 3600_000))).toMatchObject({
+        completed: 1,
+      });
+    });
+
+    it("refuses a recurring slot when a later week is full", async () => {
+      const u = await makeUser();
+      const p = await approvedProduct(u, "full.io");
+      const weekKey = ads.bookableWeeks()[3];
+      for (let i = 0; i < 3; i++) await bookRecurring(u, p.id, { weekKey, recurring: false });
+      await expect(bookRecurring(u, p.id)).rejects.toThrow("can't renew every week");
+    });
+
+    it("stops charging when the listing is taken down", async () => {
+      const u = await makeUser();
+      const p = await approvedProduct(u, "archived.io");
+      const { bookingId } = await bookRecurring(u, p.id);
+      const subId = (await bookingRow(bookingId)).subscriptionId!;
+      await paid(subId, new Date(Date.now() + 7 * DAY));
+      await dbmod
+        .db()
+        .update(dbmod.schema.products)
+        .set({ status: "archived" })
+        .where(eq(dbmod.schema.products.id, p.id));
+      await ads.settleBookings();
+      expect(fake.cancelled).toContain(`SUB-${subId}`);
+      expect(await subRow(subId)).toMatchObject({ status: "non_renewing" });
+    });
+  });
 
   it("purchase → active → Maker Pro perks", async () => {
     const u = await makeUser();

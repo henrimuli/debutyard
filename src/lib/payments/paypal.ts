@@ -187,7 +187,10 @@ export class PaypalProvider implements PaymentProvider {
         status: "ACTIVE",
         billing_cycles: [
           {
-            frequency: { interval_unit: req.interval === "monthly" ? "MONTH" : "YEAR", interval_count: 1 },
+            frequency: {
+              interval_unit: req.interval === "weekly" ? "WEEK" : req.interval === "monthly" ? "MONTH" : "YEAR",
+              interval_count: 1,
+            },
             tenure_type: "REGULAR",
             sequence: 1,
             total_cycles: 0,
@@ -290,6 +293,19 @@ export class PaypalProvider implements PaymentProvider {
         };
       case "PAYMENT.CAPTURE.REFUNDED":
         return { ...base, kind: "refund_processed", providerRef: r.id ?? "" };
+      case "PAYMENT.SALE.COMPLETED": {
+        // A subscription payment. It doesn't say when the next one is due, so ask.
+        if (!r.billing_agreement_id) return { ...base, kind: "ignored" };
+        const state = await this.getSubscription(r.billing_agreement_id);
+        return {
+          ...base,
+          kind: "subscription_updated",
+          providerSubscriptionId: r.billing_agreement_id,
+          ourSubscriptionId: r.custom,
+          status: "active",
+          currentPeriodEnd: state.currentPeriodEnd,
+        };
+      }
       case "BILLING.SUBSCRIPTION.ACTIVATED":
       case "BILLING.SUBSCRIPTION.RE-ACTIVATED":
         return {

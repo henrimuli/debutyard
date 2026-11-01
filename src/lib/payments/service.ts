@@ -346,7 +346,14 @@ export async function refundOrder(orderId: string, reason: string, amountCents?:
 }
 
 /** Starts a subscription checkout. Plans must exist (run `pnpm payments:sync-plans`). */
-export async function startSubscription(input: { skuId: string; provider: ProviderId; userId: string; email: string }) {
+export async function startSubscription(input: {
+  skuId: string;
+  provider: ProviderId;
+  userId: string;
+  email: string;
+  /** "dashboard": the provider returns the buyer to /dashboard/checkout/* instead of /checkout/*. */
+  returnTo?: "dashboard";
+}) {
   const sku = getSku(input.skuId);
   if (!sku || sku.type !== "recurring") throw new CheckoutError("Unknown plan.");
 
@@ -360,13 +367,14 @@ export async function startSubscription(input: { skuId: string; provider: Provid
     .values({ userId: input.userId, sku: sku.id, provider: input.provider, providerPlanId: plan.planId })
     .returning();
 
+  const base = input.returnTo === "dashboard" ? "/dashboard/checkout" : "/checkout";
   const session = await getProvider(input.provider).createSubscription({
     email: input.email,
     planId: plan.planId,
     subscriptionId: sub.id,
     amountCents: plan.amountCents,
-    returnUrl: siteUrl(`/checkout/return?provider=${input.provider}&subscription=${sub.id}`),
-    cancelUrl: siteUrl(`/checkout/cancelled?subscription=${sub.id}`),
+    returnUrl: siteUrl(`${base}/return?provider=${input.provider}&subscription=${sub.id}`),
+    cancelUrl: siteUrl(`${base}/cancelled?subscription=${sub.id}`),
   });
   if (session.providerSubscriptionId) {
     await db()

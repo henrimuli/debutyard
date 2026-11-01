@@ -225,6 +225,13 @@
       "when": 1793534911957,
       "tag": "20261101120831_home_sidebar_placement",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793541057833,
+      "tag": "20261101135057_recurring_ad_slots",
+      "breakpoints": true
     }
   ]
 }

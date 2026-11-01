@@ -130,6 +130,38 @@ describe("PaypalProvider", () => {
     await expect(failing.parseWebhook(JSON.stringify(event), headers)).rejects.toBeInstanceOf(WebhookSignatureError);
   });
 
+  it("reads the next charge date when a subscription payment lands", async () => {
+    const headers = new Headers();
+    const event = {
+      id: "WH-EVT-2",
+      event_type: "PAYMENT.SALE.COMPLETED",
+      resource: { id: "SALE-1", billing_agreement_id: "I-1", custom: "sub-1" },
+    };
+    const fetch = fakeFetch(
+      token,
+      { body: { verification_status: "SUCCESS" } },
+      { body: { status: "ACTIVE", billing_info: { next_billing_time: "2026-11-18T10:00:00Z" } } },
+    );
+    expect(await new PaypalProvider(config, fetch).parseWebhook(JSON.stringify(event), headers)).toEqual({
+      eventId: "WH-EVT-2",
+      type: "PAYMENT.SALE.COMPLETED",
+      kind: "subscription_updated",
+      providerSubscriptionId: "I-1",
+      ourSubscriptionId: "sub-1",
+      status: "active",
+      currentPeriodEnd: new Date("2026-11-18T10:00:00Z"),
+    });
+
+    // A one-off sale with no subscription behind it needs nothing from us.
+    const oneOff = { ...event, resource: { id: "SALE-2" } };
+    const ignored = fakeFetch(token, { body: { verification_status: "SUCCESS" } });
+    expect(await new PaypalProvider(config, ignored).parseWebhook(JSON.stringify(oneOff), headers)).toEqual({
+      eventId: "WH-EVT-2",
+      type: "PAYMENT.SALE.COMPLETED",
+      kind: "ignored",
+    });
+  });
+
   it("refunds against the capture id", async () => {
     const fetch = fakeFetch(token, { body: { id: "RF-1", status: "COMPLETED" } });
     const p = new PaypalProvider(config, fetch);

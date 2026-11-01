@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cpcCents, remainingByWeek, shouldExtend } from "./placements";
+import { getSku, isPurchasable } from "@/lib/payments/skus";
+import { cpcCents, paidEndForNextCharge, PLACEMENTS, remainingByWeek, shouldExtend } from "./placements";
 
 describe("shouldExtend (CPC guarantee)", () => {
   const base = { placement: "leaderboard" as const, paidCents: 1500, extensions: 0 };
@@ -16,6 +17,40 @@ describe("shouldExtend (CPC guarantee)", () => {
   it("computes CPC", () => {
     expect(cpcCents(1500, 0)).toBeNull();
     expect(cpcCents(1500, 7)).toBe(214);
+  });
+});
+
+describe("recurring slots", () => {
+  const d = (s: string) => new Date(`${s}T12:00:00Z`);
+  const monday = (s: string) => new Date(`${s}T00:00:00Z`);
+
+  it("pays up to the Monday after the next charge", () => {
+    // Bought Wed Nov 4 for the week of Nov 9: the next charge, Nov 11, pays for the week of Nov 16.
+    expect(paidEndForNextCharge(d("2026-11-11"))).toEqual(monday("2026-11-16"));
+    expect(paidEndForNextCharge(d("2026-11-15"))).toEqual(monday("2026-11-16"));
+    expect(paidEndForNextCharge(monday("2026-11-16"))).toEqual(monday("2026-11-23"));
+  });
+
+  it("never leaves a gap before a monthly charge, whichever month it is", () => {
+    for (let month = 0; month < 12; month++) {
+      const charge = new Date(Date.UTC(2027, month, 31));
+      expect(paidEndForNextCharge(charge).getTime()).toBeGreaterThan(charge.getTime());
+    }
+  });
+
+  it("costs the same as one-time and can't be bought without a booking", () => {
+    const plans = Object.values(PLACEMENTS).flatMap((p) =>
+      Object.entries(p.recurring ?? {}).map(([d, id]) => ({ one: p.skus[d as "week"]!, id })),
+    );
+    expect(plans).toHaveLength(5);
+    for (const { one, id } of plans) {
+      expect(getSku(id)?.amountCents).toBe(getSku(one)?.amountCents);
+      expect(isPurchasable(getSku(id)!)).toBe(false);
+    }
+  });
+
+  it("isn't offered on one-slot placements", () => {
+    for (const p of Object.values(PLACEMENTS)) if (p.cap === 1) expect(p.recurring).toBeUndefined();
   });
 });
 

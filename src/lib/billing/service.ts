@@ -5,7 +5,7 @@ import { env } from "@/env";
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { getProvider } from "@/lib/payments";
-import { getSku } from "@/lib/payments/skus";
+import { getSku, isAdPlan } from "@/lib/payments/skus";
 import type { SubscriptionState } from "@/lib/payments/types";
 import { can, entitled } from "./entitlements";
 import { ALWAYS_FEATURED_SKUS, planForSku, quarterKey } from "./plans";
@@ -85,15 +85,23 @@ export async function applySubscriptionState(
     })
     .where(eq(subscriptions.id, sub.id))
     .returning();
+  // Before the emails, so a failed send that retries this still moves the slot along.
+  if (isAdPlan(updated.sku)) {
+    const { syncRecurringBooking } = await import("@/lib/ads/service");
+    await syncRecurringBooking(updated, now);
+  }
   if (status === sub.status) return updated;
 
   const name = planName(updated);
+  const ad = isAdPlan(updated.sku);
   const plan = planForSku(updated.sku);
   if (status === "active" && (sub.status === "pending" || sub.status === "cancelled")) {
-    await mailUser(updated.userId, `Welcome to ${name}`, [
-      `Your ${name} plan is active${periodEnd ? ` and renews on ${date(periodEnd)}` : ""}.`,
-      plan ? (WELCOME[plan.id] ?? "") : "",
-    ]);
+    // A recurring slot's "Booked" email is the welcome.
+    if (!ad)
+      await mailUser(updated.userId, `Welcome to ${name}`, [
+        `Your ${name} plan is active${periodEnd ? ` and renews on ${date(periodEnd)}` : ""}.`,
+        plan ? (WELCOME[plan.id] ?? "") : "",
+      ]);
   } else if (status === "active" && sub.status === "past_due") {
     await mailUser(updated.userId, `Your ${name} payment went through`, [
       "Thanks: your payment went through and your plan is active again.",
@@ -102,12 +110,16 @@ export async function applySubscriptionState(
     return (await dunningStep(updated, now)) ?? updated;
   } else if (status === "non_renewing") {
     await mailUser(updated.userId, `Your ${name} plan won't renew`, [
-      `You've cancelled ${name}. You keep everything until ${date(periodEnd)}, and you won't be charged again.`,
+      ad
+        ? `You've cancelled ${name}. Your ad keeps running for the time you've paid for, then the slot is released. You won't be charged again.`
+        : `You've cancelled ${name}. You keep everything until ${date(periodEnd)}, and you won't be charged again.`,
       "Changed your mind? You can subscribe again from the pricing page at any time.",
     ]);
   } else if (status === "cancelled" && sub.status !== "pending") {
     await mailUser(updated.userId, `Your ${name} plan has ended`, [
-      `Your ${name} plan has ended. Your links, listings and history are still here; the plan's features are off until you subscribe again.`,
+      ad
+        ? `Your ${name} plan has ended and its slot has been released. Your listing and its stats are still here.`
+        : `Your ${name} plan has ended. Your links, listings and history are still here; the plan's features are off until you subscribe again.`,
     ]);
   }
   return updated;
@@ -140,7 +152,9 @@ async function dunningStep(sub: Subscription, now: Date): Promise<Subscription |
   if (stage === 0) {
     await mailUser(sub.userId, `Your ${name} payment didn't go through`, [
       `We couldn't take the renewal payment for ${name}. Your provider will retry. To keep your plan, check your card or payment method with ${sub.provider === "paystack" ? "Paystack" : "PayPal"}.`,
-      `Your plan stays on for now. If the payment still fails, it ends on ${date(new Date(sub.pastDueAt!.getTime() + DUNNING_DAYS[DUNNING_DAYS.length - 1] * DAY))}.`,
+      isAdPlan(sub.sku)
+        ? `Your ad stops when the time you've paid for runs out. We'll hold your slot until ${date(new Date(sub.pastDueAt!.getTime() + DUNNING_DAYS[DUNNING_DAYS.length - 1] * DAY))}, then release it if the payment still fails.`
+        : `Your plan stays on for now. If the payment still fails, it ends on ${date(new Date(sub.pastDueAt!.getTime() + DUNNING_DAYS[DUNNING_DAYS.length - 1] * DAY))}.`,
     ]);
   } else if (!last) {
     await mailUser(sub.userId, `Reminder: your ${name} payment is still failing`, [
@@ -148,7 +162,9 @@ async function dunningStep(sub: Subscription, now: Date): Promise<Subscription |
     ]);
   } else {
     await mailUser(sub.userId, `Your ${name} plan has ended`, [
-      `We couldn't take payment for ${name}, so the plan has ended. Your links, listings and history are kept: subscribe again any time to turn its features back on.`,
+      isAdPlan(sub.sku)
+        ? `We couldn't take payment for ${name}, so the plan has ended and its slot has been released. Your listing and its stats are kept.`
+        : `We couldn't take payment for ${name}, so the plan has ended. Your links, listings and history are kept: subscribe again any time to turn its features back on.`,
     ]);
   }
   return claimed;

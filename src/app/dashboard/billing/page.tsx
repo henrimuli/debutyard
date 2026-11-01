@@ -74,7 +74,7 @@ async function Billing() {
                   <h2 className="font-display text-xl font-semibold">{sku?.name ?? plan?.label ?? s.sku}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {sku && sku.type === "recurring"
-                      ? `${formatUsd(sku.amountCents)}/${sku.interval === "monthly" ? "month" : "year"}`
+                      ? `${formatUsd(sku.amountCents)}/${sku.interval === "weekly" ? "week" : sku.interval === "monthly" ? "month" : "year"}`
                       : ""}{" "}
                     · paid with {s.provider === "paystack" ? "card (Paystack)" : "PayPal"}
                   </p>

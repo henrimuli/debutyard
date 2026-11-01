@@ -1,4 +1,5 @@
 import type { SkuId } from "@/lib/payments/skus";
+import { weekStart } from "@/lib/weeks";
 
 /** Bookable featured placements (PLAN §5.2). Pure config, shared by server and client. */
 
@@ -12,6 +13,8 @@ export type PlacementConfig = {
   /** Concurrent bookings allowed per week (per category for category sponsors). */
   cap: number;
   skus: Partial<Record<Duration, SkuId>>;
+  /** Plans that renew the slot until cancelled. Not on one-slot placements, which a subscriber could hold for good. */
+  recurring?: Partial<Record<Duration, SkuId>>;
   /** CPC guarantee: the slot stays up free, a week at a time, until cost per click is ≤ $1. */
   cpcGuarantee: boolean;
 };
@@ -23,6 +26,7 @@ export const PLACEMENTS: Record<Placement, PlacementConfig> = {
     description: "A clearly labelled featured row between #3 and #4 on this week's board. Rotates between sponsors.",
     cap: 3,
     skus: { week: "featured_leaderboard_week" },
+    recurring: { week: "sub_ad_leaderboard_week" },
     cpcGuarantee: true,
   },
   home_rail: {
@@ -31,6 +35,7 @@ export const PLACEMENTS: Record<Placement, PlacementConfig> = {
     description: "A card in the featured rail above the board on the homepage.",
     cap: 6,
     skus: { week: "featured_home_rail_week", month: "featured_home_rail_month" },
+    recurring: { week: "sub_ad_home_rail_week", month: "sub_ad_home_rail_month" },
     cpcGuarantee: true,
   },
   home_top: {
@@ -47,6 +52,7 @@ export const PLACEMENTS: Record<Placement, PlacementConfig> = {
     description: "A card in the homepage sidebar, mixed in beside this week's board.",
     cap: 10,
     skus: { week: "featured_home_sidebar_week", month: "featured_home_sidebar_month" },
+    recurring: { week: "sub_ad_home_sidebar_week", month: "sub_ad_home_sidebar_month" },
     cpcGuarantee: false,
   },
   category: {
@@ -93,6 +99,15 @@ export function shouldExtend(input: {
 
 export function cpcCents(paidCents: number, clicks: number): number | null {
   return clicks > 0 ? Math.round(paidCents / clicks) : null;
+}
+
+/**
+ * How long a recurring slot is paid for, given when the next charge is due: the Monday
+ * after it. Every charge lands before the week it pays for, so coverage never runs out
+ * before the next charge. Providers bill by calendar month, so a monthly plan runs 4 or 5 weeks.
+ */
+export function paidEndForNextCharge(nextCharge: Date): Date {
+  return new Date(weekStart(nextCharge).getTime() + 7 * 86_400_000);
 }
 
 /** How many concurrent bookings are left in each week. Pure; `bookings` are the live ones overlapping. */

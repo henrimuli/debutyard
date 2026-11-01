@@ -4,7 +4,7 @@
  */
 
 export type OneTimeKind = "launch" | "relaunch" | "featured" | "submission";
-export type Interval = "monthly" | "annually";
+export type Interval = "weekly" | "monthly" | "annually";
 
 type BaseSku = {
   id: string;
@@ -195,6 +195,43 @@ export const SKUS = [
     "One listing in the homepage featured rail and rotating as a category sponsor.",
   ),
   recurring("sub_agency", "Agency", 79900, "monthly", "5 client submissions a month with white-label reports."),
+
+  // Recurring featured slots, sold through the /advertise booking calendar
+  recurring(
+    "sub_ad_leaderboard_week",
+    "Leaderboard slot (weekly)",
+    1500,
+    "weekly",
+    "Your leaderboard slot, reserved every week until you cancel.",
+  ),
+  recurring(
+    "sub_ad_home_rail_week",
+    "Homepage rail (weekly)",
+    2900,
+    "weekly",
+    "Your homepage rail slot, reserved every week until you cancel.",
+  ),
+  recurring(
+    "sub_ad_home_rail_month",
+    "Homepage rail (monthly)",
+    8900,
+    "monthly",
+    "Your homepage rail slot, reserved every month until you cancel.",
+  ),
+  recurring(
+    "sub_ad_home_sidebar_week",
+    "Homepage sidebar (weekly)",
+    2000,
+    "weekly",
+    "Your homepage sidebar slot, reserved every week until you cancel.",
+  ),
+  recurring(
+    "sub_ad_home_sidebar_month",
+    "Homepage sidebar (monthly)",
+    5900,
+    "monthly",
+    "Your homepage sidebar slot, reserved every month until you cancel.",
+  ),
 ] as const satisfies readonly Sku[];
 
 export type SkuId = (typeof SKUS)[number]["id"];
@@ -205,13 +242,16 @@ export function getSku(id: string): Sku | undefined {
   return byId.get(id);
 }
 
+/** A recurring featured slot: a subscription that keeps one ad booking running. */
+export const isAdPlan = (skuId: string) => skuId.startsWith("sub_ad_");
+
 /**
  * What can be bought directly from /api/checkout: submission packages and
- * plans. Launch tiers are sold in the submit flow and featured slots through
- * the /advertise booking calendar. Agency waits for Phase 5.
+ * plans. Launch tiers are sold in the submit flow and featured slots, recurring
+ * ones too, through the /advertise booking calendar. Agency waits for Phase 5.
  */
 export function isPurchasable(sku: Sku): boolean {
-  if (sku.type === "recurring") return sku.id !== "sub_agency";
+  if (sku.type === "recurring") return sku.id !== "sub_agency" && !isAdPlan(sku.id);
   return sku.kind === "submission";
 }
 
