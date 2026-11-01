@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { BookingForm } from "@/components/ads/booking-form";
 import { DebutLink } from "@/components/debut/debut-link";
 import { ButtonLink } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/primitives";
 import { db, schema } from "@/db";
 import { availability, extraWeeksFor } from "@/lib/ads/service";
@@ -11,15 +12,15 @@ import { enabledProviders } from "@/lib/payments";
 
 /**
  * The "pick a slot" calendar and checkout. On /advertise for visitors, and in
- * the dashboard's Sponsorships page (`area` "dashboard"), where every link and
- * the checkout return stay inside the dashboard.
+ * the dashboard's booking modal (`area` "dashboard"), where every link and the
+ * checkout return stay inside the dashboard.
  */
 export async function BookingSection({ area = "site" }: { area?: "site" | "dashboard" }) {
   const user = await getCurrentUser();
   const inDashboard = area === "dashboard";
   if (!user) {
     return (
-      <Card className="mt-6 text-center">
+      <Card className={cn("text-center", !inDashboard && "mt-6")}>
         <p className="font-medium">Sign in to see the calendar and book.</p>
         <ButtonLink
           href={`/sign-in?next=${encodeURIComponent(inDashboard ? "/dashboard/sponsorships#book" : "/advertise#book")}`}
@@ -41,7 +42,7 @@ export async function BookingSection({ area = "site" }: { area?: "site" | "dashb
   ]);
   if (products.length === 0) {
     return (
-      <Card className="mt-6 text-center">
+      <Card className={cn("text-center", !inDashboard && "mt-6")}>
         <p className="font-medium">Sponsors promote an approved DebutYard listing.</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Submit your product first; you can book as soon as it&apos;s approved.
@@ -56,15 +57,15 @@ export async function BookingSection({ area = "site" }: { area?: "site" | "dashb
       </Card>
     );
   }
-  return (
-    <Card className="mt-6 p-6">
-      <BookingForm
-        products={products}
-        categories={categories.map((c) => ({ slug: c.slug, name: c.name }))}
-        providers={enabledProviders()}
-        initialWeeks={initialWeeks}
-        returnTo={inDashboard ? "dashboard" : undefined}
-      />
-    </Card>
+  const form = (
+    <BookingForm
+      products={products}
+      categories={categories.map((c) => ({ slug: c.slug, name: c.name }))}
+      providers={enabledProviders()}
+      initialWeeks={initialWeeks}
+      returnTo={inDashboard ? "dashboard" : undefined}
+    />
   );
+  // The modal is its own panel.
+  return inDashboard ? form : <Card className="mt-6 p-6">{form}</Card>;
 }

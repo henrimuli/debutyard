@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BookingModalScope, BookSlotButton } from "@/components/ads/booking-modal";
 import { BookingSection } from "@/components/ads/booking-section";
 import { BookingStatsTable } from "@/components/ads/booking-stats";
 import { PageHeader } from "@/components/app-shell/page-header";
-import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { PLACEMENTS } from "@/lib/ads/placements";
 import { bookingsForUser } from "@/lib/ads/service";
@@ -14,26 +14,25 @@ export const metadata: Metadata = { title: "Sponsorships", robots: { index: fals
 
 export default function SponsorshipsPage() {
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
-      <PageHeader
-        title="Sponsorships"
-        description="Featured slots on the leaderboard, homepage, categories and newsletter, with click stats."
-        actions={<ButtonLink href="#book">Book a slot</ButtonLink>}
-      />
-      <Suspense fallback={<div className="h-40 animate-pulse rounded-lg bg-muted/50" />}>
-        <Bookings />
-      </Suspense>
-      <Placements />
-      <section id="book" className="scroll-mt-20">
-        <h2 className="font-display text-lg font-semibold">Book a slot</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick a placement, a listing and a start week. Unpaid bookings hold their slot for an hour.
-        </p>
-        <Suspense fallback={<Card className="mt-6 h-96 animate-pulse" />}>
+    <BookingModalScope
+      form={
+        <Suspense fallback={<div className="h-96 animate-pulse rounded-lg bg-muted/50" />}>
           <BookingSection area="dashboard" />
         </Suspense>
-      </section>
-    </div>
+      }
+    >
+      <div className="mx-auto max-w-5xl space-y-10">
+        <PageHeader
+          title="Sponsorships"
+          description="Featured slots on the leaderboard, homepage, categories and newsletter, with click stats."
+          actions={<BookSlotButton placement="leaderboard">Book a slot</BookSlotButton>}
+        />
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-lg bg-muted/50" />}>
+          <Bookings />
+        </Suspense>
+        <Placements />
+      </div>
+    </BookingModalScope>
   );
 }
 
@@ -82,9 +81,9 @@ function Placements() {
                 ) : null;
               })}
             </ul>
-            <ButtonLink href="#book" variant="outline" size="sm" className="mt-4">
+            <BookSlotButton placement={pl.id} variant="outline" size="sm" className="mt-4">
               Pick dates
-            </ButtonLink>
+            </BookSlotButton>
           </Card>
         ))}
       </div>

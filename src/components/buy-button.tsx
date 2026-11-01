@@ -95,7 +95,7 @@ export function BuyButton({ sku, recurring, providers, className, productId, ret
           />
         </>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {providers.map((p) => (
           <Button
             key={p}
