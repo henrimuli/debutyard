@@ -3,7 +3,14 @@ import { user } from "./auth";
 import { categories, products } from "./board";
 import { orders } from "./payments";
 
-export const adPlacement = pgEnum("ad_placement", ["leaderboard", "home_rail", "home_top", "category", "newsletter"]);
+export const adPlacement = pgEnum("ad_placement", [
+  "leaderboard",
+  "home_rail",
+  "home_top",
+  "home_sidebar",
+  "category",
+  "newsletter",
+]);
 export const bookingStatus = pgEnum("booking_status", ["held", "active", "completed", "cancelled"]);
 
 /**

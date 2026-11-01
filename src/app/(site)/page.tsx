@@ -2,10 +2,10 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { cache, Suspense } from "react";
 import { SponsorBanner } from "@/components/ads/sponsored";
-import { ProductLogo } from "@/components/board/product-logo";
 import { FeaturedRail } from "@/components/board/featured-rail";
+import { HomeSidebar } from "@/components/board/home-sidebar";
+import { PinnedSidebar } from "@/components/board/pinned-sidebar";
 import { BoardSkeleton, WeekBoard } from "@/components/board/week-board";
-import { NewsletterForm } from "@/components/newsletter-form";
 import { DebutLink } from "@/components/debut/debut-link";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Container } from "@/components/ui/primitives";
@@ -58,12 +58,11 @@ export default function Home() {
             <ThisWeek />
           </Suspense>
         </section>
-        {/* Stays in view while the rows scroll; scrolls itself if it's taller than the screen. */}
-        <aside className="space-y-6 lg:sticky lg:top-22 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
+        <PinnedSidebar>
           <Suspense fallback={<Card className="h-48 animate-pulse" />}>
             <Sidebar />
           </Suspense>
-        </aside>
+        </PinnedSidebar>
       </Container>
     </>
   );
@@ -131,66 +130,21 @@ async function ThisWeek() {
   );
 }
 
+/** Who goes first among the sidebar sponsors changes per request. `mixSidebar` wraps it to the sponsor count. */
+const randomOffset = () => Math.floor(Math.random() * 1000);
+
 async function Sidebar() {
   await connection();
-  const [winners, categories] = await Promise.all([recentWinners(3), categoriesWithCounts()]);
-  return (
-    <>
-      {winners.length > 0 && (
-        <Card className="p-5">
-          <h2 className="font-display font-semibold">Last week&apos;s winners</h2>
-          <ol className="mt-3 space-y-3">
-            {winners.map((w) => (
-              <li key={`${w.period_key}-${w.place}`} className="flex items-center gap-3">
-                <span>{["🥇", "🥈", "🥉"][w.place - 1]}</span>
-                <ProductLogo name={w.name} src={w.logo_url} className="size-8" />
-                <Link href={`/p/${w.slug}`} className="truncate text-sm font-medium hover:text-primary">
-                  {w.name}
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </Card>
-      )}
-      <Card className="p-5">
-        <h2 className="font-display font-semibold">Browse by category</h2>
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {categories
-            .filter((c) => c.count > 0)
-            .slice(0, 16)
-            .map((c) => (
-              <li key={c.slug}>
-                <Link
-                  href={`/category/${c.slug}`}
-                  className="inline-block rounded-full bg-muted px-3 py-1 text-xs hover:text-primary"
-                >
-                  {c.name} <span className="text-muted-foreground">{c.count}</span>
-                </Link>
-              </li>
-            ))}
-        </ul>
-        <Link href="/categories" className="mt-3 inline-block text-sm text-primary hover:underline">
-          All categories
-        </Link>
-      </Card>
-      <Card className="p-5">
-        <h2 className="font-display font-semibold">Get the Monday digest</h2>
-        <p className="mt-1 mb-3 text-sm text-muted-foreground">
-          Last week&apos;s winners and this week&apos;s debuts. One email, no spam.
-        </p>
-        <NewsletterForm source="home" />
-      </Card>
-      <Card className="p-5">
-        <h2 className="font-display font-semibold">Fair by design</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Paid debuts buy placement, never applause. No multipliers, no head starts.{" "}
-          <Link href="/how-ranking-works" className="text-primary hover:underline">
-            How ranking works
-          </Link>
-        </p>
-      </Card>
-    </>
-  );
+  const [winners, categories, sponsors] = await Promise.all([
+    recentWinners(3),
+    categoriesWithCounts(),
+    // A problem with the ads shouldn't take the rest of the sidebar down.
+    liveAds("home_sidebar").catch((err) => {
+      console.error("sidebar sponsors failed", err);
+      return [];
+    }),
+  ]);
+  return <HomeSidebar winners={winners} categories={categories} sponsors={sponsors} offset={randomOffset()} />;
 }
 
 /**
