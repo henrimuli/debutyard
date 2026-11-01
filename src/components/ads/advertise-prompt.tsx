@@ -19,7 +19,7 @@ export function AdvertisePrompt() {
         <SponsoredSample />
       </div>
       <h2 className="relative mt-5 font-display text-lg font-semibold">Get your product seen</h2>
-      <p className="relative mt-1 text-sm text-muted-foreground">Visibility maxxing on steroids:</p>
+      <p className="relative mt-1 text-sm text-muted-foreground">Priority placement for visibility maxxing:</p>
       <ul className="mt-3 space-y-2 text-sm">
         {placements.map((p) => (
           <li key={p.id} className="flex items-center gap-2.5">
