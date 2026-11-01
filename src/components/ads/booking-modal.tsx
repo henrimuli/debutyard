@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  use,
-  useCallback,
-  useEffect,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+import { createContext, use, useCallback, useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import type { Placement } from "@/lib/ads/placements";
