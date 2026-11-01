@@ -125,6 +125,18 @@ describe("PaystackProvider", () => {
     await expect(p.parseWebhook(tampered, good)).rejects.toBeInstanceOf(WebhookSignatureError);
   });
 
+  it("names plans without internal ids, since customers see the name", async () => {
+    const fetch = fakeFetch({ body: { status: true, data: { plan_code: "PLN_1" } } });
+    const { planId } = await new PaystackProvider(KEY, fetch).createPlan({
+      sku: "sub_ad_home_sidebar_month",
+      name: "DebutYard Homepage sidebar (monthly)",
+      amountCents: 5900,
+      interval: "monthly",
+    });
+    expect(planId).toBe("PLN_1");
+    expect(call(fetch).body).toMatchObject({ name: "DebutYard Homepage sidebar (monthly)", interval: "monthly" });
+  });
+
   it("normalises subscription events", async () => {
     const p = new PaystackProvider(KEY, fakeFetch());
     const raw = JSON.stringify({

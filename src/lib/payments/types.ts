@@ -52,7 +52,13 @@ export type SubscriptionState = {
   providerToken?: string;
 };
 
-export type PlanRequest = { sku: string; name: string; amountCents: number; interval: Interval };
+export type PlanRequest = {
+  sku: string;
+  /** Customers see this on provider receipts and checkout, so no internal ids. */
+  name: string;
+  amountCents: number;
+  interval: Interval;
+};
 
 /** Normalised webhook event; `kind: "ignored"` for events we don't act on. */
 export type WebhookEvent =

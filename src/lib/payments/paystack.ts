@@ -114,7 +114,7 @@ export class PaystackProvider implements PaymentProvider {
     const { data } = await this.call<{ plan_code: string }>("/plan", {
       method: "POST",
       body: JSON.stringify({
-        name: `${req.name} [${req.sku}]`,
+        name: req.name,
         interval: req.interval,
         amount: req.amountCents,
         currency: "USD",
