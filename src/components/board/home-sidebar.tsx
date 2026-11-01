@@ -5,7 +5,7 @@ import { NewsletterForm } from "@/components/newsletter-form";
 import { Card } from "@/components/ui/primitives";
 import type { AdItem } from "@/lib/ads/service";
 import type { categoriesWithCounts, recentWinners } from "@/lib/board/queries";
-import { mixSidebar } from "@/lib/board/sidebar";
+import { mixSidebar, topCategories } from "@/lib/board/sidebar";
 import { ProductLogo } from "./product-logo";
 
 /** The homepage sidebar: the advertise prompt first, then sponsors mixed in among the regular cards. */
@@ -43,19 +43,16 @@ export function HomeSidebar({
     <Card key="categories" className="p-5">
       <h2 className="font-display font-semibold">Browse by category</h2>
       <ul className="mt-3 flex flex-wrap gap-2">
-        {categories
-          .filter((c) => c.count > 0)
-          .slice(0, 16)
-          .map((c) => (
-            <li key={c.slug}>
-              <Link
-                href={`/category/${c.slug}`}
-                className="inline-block rounded-full bg-muted px-3 py-1 text-xs hover:text-primary"
-              >
-                {c.name} <span className="text-muted-foreground">{c.count}</span>
-              </Link>
-            </li>
-          ))}
+        {topCategories(categories).map((c) => (
+          <li key={c.slug}>
+            <Link
+              href={`/category/${c.slug}`}
+              className="inline-block rounded-full bg-muted px-3 py-1 text-xs hover:text-primary"
+            >
+              {c.name} <span className="text-muted-foreground">{c.count}</span>
+            </Link>
+          </li>
+        ))}
       </ul>
       <Link href="/categories" className="mt-3 inline-block text-sm text-primary hover:underline">
         All categories

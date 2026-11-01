@@ -8,7 +8,8 @@ import { ToPackages } from "./to-packages";
 /*
  * The public submission-service page's case for the service: the pain, what
  * it's worth, how we compare, the fine print and an FAQ. The dashboard's order
- * page only shows ServiceDetails, since anyone there is already buying.
+ * page only reuses the chips, figures, details and a short FAQ, since anyone
+ * there is already buying.
  */
 
 const MONITOR = Object.values(PACKAGES)
@@ -38,10 +39,10 @@ const icon = {
 } as const;
 
 /** Small promises under the hero, each one backed by the refund policy, the link checks or Link Monitor. */
-export function TrustChips() {
+export function TrustChips({ className }: { className?: string }) {
   const chips = ["Every link verified by us", "Rejected directories replaced", "Automatic link monitoring"];
   return (
-    <ul className="mt-6 flex flex-wrap justify-center gap-2">
+    <ul className={cn("mt-6 flex flex-wrap justify-center gap-2", className)}>
       {chips.map((c) => (
         <li
           key={c}
@@ -92,15 +93,37 @@ export function PainPoints() {
   );
 }
 
-/** What the service is worth. `stats` are live numbers from the directory catalog; a missing number hides its line. */
-export function ValueSection({ stats }: { stats: CatalogStats }) {
+/** Live numbers from the directory catalog; a missing number hides its line. */
+export function CatalogFigures({ stats, className }: { stats: CatalogStats; className?: string }) {
   const figures = [
     stats.active > 0 && { value: `${stats.active}+`, label: "directories we submit to" },
     stats.medianDr !== null && { value: `DR ${stats.medianDr}`, label: "median Authority Score" },
     stats.dr50 > 0 && { value: `${stats.dr50}`, label: "with an Authority Score of 50+" },
     stats.dofollow > 0 && { value: `${stats.dofollow}`, label: "with dofollow links" },
   ].filter(Boolean) as Array<{ value: string; label: string }>;
+  if (figures.length === 0) return null;
+  return (
+    <dl
+      className={cn(
+        "grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4",
+        className,
+      )}
+    >
+      {figures.map((f) => (
+        <div key={f.label} className="bg-card p-5">
+          <dt className="sr-only">{f.label}</dt>
+          <dd>
+            <span className="block font-display text-3xl font-bold text-primary">{f.value}</span>
+            <span className="mt-1 block text-sm text-muted-foreground">{f.label}</span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
+/** What the service is worth. */
+export function ValueSection({ stats }: { stats: CatalogStats }) {
   const values = [
     {
       title: "Backlinks from sites Google already trusts",
@@ -152,19 +175,7 @@ export function ValueSection({ stats }: { stats: CatalogStats }) {
         title="Authority for your domain, without the grind."
         intro="Directory listings are one of the few ways a brand-new product can earn links from sites search engines already trust. Here's what that buys you."
       />
-      {figures.length > 0 && (
-        <dl className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4">
-          {figures.map((f) => (
-            <div key={f.label} className="bg-card p-5">
-              <dt className="sr-only">{f.label}</dt>
-              <dd>
-                <span className="block font-display text-3xl font-bold text-primary">{f.value}</span>
-                <span className="mt-1 block text-sm text-muted-foreground">{f.label}</span>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      <CatalogFigures stats={stats} className="mt-8" />
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {values.map((v) => (
           <Card key={v.title} className="p-6">
@@ -315,8 +326,15 @@ export function ServiceDetails({ compact = false }: { compact?: boolean }) {
 }
 
 /** Answers kept in line with the refund policy and the package config. */
-export const FAQ: Array<{ q: string; a: string; link?: { href: "/refund-policy" | "/directories"; label: string } }> = [
+export const FAQ: Array<{
+  q: string;
+  a: string;
+  link?: { href: "/refund-policy" | "/directories"; label: string };
+  /** Still a question once you're signed in and looking at the packages. */
+  short?: boolean;
+}> = [
   {
+    short: true,
     q: "How long until I see results?",
     a: `We start submitting within 48 hours of getting your product details and deliver within ${PACKAGES.starter.days} days (Starter) or ${PACKAGES.growth.days} days (Growth and Scale). Listings go live as each directory reviews them. The SEO effect builds over the following weeks and months as search engines crawl the links.`,
   },
@@ -325,6 +343,7 @@ export const FAQ: Array<{ q: string; a: string; link?: { href: "/refund-policy" 
     a: "We skip directories known to use nofollow links and check every live listing ourselves, so your report shows exactly which links are dofollow. A directory can change its policy, which is what Link Monitor watches for after delivery.",
   },
   {
+    short: true,
     q: "What happens when a directory rejects my product?",
     a: "We replace it with an equivalent directory, so you get the number of submissions you paid for. If we can't, we refund the missing share.",
   },
@@ -337,11 +356,13 @@ export const FAQ: Array<{ q: string; a: string; link?: { href: "/refund-policy" 
     a: "No. Checkout takes a minute and you get a private link by email to fill in your details and follow progress. If you do have an account, the order also shows up in your dashboard.",
   },
   {
+    short: true,
     q: "Can I cancel or get a refund?",
     a: "Yes. Cancel any time before we start submitting for a full refund. If we don't deliver your report within 14 days of starting, for reasons on our side, you can ask for a full refund too.",
     link: { href: "/refund-policy", label: "Read the refund policy" },
   },
   {
+    short: true,
     q: "Which directories will you use for my product?",
     a: "We match directories to your categories first, then rank them by Authority Score and by how often they accept products like yours. You can browse the whole catalog before you buy.",
     link: { href: "/directories", label: "Browse the directories" },
@@ -352,12 +373,21 @@ export const FAQ: Array<{ q: string; a: string; link?: { href: "/refund-policy" 
   },
 ];
 
-export function Faq() {
+export function Faq({ compact = false }: { compact?: boolean }) {
   return (
-    <section className="mt-20">
-      <SectionHead eyebrow="FAQ" title="Questions, answered." />
-      <div className="mt-8 divide-y divide-border rounded-xl border border-border bg-card">
-        {FAQ.map((f) => (
+    <section id="faq" className={cn("scroll-mt-24", compact ? "mt-12" : "mt-20")}>
+      {compact ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-xl font-semibold">Questions</h2>
+          <Link href="/submission-service#faq" className="text-sm text-primary hover:underline">
+            All questions
+          </Link>
+        </div>
+      ) : (
+        <SectionHead eyebrow="FAQ" title="Questions, answered." />
+      )}
+      <div className={cn("divide-y divide-border rounded-xl border border-border bg-card", compact ? "mt-4" : "mt-8")}>
+        {FAQ.filter((f) => !compact || f.short).map((f) => (
           <details key={f.q} className="group px-5 [&_summary::-webkit-details-marker]:hidden">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-medium">
               {f.q}

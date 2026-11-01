@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mixSidebar } from "./sidebar";
+import { mixSidebar, topCategories } from "./sidebar";
 
 const blocks = ["winners", "categories", "digest", "fair"];
 
@@ -27,5 +27,18 @@ describe("mixSidebar", () => {
   it("rotates who goes first", () => {
     expect(mixSidebar(["a", "b", "c"], blocks, 1).filter((x) => !blocks.includes(x))).toEqual(["b", "c", "a"]);
     expect(mixSidebar(["a", "b", "c"], blocks, 4).filter((x) => !blocks.includes(x))).toEqual(["b", "c", "a"]);
+  });
+});
+
+describe("topCategories", () => {
+  const cat = (slug: string, count: number) => ({ slug, count });
+
+  it("keeps the ten with the most listings, busiest first, and drops empty ones", () => {
+    const all = [cat("empty", 0), ...Array.from({ length: 12 }, (_, i) => cat(`c${i}`, i + 1))];
+    const top = topCategories(all);
+    expect(top).toHaveLength(10);
+    expect(top[0]).toEqual(cat("c11", 12));
+    expect(top[9]).toEqual(cat("c2", 3));
+    expect(all[0]).toEqual(cat("empty", 0));
   });
 });

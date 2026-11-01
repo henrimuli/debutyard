@@ -15,3 +15,11 @@ export function mixSidebar<T>(sponsors: T[], blocks: T[], offset = 0): T[] {
   }
   return out;
 }
+
+/** The sidebar's categories: the busiest ten with something in them. The rest are on /categories. */
+export function topCategories<T extends { count: number }>(categories: T[], max = 10): T[] {
+  return categories
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max);
+}
