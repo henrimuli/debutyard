@@ -5,6 +5,12 @@
  * mapping updated; existing subscribers stay on their old plan.
  *
  *   pnpm payments:sync-plans
+ *
+ * Plans belong to one provider account, but provider_plans doesn't record which. When
+ * moving from sandbox to live keys on the same database, pass --recreate: otherwise the
+ * sandbox plans count as existing and nothing is created.
+ *
+ *   pnpm payments:sync-plans --recreate
  */
 import { config } from "dotenv";
 config({ path: [".env.local", ".env"], quiet: true });
@@ -16,6 +22,8 @@ import { PaypalProvider } from "../src/lib/payments/paypal";
 import { PaystackProvider } from "../src/lib/payments/paystack";
 import { SKUS, type RecurringSku } from "../src/lib/payments/skus";
 import type { PaymentProvider } from "../src/lib/payments/types";
+
+const recreate = process.argv.includes("--recreate");
 
 async function main() {
   const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -42,7 +50,7 @@ async function main() {
       const existing = await db.query.providerPlans.findFirst({
         where: and(eq(schema.providerPlans.sku, sku.id), eq(schema.providerPlans.provider, provider.id)),
       });
-      if (existing && existing.amountCents === sku.amountCents) {
+      if (!recreate && existing && existing.amountCents === sku.amountCents) {
         console.log(`= ${provider.id} ${sku.id} ${existing.planId}`);
         continue;
       }
