@@ -505,6 +505,7 @@ describe.skipIf(!TEST_DB)("subscriptions and entitlements (Postgres)", () => {
     expect(await products.listingLimitReached(u)).toBeNull();
     const two = await listing("two.io");
     expect(await products.listingLimitReached(u)).toContain("Your plan covers 2 listings");
+    expect(await products.listingLimitReached(u, { override: true })).toBeNull();
     await dbmod
       .db()
       .update(dbmod.schema.products)

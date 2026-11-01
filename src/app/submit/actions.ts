@@ -87,7 +87,7 @@ export async function saveProductAction(input: ProductInput, productId?: string)
   }
   try {
     if (!productId) {
-      const full = await listingLimitReached(user.id);
+      const full = await listingLimitReached(user.id, { override: await canOverrideFreeRules(user) });
       if (full) return { ok: false, error: full };
     }
     const product = await saveProduct(user.id, parsed.data, productId);
