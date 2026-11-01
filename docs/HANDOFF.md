@@ -187,7 +187,7 @@ These are smaller and mostly independent. Pick them up after A and B, or interle
 
 ## 5. Working agreements for the next agent
 
-- Branch from `main` (staging) per workstream. Open a PR against `main` when the workstream is done and CI is green; `master` is production. Never push to `master` directly; never force-push shared branches.
+- Branch from `master` per workstream. Open a PR against `master` when the workstream is done and CI is green; `master` is production, and `preview.debutyard.com` shows the newest preview from any branch. Never push to `master` directly; never force-push shared branches.
 - Before every push: `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test` (with `TEST_DATABASE_URL`), the drift check (`pnpm drizzle-kit check && pnpm drizzle-kit generate --name ci-drift-check` must report "No schema changes"), and `pnpm build`.
 - Every new table gets RLS. Every new user-facing page works on mobile (no horizontal scroll) and in dark mode.
 - Keep money logic idempotent (claims, unique keys, `onConflictDoNothing`), like the existing fulfilment and ad booking code.

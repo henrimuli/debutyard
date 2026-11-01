@@ -14,4 +14,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Branches
 
-`main` is the staging branch and deploys to the Vercel preview domain. `master` is production. Branch from `main` and open every PR against `main` first (`gh pr create --base main`). Don't open or merge anything into `master` unless the owner asks.
+`master` is production and the default branch. Branch from `master` and open PRs against it. Merging deploys to production, so don't merge unless the owner asks.
+
+Every branch gets a Vercel preview. `.github/workflows/preview-domain.yml` points `preview.debutyard.com` at the newest one, so the domain shows whichever branch deployed last.

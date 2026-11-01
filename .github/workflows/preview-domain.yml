@@ -1,0 +1,39 @@
+name: Preview domain
+
+# Points preview.debutyard.com at the newest successful preview deployment, from any branch.
+# Vercel only sends this event to workflows on the default branch. Run it by hand to point the domain at a chosen deployment.
+on:
+  repository_dispatch:
+    types: [vercel.deployment.success]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Deployment URL
+        required: true
+
+# A newer deployment replaces a run still in progress, so the latest one keeps the domain.
+concurrency:
+  group: preview-domain
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Assign the domain
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          ENVIRONMENT: ${{ github.event.client_payload.environment }}
+          DEPLOYMENT_URL: ${{ github.event.client_payload.url || inputs.url }}
+        run: |
+          echo "environment=$ENVIRONMENT url=$DEPLOYMENT_URL"
+          if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ] && [ "$ENVIRONMENT" != "preview" ]; then
+            echo "Not a preview deployment, leaving the domain alone."
+            exit 0
+          fi
+          npx --yes vercel@65.9.0 alias set "${DEPLOYMENT_URL#https://}" preview.debutyard.com --token "$VERCEL_TOKEN" --scope henmuli
