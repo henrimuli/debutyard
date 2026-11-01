@@ -1,4 +1,4 @@
-import { LogoMark } from "@/components/logo";
+import { SponsoredSample } from "@/components/ads/sponsored-sample";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/primitives";
 import { PLACEMENTS } from "@/lib/ads/placements";
@@ -16,18 +16,7 @@ export function AdvertisePrompt() {
     <Card className="relative overflow-hidden p-5">
       <div aria-hidden className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-accent/25 to-transparent" />
       <div aria-hidden className="relative -rotate-2 rounded-xl border border-border bg-card p-2.5 shadow-md">
-        <div className="flex items-center gap-2.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-foreground">
-            <LogoMark className="size-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">Your product</span>
-            <span className="block truncate text-xs text-muted-foreground">Seen first</span>
-          </span>
-          <span className="shrink-0 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-foreground">
-            Sponsored
-          </span>
-        </div>
+        <SponsoredSample />
       </div>
       <h2 className="relative mt-5 font-display text-lg font-semibold">Get your product seen</h2>
       <p className="relative mt-1 text-sm text-muted-foreground">Visibility maxxing on steroids:</p>
