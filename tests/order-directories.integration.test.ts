@@ -305,6 +305,27 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     expect(ops).toMatchObject({ live: 1, total: 2 });
   });
 
+  it("picks starred directories first for new orders and replacements", async () => {
+    const { starred, spare } = await addDirectories(
+      directory("strong", { dr: 90 }),
+      directory("starred", { dr: 5 }),
+      directory("spare", { dr: 1 }),
+    );
+    const { setDirectoryStarred } = await import("@/lib/directories/service");
+    await setDirectoryStarred(starred, true);
+
+    const { db, schema } = dbmod;
+    const so = await paidOrder();
+    await db().update(schema.submissionOrders).set({ targetCount: 1 }).where(eq(schema.submissionOrders.id, so.id));
+    const order = await subs.submitIntake(so.intakeToken, { ...details, badgePreference: "none" });
+    expect(await clientList(order.id)).toEqual(["starred"]);
+
+    await setDirectoryStarred(spare, true);
+    expect((await subs.directoryChoices(order)).choices[0]).toMatchObject({ name: "spare", starred: true });
+    await subs.updateOrderSubmission((await rowFor(order.id, "starred"))!.id, { status: "rejected" });
+    expect(await clientList(order.id)).toEqual(["spare"]);
+  });
+
   it("has no limit on badge directories, and puts them first", async () => {
     await addDirectories(
       ...Array.from({ length: 8 }, (_, i) => directory(`badge-${i}`, { badgeRequired: true, dr: 20 + i })),

@@ -53,6 +53,8 @@ export const directories = pgTable(
     avgDaysToLive: real("avg_days_to_live"),
     liveCount: integer("live_count").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
+    /** Staff's favorites: picked first for submission orders. */
+    isStarred: boolean("is_starred").notNull().default(false),
     // Monthly liveness audit of the homepage. Three failures in a row deactivate it.
     auditedAt: timestamp("audited_at", { withTimezone: true }),
     auditFailures: integer("audit_failures").notNull().default(0),

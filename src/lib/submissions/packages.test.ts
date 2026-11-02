@@ -9,6 +9,7 @@ const dir = (id: string, over: Partial<TargetCandidate> = {}): TargetCandidate =
   badgeRequired: false,
   guided: false,
   isActive: true,
+  starred: false,
   acceptanceRate: null,
   ...over,
 });
@@ -51,6 +52,33 @@ describe("selectTargets", () => {
     });
     expect(picked.slice(0, 8).every((id) => id.startsWith("b-"))).toBe(true);
     expect(picked[8]).toBe("strong");
+  });
+
+  it("always picks starred directories first, over badges, niche and authority", () => {
+    const picked = selectTargets(
+      [
+        dir("badge-99", { dr: 99, badgeRequired: true }),
+        dir("ai-90", { niche: "ai", dr: 90 }),
+        dir("starred-10", { dr: 10, starred: true }),
+      ],
+      { count: 3, categories: ["ai"], allowBadges: true },
+    );
+    expect(picked).toEqual(["starred-10", "badge-99", "ai-90"]);
+  });
+
+  it("still won't put a starred directory on an order it can't go on", () => {
+    const starred = { starred: true, dr: 99 };
+    const picked = selectTargets(
+      [
+        dir("nofollow", { ...starred, linkType: "nofollow" }),
+        dir("inactive", { ...starred, isActive: false }),
+        dir("guided", { ...starred, guided: true }),
+        dir("needs-badge", { ...starred, badgeRequired: true }),
+        dir("plain"),
+      ],
+      { count: 5, categories: [], allowBadges: false },
+    );
+    expect(picked).toEqual(["plain"]);
   });
 
   it("maps SKUs to packages", () => {

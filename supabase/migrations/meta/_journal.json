@@ -246,6 +246,13 @@
       "when": 1793621395904,
       "tag": "20261102120955_live_badge_block",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793633671766,
+      "tag": "20261102153431_directory_stars",
+      "breakpoints": true
     }
   ]
 }

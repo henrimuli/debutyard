@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { starDirectoryAction } from "@/app/admin/directories/actions";
 import { AuthorityScore } from "@/components/metrics/authority-score";
 import { Badge, Input } from "@/components/ui/primitives";
+import { cn } from "@/lib/utils";
 
 export type DirectoryRow = {
   id: string;
@@ -17,19 +19,46 @@ export type DirectoryRow = {
   guided: boolean;
   hasInstructions: boolean;
   isActive: boolean;
+  starred: boolean;
   auditFailures: number;
   auditError: string | null;
   acceptanceRate: number | null;
   liveCount: number;
 };
 
-/** The admin's directory list, with a search over name, website, niche and link type. */
+/** The admin's directory list, with stars and a search over name, website, niche, link type and "starred". */
 export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
   const [query, setQuery] = useState("");
+  const [starred, setStarred] = useState(() => new Set(rows.filter((d) => d.starred).map((d) => d.id)));
+  const [problem, setProblem] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
   const shown = q
-    ? rows.filter((d) => [d.name, d.slug, d.url, d.niche, d.linkType].some((v) => v.toLowerCase().includes(q)))
+    ? rows.filter((d) =>
+        [d.name, d.slug, d.url, d.niche, d.linkType, starred.has(d.id) ? "starred" : ""].some((v) =>
+          v.toLowerCase().includes(q),
+        ),
+      )
     : rows;
+
+  const setStar = (id: string, on: boolean) =>
+    setStarred((s) => {
+      const next = new Set(s);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  /** Shows right away, and the row stays put until the next visit, so starring several doesn't move them around. */
+  async function toggle(d: DirectoryRow) {
+    const on = !starred.has(d.id);
+    setProblem(null);
+    setStar(d.id, on);
+    const res = await starDirectoryAction(d.id, on).catch(() => null);
+    if (!res?.ok) {
+      setStar(d.id, !on);
+      setProblem(`Couldn't change the star on ${d.name}. ${res?.error ?? "Try again."}`);
+    }
+  }
 
   return (
     <div className="mt-6 space-y-3">
@@ -44,12 +73,25 @@ export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
         />
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {q ? `${shown.length} of ${rows.length}` : `${rows.length} directories`}
+          {starred.size > 0 && ` · ${starred.size} starred`}
         </p>
       </div>
+      <p className="text-sm text-muted-foreground">
+        Starred directories are picked first for new orders and replacements, as long as they&apos;re active, dofollow
+        and not guided.
+      </p>
+      {problem && (
+        <p role="alert" className="text-sm text-danger">
+          {problem}
+        </p>
+      )}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
             <tr>
+              <th className="w-8 px-3 py-2 font-medium">
+                <span className="sr-only">Starred</span>
+              </th>
               <th className="px-3 py-2 font-medium">Directory</th>
               <th className="px-3 py-2 font-medium">Authority</th>
               <th className="px-3 py-2 font-medium">Niche</th>
@@ -62,6 +104,21 @@ export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
           <tbody className="divide-y divide-border">
             {shown.map((d) => (
               <tr key={d.id} className={d.isActive ? "" : "opacity-50"}>
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => void toggle(d)}
+                    aria-pressed={starred.has(d.id)}
+                    aria-label={`Star ${d.name}`}
+                    title={starred.has(d.id) ? "Starred: picked first for orders" : "Star this directory"}
+                    className={cn(
+                      "text-lg leading-none",
+                      starred.has(d.id) ? "text-amber-500" : "text-muted-foreground hover:text-amber-500",
+                    )}
+                  >
+                    {starred.has(d.id) ? "★" : "☆"}
+                  </button>
+                </td>
                 <td className="px-3 py-2">
                   <Link href={`/admin/directories/${d.id}`} className="font-medium hover:text-primary">
                     {d.name}
@@ -92,7 +149,7 @@ export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
             ))}
             {shown.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                   No directories match &ldquo;{query.trim()}&rdquo;.
                 </td>
               </tr>

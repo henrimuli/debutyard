@@ -43,6 +43,7 @@ export type TargetCandidate = {
   badgeRequired: boolean;
   guided: boolean;
   isActive: boolean;
+  starred: boolean;
   acceptanceRate: number | null;
 };
 
@@ -53,9 +54,9 @@ export function isOrderTarget(c: Pick<TargetCandidate, "isActive" | "guided" | "
 
 /**
  * Picks directories for an order, best first: active, not guided, dofollow,
- * badge-gated only if the client allows badges, and then those come first, as
- * many as fit. Niche matches and general directories rank above other niches;
- * then DR, then our acceptance rate. Pure.
+ * badge-gated only if the client allows badges. Directories staff starred come
+ * first, then badge-gated ones, as many as fit. Niche matches and general
+ * directories rank above other niches; then DR, then our acceptance rate. Pure.
  */
 export function selectTargets(
   candidates: TargetCandidate[],
@@ -67,6 +68,7 @@ export function selectTargets(
     .filter((c) => isOrderTarget(c) && (opts.allowBadges || !c.badgeRequired) && !opts.exclude?.has(c.id))
     .sort(
       (a, b) =>
+        Number(b.starred) - Number(a.starred) ||
         Number(b.badgeRequired) - Number(a.badgeRequired) ||
         fit(b) - fit(a) ||
         (b.dr ?? -1) - (a.dr ?? -1) ||

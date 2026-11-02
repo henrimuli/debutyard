@@ -188,6 +188,7 @@ const toCandidate = (d: typeof directories.$inferSelect) => ({
   badgeRequired: d.badgeRequired,
   guided: d.guided,
   isActive: d.isActive,
+  starred: d.isStarred,
   acceptanceRate: d.acceptanceRate,
 });
 
@@ -550,8 +551,8 @@ export async function directoryChoices(order: SubmissionOrder) {
   });
   return {
     choices: ids.map((id) => {
-      const { name, dr, niche, badgeRequired } = byId.get(id)!;
-      return { id, name, dr, niche, badgeRequired };
+      const { name, dr, niche, badgeRequired, isStarred } = byId.get(id)!;
+      return { id, name, dr, niche, badgeRequired, starred: isStarred };
     }),
   };
 }

@@ -461,10 +461,17 @@ export function OpsRows({
   choices: DirectoryChoice[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const active = rows.filter((r) => r.status !== "replaced");
+  const q = query.trim().toLowerCase();
+  const matches = (r: OpsRow) =>
+    !q || [r.directory.name, r.directory.url, r.status].some((v) => v.toLowerCase().includes(q));
+  const matching = rows.filter(matches);
+  // What "Select all" covers: never rows the search is hiding.
+  const selectable = matching.filter((r) => r.status !== "live" && r.status !== "replaced");
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -499,15 +506,33 @@ export function OpsRows({
           dofollow, and the client can see {notDofollow === 1 ? "it" : "them"}. Use Swap to choose dofollow ones.
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, website or status"
+          aria-label="Search this order's directories"
+          className="max-w-md"
+        />
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {q ? `${matching.length} of ${rows.length}` : `${rows.length} directories`}
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={selected.size > 0 && selected.size === active.filter((r) => r.status !== "live").length}
+            checked={selectable.length > 0 && selectable.every((r) => selected.has(r.id))}
             onChange={(e) =>
-              setSelected(
-                e.target.checked ? new Set(active.filter((r) => r.status !== "live").map((r) => r.id)) : new Set(),
-              )
+              setSelected((s) => {
+                const next = new Set(s);
+                for (const r of selectable) {
+                  if (e.target.checked) next.add(r.id);
+                  else next.delete(r.id);
+                }
+                return next;
+              })
             }
           />
           Select all
@@ -530,7 +555,11 @@ export function OpsRows({
       {message && <p className={cn("text-sm", message.ok ? "text-success" : "text-danger")}>{message.text}</p>}
       <ul className="divide-y divide-border">
         {rows.map((r) => (
-          <li key={r.id} className={cn("flex gap-3 py-3", r.status === "replaced" && "opacity-50")}>
+          // Hidden rather than removed, so a search can't lose what's being typed in an open row.
+          <li
+            key={r.id}
+            className={cn("flex gap-3 py-3", r.status === "replaced" && "opacity-50", !matches(r) && "hidden")}
+          >
             <input
               type="checkbox"
               className="mt-1"
@@ -547,6 +576,11 @@ export function OpsRows({
           </li>
         ))}
       </ul>
+      {matching.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No directories match &ldquo;{query.trim()}&rdquo;.
+        </p>
+      )}
     </div>
   );
 }

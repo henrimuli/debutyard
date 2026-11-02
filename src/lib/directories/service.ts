@@ -61,7 +61,17 @@ export async function allDirectoriesForAdmin() {
   return db()
     .select()
     .from(directories)
-    .orderBy(desc(directories.isActive), sql`${directories.dr} desc nulls last`, asc(directories.name));
+    .orderBy(
+      desc(directories.isActive),
+      desc(directories.isStarred),
+      sql`${directories.dr} desc nulls last`,
+      asc(directories.name),
+    );
+}
+
+/** Stars a directory, so it's picked first for submission orders, or takes the star off. */
+export async function setDirectoryStarred(id: string, starred: boolean) {
+  await db().update(directories).set({ isStarred: starred }).where(eq(directories.id, id));
 }
 
 /** The link type we trust: what our checks observed, else what the directory claims. */
