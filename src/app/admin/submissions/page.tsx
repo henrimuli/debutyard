@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { Icon } from "@/components/app-shell/icons";
+import { OrderMailRefresh } from "@/components/support/live-inbox";
 import { Badge, Heading } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
+import { orderMailPulse } from "@/lib/submissions/inbox";
 import { PACKAGES } from "@/lib/submissions/packages";
 import { listOrdersForOps } from "@/lib/submissions/service";
 
@@ -28,9 +31,10 @@ export default function SubmissionsAdminPage() {
 
 async function Board() {
   await requireStaff();
-  const rows = await listOrdersForOps();
+  const [rows, mail] = await Promise.all([listOrdersForOps(), orderMailPulse()]);
   return (
     <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <OrderMailRefresh rendered={mail} />
       {COLUMNS.map(([status, label]) => {
         const items = rows.filter((r) => r.o.status === status);
         return (
@@ -39,12 +43,13 @@ async function Board() {
               {label} <span className="text-muted-foreground">{items.length}</span>
             </h2>
             <ul className="space-y-2">
-              {items.map(({ o, live, total, open, assignee, overdue: late }) => {
+              {items.map(({ o, live, total, open, assignee, overdue: late, unreadMail }) => {
                 return (
                   <li key={o.id}>
                     <Link
-                      href={`/admin/submissions/${o.id}`}
-                      className="block rounded-md border border-border bg-card p-3 text-sm hover:border-primary/50"
+                      // An order with unread mail goes straight to its inbox.
+                      href={`/admin/submissions/${o.id}${unreadMail > 0 ? "?view=inbox" : ""}`}
+                      className={`block rounded-md border bg-card p-3 text-sm hover:border-primary/50 ${unreadMail > 0 ? "border-primary/60" : "border-border"}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate font-medium">{o.productName ?? o.email}</span>
@@ -58,6 +63,12 @@ async function Board() {
                         <p className={`mt-1 text-xs ${late ? "text-danger" : "text-muted-foreground"}`}>
                           {late ? "Overdue: " : "Due "}
                           {o.dueAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                        </p>
+                      )}
+                      {unreadMail > 0 && (
+                        <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-primary">
+                          <Icon name="mail" className="size-3.5" />
+                          {unreadMail} unread {unreadMail === 1 ? "email" : "emails"}
                         </p>
                       )}
                     </Link>

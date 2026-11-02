@@ -372,6 +372,7 @@ export async function listOrdersForOps() {
       total: scheduledRows,
       open: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status in ('todo', 'needs_action'))`,
       overdue: sql<boolean>`${orders.dueAt} < now() and ${orders.status} not in ('delivered', 'cancelled')`,
+      unreadMail: sql<number>`(select count(*)::int from submission_messages m where m.submission_order_id = submission_orders.id and m.read_at is null)`,
       assignee: schema.user.name,
     })
     .from(orders)

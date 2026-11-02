@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { getCurrentUser, isStaff } from "@/lib/auth";
 import { createUploadUrl } from "@/lib/storage";
+import { markMessageUnread } from "@/lib/submissions/inbox";
 import { screenshotProblem } from "@/lib/submissions/screenshot";
 import { findBlock, setBadgeCode } from "@/lib/badge-block/service";
 import {
@@ -39,6 +40,17 @@ async function run(fn: () => Promise<string | void>): Promise<Result> {
     if (err instanceof z.ZodError) return { ok: false, error: err.issues[0]?.message ?? "Check the input." };
     throw err;
   }
+}
+
+/**
+ * Puts an order's email back to unread. No refresh here: that would re-render the
+ * open email, which marks it read again. The caller goes back to the list.
+ */
+export async function markMessageUnreadAction(messageId: string): Promise<Result> {
+  if (!(await staffOnly())) return { ok: false, error: "Not allowed." };
+  if (!uuid.safeParse(messageId).success) return { ok: false, error: "Not found." };
+  await markMessageUnread(messageId);
+  return { ok: true };
 }
 
 export async function updateRowAction(submissionId: string, input: OpsUpdate) {

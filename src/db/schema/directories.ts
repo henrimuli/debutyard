@@ -300,6 +300,8 @@ export const submissionMessages = pgTable(
     /** Resend's id for the received email; makes redelivered webhooks no-ops. */
     resendEmailId: text("resend_email_id").unique(),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When someone on the team opened it. Null is unread, and counts on the order and in the admin nav. */
+    readAt: timestamp("read_at", { withTimezone: true }),
   },
   (t) => [index("submission_messages_order_idx").on(t.submissionOrderId, t.receivedAt)],
 );

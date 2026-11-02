@@ -1,5 +1,5 @@
 import "server-only";
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { env } from "@/env";
 import { resendClient } from "@/lib/email";
@@ -85,4 +85,45 @@ export async function messagesFor(orderId: string, limit = 100) {
     .where(eq(messages.submissionOrderId, orderId))
     .orderBy(desc(messages.receivedAt))
     .limit(limit);
+}
+
+/** One of this order's emails, marked read now that someone is opening it. Null if it isn't this order's. */
+export async function openMessage(orderId: string, messageId: string, now = new Date()) {
+  const row = await db().query.submissionMessages.findFirst({
+    where: and(eq(messages.id, messageId), eq(messages.submissionOrderId, orderId)),
+  });
+  if (!row) return null;
+  if (row.readAt) return row;
+  await db().update(messages).set({ readAt: now }).where(eq(messages.id, messageId));
+  return { ...row, readAt: now };
+}
+
+export async function markMessageUnread(messageId: string) {
+  await db().update(messages).set({ readAt: null }).where(eq(messages.id, messageId));
+}
+
+export async function unreadMailFor(orderId: string) {
+  const [row] = await db()
+    .select({ n: count() })
+    .from(messages)
+    .where(and(eq(messages.submissionOrderId, orderId), isNull(messages.readAt)));
+  return row?.n ?? 0;
+}
+
+/**
+ * What the admin polls for order mail: unread emails across orders (the
+ * Submissions nav badge) and when the latest arrived. A change to either
+ * refreshes the order pages. Cancelled orders aren't on the board, so their mail
+ * doesn't count: it would be a badge nobody could clear.
+ */
+export async function orderMailPulse() {
+  const [row] = await db()
+    .select({
+      unread: count(sql`case when ${messages.readAt} is null then 1 end`),
+      latest: sql<string | null>`max(${messages.receivedAt})::text`,
+    })
+    .from(messages)
+    .innerJoin(orders, eq(orders.id, messages.submissionOrderId))
+    .where(ne(orders.status, "cancelled"));
+  return { unread: row?.unread ?? 0, latest: row?.latest ?? null };
 }

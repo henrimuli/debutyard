@@ -4,7 +4,9 @@ import { eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
+import { OrderMailRefresh } from "@/components/support/live-inbox";
 import { OpsRows } from "@/components/submissions/ops-rows";
+import { OrderInbox } from "@/components/submissions/order-inbox";
 import { OrderControls, RecheckBlock, ResendBadgeBlock } from "@/components/submissions/order-controls";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card, Heading } from "@/components/ui/primitives";
@@ -13,8 +15,7 @@ import { requireStaff } from "@/lib/auth";
 import { liveBadgeCount } from "@/lib/badge-block/service";
 import { effectiveLinkType } from "@/lib/directories/service";
 import { PACKAGES } from "@/lib/submissions/packages";
-import { inboxAddress, messagesFor } from "@/lib/submissions/inbox";
-import { messageLinks } from "@/lib/submissions/inbox-rules";
+import { inboxAddress, messagesFor, openMessage, orderMailPulse, unreadMailFor } from "@/lib/submissions/inbox";
 import { badgeBlockFor, directoryChoices, heldForBadge, orderRows, summarizeOrder } from "@/lib/submissions/service";
 
 export const metadata: Metadata = { title: "Submission order · Admin", robots: { index: false } };
@@ -35,14 +36,20 @@ export default function OrderOpsPage(props: PageProps<"/admin/submissions/[id]">
 async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[id]">) {
   await requireStaff();
   const { id } = await params;
-  // The order page has two views: the directory list (default) and the order's inbox.
-  const showInbox = (await searchParams).view === "inbox";
+  // The order page has two views: the directory list (default) and the order's inbox, with `m` the open email.
+  const sp = await searchParams;
+  const showInbox = sp.view === "inbox";
+  const messageId = showInbox && typeof sp.m === "string" ? sp.m : null;
   if (!z.string().uuid().safeParse(id).success) notFound();
+  if (messageId && !z.string().uuid().safeParse(messageId).success) notFound();
   const order = await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.id, id) });
   if (!order) notFound();
+  // Before the counts below, so they already leave this email out.
+  const opened = messageId ? await openMessage(order.id, messageId) : null;
+  if (messageId && !opened) notFound();
   const canChange = order.status === "queued" || order.status === "in_progress";
   const blockLive = order.badgePreference === "allow" && Boolean(order.blockInstalledAt);
-  const [rows, staff, inbox, messages, badgeBlock, badgesShowing, picks] = await Promise.all([
+  const [rows, staff, inbox, messages, unreadMail, mail, badgeBlock, badgesShowing, picks] = await Promise.all([
     orderRows(order.id),
     db()
       .select({ id: schema.user.id, name: schema.user.name })
@@ -50,6 +57,8 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
       .innerJoin(schema.adminUsers, eq(schema.adminUsers.email, sql`lower(${schema.user.email})`)),
     inboxAddress(order),
     messagesFor(order.id),
+    unreadMailFor(order.id),
+    orderMailPulse(),
     order.badgePreference === "allow" && !blockLive ? badgeBlockFor(order.id) : null,
     blockLive ? liveBadgeCount(order) : 0,
     canChange ? directoryChoices(order) : null,
@@ -74,6 +83,7 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
 
   return (
     <div className="mt-4 space-y-6">
+      <OrderMailRefresh rendered={mail} />
       <div className="flex flex-wrap items-center gap-3">
         <Heading className="text-2xl sm:text-3xl">{order.productName ?? order.email}</Heading>
         <Badge>{PACKAGES[order.package].label}</Badge>
@@ -86,9 +96,15 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
           ) : (
             <ButtonLink href={`/admin/submissions/${order.id}?view=inbox`} variant="outline" size="sm">
               Inbox
-              <span className="rounded-full bg-muted px-2 text-xs tabular-nums text-muted-foreground">
-                {messages.length}
-              </span>
+              {unreadMail > 0 ? (
+                <span className="rounded-full bg-primary px-2 text-xs font-semibold tabular-nums text-primary-foreground">
+                  {unreadMail} unread
+                </span>
+              ) : (
+                <span className="rounded-full bg-muted px-2 text-xs tabular-nums text-muted-foreground">
+                  {messages.length}
+                </span>
+              )}
             </ButtonLink>
           )}
         </div>
@@ -107,7 +123,7 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
         canDeliver={order.status === "queued" || order.status === "in_progress"}
       />
       {showInbox ? (
-        <InboxPanel inbox={inbox} messages={messages} />
+        <OrderInbox orderId={order.id} address={inbox} messages={messages} unread={unreadMail} opened={opened} />
       ) : order.status === "awaiting_intake" ? (
         <Card className="p-5 text-sm text-muted-foreground">
           Waiting for the client to fill in the intake form. They were emailed the link.
@@ -215,59 +231,5 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
         </>
       )}
     </div>
-  );
-}
-
-/** Mail that directories send to this order's inbox address: verification links first. */
-function InboxPanel({ inbox, messages }: { inbox: string | null; messages: Awaited<ReturnType<typeof messagesFor>> }) {
-  return (
-    <Card className="p-5">
-      <h2 className="font-medium">Inbox</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {inbox ? (
-          <>
-            Use <code className="break-all">{inbox}</code> when creating directory accounts. Verification emails land
-            here.
-          </>
-        ) : (
-          "Set INBOUND_EMAIL_DOMAIN and RESEND_WEBHOOK_SECRET, with receiving on for that domain in Resend, to get mail here."
-        )}
-      </p>
-      {messages.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">No mail yet.</p>
-      ) : (
-        <ul className="mt-4 divide-y divide-border text-sm">
-          {messages.map((m) => (
-            <li key={m.id} className="py-3">
-              <details>
-                <summary className="cursor-pointer">
-                  <span className="font-medium">{m.subject || "(no subject)"}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {m.fromAddress} · {m.receivedAt.toUTCString().slice(5, 22)}
-                  </span>
-                </summary>
-                <div className="mt-2 space-y-2">
-                  {messageLinks(m.text, m.html).map((l) => (
-                    <a
-                      key={l.url}
-                      href={l.url}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className={`block truncate text-xs hover:underline ${l.likely ? "font-medium text-primary" : "text-muted-foreground"}`}
-                    >
-                      {l.likely ? "Verify: " : ""}
-                      {l.url}
-                    </a>
-                  ))}
-                  <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
-                    {m.text.slice(0, 5000) || "(HTML only)"}
-                  </pre>
-                </div>
-              </details>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
   );
 }

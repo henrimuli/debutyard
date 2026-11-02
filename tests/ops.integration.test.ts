@@ -169,6 +169,44 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     return r?.s;
   };
 
+  it("counts an order's mail as unread until someone opens it", async () => {
+    const { db, schema } = dbmod;
+    const received = new Date("2026-11-02T10:00:00Z");
+    const [mail] = await db()
+      .insert(schema.submissionMessages)
+      .values([{ submissionOrderId: order.id, toAddress: "a@x.test", fromAddress: "b@x.test", receivedAt: received }])
+      .returning();
+    const onBoard = async () => (await subs.listOrdersForOps()).find((r) => r.o.id === order.id)?.unreadMail;
+    const before = await inbox.orderMailPulse();
+    expect(before.unread).toBeGreaterThan(0);
+    expect(before.latest).not.toBeNull();
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+    expect(await onBoard()).toBe(1);
+
+    // A message id from another order opens nothing and stays unread.
+    expect(await inbox.openMessage("00000000-0000-4000-8000-000000000000", mail.id)).toBeNull();
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+
+    expect((await inbox.openMessage(order.id, mail.id))?.readAt).toBeInstanceOf(Date);
+    expect(await inbox.unreadMailFor(order.id)).toBe(0);
+    expect(await onBoard()).toBe(0);
+    expect((await inbox.orderMailPulse()).unread).toBe(before.unread - 1);
+
+    await inbox.markMessageUnread(mail.id);
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+
+    // A cancelled order isn't on the board, so its mail can't hold the nav badge up.
+    const { status } = order;
+    await db()
+      .update(schema.submissionOrders)
+      .set({ status: "cancelled" })
+      .where(eq(schema.submissionOrders.id, order.id));
+    expect((await inbox.orderMailPulse()).unread).toBe(before.unread - 1);
+    await db().update(schema.submissionOrders).set({ status }).where(eq(schema.submissionOrders.id, order.id));
+
+    await db().delete(schema.submissionMessages).where(eq(schema.submissionMessages.id, mail.id));
+  });
+
   it("gives each order an inbox and stores Resend-received mail for it once", async () => {
     const address = await inbox.inboxAddress(order);
     expect(address).toMatch(/^[a-z0-9]{10}@submit\.debutyard\.test$/);
