@@ -135,6 +135,10 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     await payments.confirmPayment("paystack", `ref-${orderId}`);
     const so = (await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.orderId, orderId) }))!;
     sent.length = 0;
+    await db()
+      .update(schema.submissionOrders)
+      .set({ blockInstalledAt: new Date(), blockInstalledUrl: "https://acme.io/" })
+      .where(eq(schema.submissionOrders.id, so.id));
     order = await subs.submitIntake(so.intakeToken, {
       productName: "Acme",
       websiteUrl: "https://acme.io/",
@@ -164,6 +168,44 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
       .where(and(eq(schema.submissions.submissionOrderId, order.id), eq(schema.directories.slug, slug)));
     return r?.s;
   };
+
+  it("counts an order's mail as unread until someone opens it", async () => {
+    const { db, schema } = dbmod;
+    const received = new Date("2026-11-02T10:00:00Z");
+    const [mail] = await db()
+      .insert(schema.submissionMessages)
+      .values([{ submissionOrderId: order.id, toAddress: "a@x.test", fromAddress: "b@x.test", receivedAt: received }])
+      .returning();
+    const onBoard = async () => (await subs.listOrdersForOps()).find((r) => r.o.id === order.id)?.unreadMail;
+    const before = await inbox.orderMailPulse();
+    expect(before.unread).toBeGreaterThan(0);
+    expect(before.latest).not.toBeNull();
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+    expect(await onBoard()).toBe(1);
+
+    // A message id from another order opens nothing and stays unread.
+    expect(await inbox.openMessage("00000000-0000-4000-8000-000000000000", mail.id)).toBeNull();
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+
+    expect((await inbox.openMessage(order.id, mail.id))?.readAt).toBeInstanceOf(Date);
+    expect(await inbox.unreadMailFor(order.id)).toBe(0);
+    expect(await onBoard()).toBe(0);
+    expect((await inbox.orderMailPulse()).unread).toBe(before.unread - 1);
+
+    await inbox.markMessageUnread(mail.id);
+    expect(await inbox.unreadMailFor(order.id)).toBe(1);
+
+    // A cancelled order isn't on the board, so its mail can't hold the nav badge up.
+    const { status } = order;
+    await db()
+      .update(schema.submissionOrders)
+      .set({ status: "cancelled" })
+      .where(eq(schema.submissionOrders.id, order.id));
+    expect((await inbox.orderMailPulse()).unread).toBe(before.unread - 1);
+    await db().update(schema.submissionOrders).set({ status }).where(eq(schema.submissionOrders.id, order.id));
+
+    await db().delete(schema.submissionMessages).where(eq(schema.submissionMessages.id, mail.id));
+  });
 
   it("gives each order an inbox and stores Resend-received mail for it once", async () => {
     const address = await inbox.inboxAddress(order);
@@ -222,13 +264,18 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     ]);
   });
 
-  it("emails a badge block, holds badge rows until the badge is found, then swaps the rest", async () => {
-    expect(order.badgeBlockSentAt).toBeNull(); // set after the intake email, past the returning() snapshot
+  it("on an order from before the live block, emails the block, holds badge rows until found, then swaps the rest", async () => {
+    const { db, schema } = dbmod;
+    const [legacy] = await db()
+      .update(schema.submissionOrders)
+      .set({ blockInstalledAt: null, blockInstalledUrl: null })
+      .where(eq(schema.submissionOrders.id, order.id))
+      .returning();
+    sent.length = 0;
+    expect(await subs.sendBadgeBlock(legacy)).toBe(true);
     const fresh = (await subs.orderByIntakeToken(order.intakeToken))!;
     expect(fresh.badgeBlockSentAt).not.toBeNull();
-    // The block rides in the intake confirmation, not a second email.
-    expect(sent.filter((e) => e.subject.includes("directory badges"))).toHaveLength(0);
-    const mail = sent.find((e) => e.subject.startsWith("We've got everything"));
+    const mail = sent.find((e) => e.subject.includes("directory badges"));
     expect(mail?.to).toBe("ada@acme.io");
     expect(mail?.text).toContain("https://badge-a.test/b.svg");
     expect(mail?.text).toContain("https://badge-b.test/b.svg");

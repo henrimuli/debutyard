@@ -3,11 +3,21 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser, isStaff } from "@/lib/auth";
-import { saveDirectory, type DirectoryInput } from "@/lib/directories/service";
+import { saveDirectory, setDirectoryStarred, type DirectoryInput } from "@/lib/directories/service";
 
 async function staffOnly() {
   const user = await getCurrentUser();
   return user && (await isStaff(user)) ? user : null;
+}
+
+export async function starDirectoryAction(
+  id: string,
+  starred: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!(await staffOnly())) return { ok: false, error: "Not allowed." };
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Not found." };
+  await setDirectoryStarred(id, starred);
+  return { ok: true };
 }
 
 export async function saveDirectoryAction(

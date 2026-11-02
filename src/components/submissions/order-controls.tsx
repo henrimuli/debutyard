@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { assignAction, deliverAction, resendBadgeBlockAction } from "@/app/admin/submissions/actions";
+import {
+  assignAction,
+  deliverAction,
+  recheckBlockAction,
+  resendBadgeBlockAction,
+} from "@/app/admin/submissions/actions";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
@@ -64,6 +69,29 @@ export function OrderControls({
       )}
       {msg && <span className={msg.ok ? "text-sm text-success" : "text-sm text-danger"}>{msg.text}</span>}
     </div>
+  );
+}
+
+export function RecheckBlock({ orderId }: { orderId: string }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const res = await recheckBlockAction(orderId);
+            setMsg(res.ok ? (res.message ?? "Checked.") : res.error);
+          })
+        }
+      >
+        {pending ? "Checking…" : "Check client's site"}
+      </Button>
+    </span>
   );
 }
 

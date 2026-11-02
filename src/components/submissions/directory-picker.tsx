@@ -10,6 +10,7 @@ export type DirectoryChoice = {
   dr: number | null;
   niche: string;
   badgeRequired: boolean;
+  starred: boolean;
 };
 
 /** A searchable list of the directories staff can put on an order, best fit first. */
@@ -53,6 +54,11 @@ export function DirectoryPicker({
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
               >
                 <span className="min-w-0 truncate font-medium">{c.name}</span>
+                {c.starred && (
+                  <span title="Starred" className="text-amber-500">
+                    ★
+                  </span>
+                )}
                 {c.dr !== null && <AuthorityScore score={c.dr} />}
                 <span className="ml-auto flex shrink-0 items-center gap-1">
                   {c.badgeRequired && <Badge tone="accent">badge</Badge>}

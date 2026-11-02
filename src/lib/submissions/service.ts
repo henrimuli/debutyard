@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gt, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -17,7 +17,7 @@ import { baselineSnapshot } from "@/lib/metrics/service";
 import { fetchPage } from "@/lib/fetch-page";
 import { formatUsd } from "@/lib/payments/skus";
 import { domainOf } from "@/lib/slug";
-import { BADGE_WAIT_DAYS, badgeBlockHtml, MAX_BADGES } from "./badge-block";
+import { BADGE_WAIT_DAYS, badgeBlockHtml } from "./badge-block";
 import { newInboxKey } from "./inbox-rules";
 import { isOrderTarget, PACKAGES, packageForSku, selectTargets, type PackageId } from "./packages";
 
@@ -114,7 +114,7 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
       { heading: "One step left: tell us about your product" },
       { text: `Thanks for your order (${p.label}: ${p.count} directories, ${formatUsd(payment.amountCents)}).` },
       {
-        text: "Tell us about your product: logo, descriptions, categories and a couple of preferences. It takes about five minutes, and submissions start within 48 hours of receiving it.",
+        text: "Tell us about your product and add a small block to your homepage for directory badges. It takes about five minutes, and submissions start within 48 hours of receiving it.",
       },
       { button: "Fill in your product details", href: url(`/orders/${order.intakeToken}`) },
       { note: "This link is private to you. It also becomes your live tracking dashboard, so keep it." },
@@ -188,6 +188,7 @@ const toCandidate = (d: typeof directories.$inferSelect) => ({
   badgeRequired: d.badgeRequired,
   guided: d.guided,
   isActive: d.isActive,
+  starred: d.isStarred,
   acceptanceRate: d.acceptanceRate,
 });
 
@@ -196,18 +197,32 @@ async function candidates() {
   return rows.map(toCandidate);
 }
 
-/** Saves the product kit, queues the order and picks its directories. */
+/** Saves the product kit before the block's installed, so the client can leave and come back. */
+export async function saveIntakeDraft(intakeToken: string, raw: IntakeInput, now = new Date()) {
+  const order = await orderByIntakeToken(intakeToken);
+  if (!order) throw new SubmissionError("Order not found.");
+  if (order.status !== "awaiting_intake") throw new SubmissionError("We already have your details.");
+  const input = intakeInput.parse(raw);
+  await db()
+    .update(orders)
+    .set({ ...input, intakeDraftAt: now })
+    .where(and(eq(orders.id, order.id), eq(orders.status, "awaiting_intake")));
+}
+
+/** Saves the product kit, queues the order and picks its directories. Allowing badges takes the block being found on the site. */
 export async function submitIntake(intakeToken: string, raw: IntakeInput, now = new Date()) {
   const order = await orderByIntakeToken(intakeToken);
   if (!order) throw new SubmissionError("Order not found.");
   if (order.status !== "awaiting_intake") throw new SubmissionError("We already have your details.");
   const input = intakeInput.parse(raw);
+  if (input.badgePreference === "allow" && (!order.blockInstalledAt || order.blockInstalledUrl !== input.websiteUrl)) {
+    throw new SubmissionError("We need to find the badge block on your site first. Click Check my site.");
+  }
 
   const targets = selectTargets(await candidates(), {
     count: order.targetCount,
     categories: input.categories,
     allowBadges: input.badgePreference === "allow",
-    maxBadges: MAX_BADGES,
   });
   const [updated] = await db()
     .update(orders)
@@ -229,9 +244,6 @@ export async function submitIntake(intakeToken: string, raw: IntakeInput, now = 
   }
   // DR before/after: the "before".
   await baselineSnapshot(input.websiteUrl, now);
-  // The badge block rides in this email rather than a second one sent at the same moment.
-  const badges = updated.badgePreference === "allow" ? await badgeBlocks(updated) : null;
-
   await mail(
     input.contactEmail,
     `We've got everything: your ${PACKAGES[order.package].label} submissions start within 48 hours`,
@@ -240,14 +252,15 @@ export async function submitIntake(intakeToken: string, raw: IntakeInput, now = 
       {
         text: `We've lined up ${targets.length} directories for ${input.productName}. You'll see each one move from queued to live on your dashboard, with every link checked by us.`,
       },
-      ...(input.badgePreference === "allow"
-        ? []
-        : [{ text: "You chose no badges, so we only use directories that don't ask for one." }]),
+      {
+        text:
+          input.badgePreference === "allow"
+            ? "Your badge block is in place and stays invisible for now. As we submit, each directory's badge appears on your site by itself, so there's nothing more for you to do."
+            : "You chose no badges, so we only use directories that don't ask for one.",
+      },
       { button: "Open your live dashboard", href: url(`/orders/${order.intakeToken}`) },
-      ...(badges ? [{ section: "One step for you: add your directory badges" }, ...badges] : []),
     ],
   );
-  if (badges) await db().update(orders).set({ badgeBlockSentAt: now }).where(eq(orders.id, order.id));
   await toStaff(
     "Orders",
     `Intake received: ${input.productName} (${PACKAGES[order.package].label})`,
@@ -326,13 +339,18 @@ export function summarizeOrder(
   };
 }
 
+// The table is spelled out: in a query on one table Drizzle would print ${orders.id} as a bare "id", which inside
+// these subqueries means the submission's own id, so nothing would ever match.
+const liveRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status = 'live')`;
+const scheduledRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status <> 'replaced')`;
+
 /** A signed-in buyer's orders (matched by account or by the email they paid with). */
 export async function ordersForUser(userId: string, email: string) {
   return db()
     .select({
       o: orders,
-      live: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status = 'live')`,
-      total: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status <> 'replaced')`,
+      live: liveRows,
+      total: scheduledRows,
     })
     .from(orders)
     .where(
@@ -350,10 +368,11 @@ export async function listOrdersForOps() {
   return db()
     .select({
       o: orders,
-      live: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status = 'live')`,
-      total: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status <> 'replaced')`,
+      live: liveRows,
+      total: scheduledRows,
       open: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status in ('todo', 'needs_action'))`,
       overdue: sql<boolean>`${orders.dueAt} < now() and ${orders.status} not in ('delivered', 'cancelled')`,
+      unreadMail: sql<number>`(select count(*)::int from submission_messages m where m.submission_order_id = submission_orders.id and m.read_at is null)`,
       assignee: schema.user.name,
     })
     .from(orders)
@@ -491,12 +510,12 @@ export async function bulkUpdate(orderId: string, ids: string[], status: "submit
         inArray(submissions.id, ids),
         ne(submissions.status, "live"),
         ne(submissions.status, "replaced"),
-        // Badge-gated rows wait for the client's badge (only "todo" and "skipped" move them).
+        // On orders from before the live block, badge-gated rows wait for the client's badge (only "todo" and "skipped" move them).
         status === "todo" || status === "skipped"
           ? undefined
           : sql`not (${submissions.badgeSeenAt} is null
               and exists (select 1 from directories d where d.id = ${submissions.directoryId} and d.badge_required)
-              and exists (select 1 from submission_orders o where o.id = ${submissions.submissionOrderId} and o.badge_preference = 'allow'))`,
+              and exists (select 1 from submission_orders o where o.id = ${submissions.submissionOrderId} and o.badge_preference = 'allow' and o.block_installed_at is null))`,
       ),
     )
     .returning({ id: submissions.id });
@@ -515,15 +534,14 @@ export async function assignOrder(orderId: string, assigneeId: string | null) {
 
 // --- Choosing an order's directories -------------------------------------------
 
-/** What staff can put on an order, best fit first (one swapped out earlier can come back), and whether its badge slots are used up. */
+/** What staff can put on an order, best fit first (one swapped out earlier can come back). */
 export async function directoryChoices(order: SubmissionOrder) {
-  const [all, used, badges] = await Promise.all([
+  const [all, used] = await Promise.all([
     db().select().from(directories),
     db()
       .select({ id: submissions.directoryId })
       .from(submissions)
       .where(and(eq(submissions.submissionOrderId, order.id), ne(submissions.status, "replaced"))),
-    badgeRows(order.id),
   ]);
   const byId = new Map(all.map((d) => [d.id, d]));
   const ids = selectTargets(all.map(toCandidate), {
@@ -534,10 +552,9 @@ export async function directoryChoices(order: SubmissionOrder) {
   });
   return {
     choices: ids.map((id) => {
-      const { name, dr, niche, badgeRequired } = byId.get(id)!;
-      return { id, name, dr, niche, badgeRequired };
+      const { name, dr, niche, badgeRequired, isStarred } = byId.get(id)!;
+      return { id, name, dr, niche, badgeRequired, starred: isStarred };
     }),
-    badgesFull: badges.length >= MAX_BADGES,
   };
 }
 
@@ -551,17 +568,13 @@ async function changeableOrder(orderId: string) {
 }
 
 /** Checks a directory can go on an order, and finds the row it was swapped out of, if any. */
-async function checkPlacement(order: SubmissionOrder, directoryId: string, replacingId?: string) {
+async function checkPlacement(order: SubmissionOrder, directoryId: string) {
   const directory = await db().query.directories.findFirst({ where: eq(directories.id, directoryId) });
   if (!directory || !isOrderTarget(toCandidate(directory))) {
     throw new SubmissionError("Only active, dofollow directories can go on an order.");
   }
-  if (directory.badgeRequired) {
-    if (order.badgePreference !== "allow") throw new SubmissionError("This client chose no badge directories.");
-    const badges = (await badgeRows(order.id)).filter((r) => r.s.id !== replacingId);
-    if (badges.length >= MAX_BADGES) {
-      throw new SubmissionError(`This order already has ${MAX_BADGES} badge directories.`);
-    }
+  if (directory.badgeRequired && order.badgePreference !== "allow") {
+    throw new SubmissionError("This client chose no badge directories.");
   }
   const existing = await db().query.submissions.findFirst({
     where: and(eq(submissions.submissionOrderId, order.id), eq(submissions.directoryId, directoryId)),
@@ -589,6 +602,7 @@ async function place(
           actionNeeded: null,
           evidenceUrl: null,
           badgeSeenAt: null,
+          badgeCode: null,
           linkVerdict: null,
           linkRel: null,
           linkAnchor: null,
@@ -616,7 +630,7 @@ export async function swapOrderDirectory(submissionId: string, directoryId: stri
   const order = await changeableOrder(s.submissionOrderId);
   if (s.status === "live") throw new SubmissionError("This listing is live, so it can't be swapped.");
   if (s.status === "replaced") throw new SubmissionError("This directory was already swapped out.");
-  const placement = await checkPlacement(order, directoryId, s.id);
+  const placement = await checkPlacement(order, directoryId);
   const row = await db().transaction(async (tx) => {
     const [old] = await tx
       .update(submissions)
@@ -784,15 +798,15 @@ export function ordersCsv(rows: Awaited<ReturnType<typeof orderRows>>): string {
 
 export type { PackageId };
 
-// --- Badge blocks (clients who allow badges) ----------------------------------
+// --- Emailed badge blocks (orders from before the live block, see lib/badge-block) ---
 
-/** A badge-gated row waits until we've seen that directory's badge on the client's site. */
+/** On those orders, a badge-gated row waits until we've seen that directory's badge on the client's site. */
 export function heldForBadge(
-  order: Pick<SubmissionOrder, "badgePreference">,
+  order: Pick<SubmissionOrder, "badgePreference" | "blockInstalledAt">,
   directory: { badgeRequired: boolean },
   row: { badgeSeenAt: Date | null },
 ) {
-  return order.badgePreference === "allow" && directory.badgeRequired && !row.badgeSeenAt;
+  return order.badgePreference === "allow" && !order.blockInstalledAt && directory.badgeRequired && !row.badgeSeenAt;
 }
 
 async function badgeRows(orderId: string) {
@@ -835,7 +849,7 @@ async function badgeBlocks(order: SubmissionOrder): Promise<Block[] | null> {
   ];
 }
 
-/** Emails the client their badge block on its own, when staff resend it. Intake puts it in its confirmation. */
+/** Emails the client their badge block, when staff resend it. */
 export async function sendBadgeBlock(order: SubmissionOrder, now = new Date()) {
   const blocks = await badgeBlocks(order);
   if (!blocks) return false;
@@ -860,6 +874,7 @@ export async function checkBadgeBlocks(now = new Date()) {
     .where(
       and(
         eq(orders.badgePreference, "allow"),
+        isNull(orders.blockInstalledAt),
         inArray(orders.status, ["queued", "in_progress"]),
         isNotNull(orders.websiteUrl),
       ),

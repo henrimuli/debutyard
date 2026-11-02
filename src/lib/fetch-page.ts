@@ -138,6 +138,12 @@ async function scrape(
   }
 }
 
+/** The page as a browser ends up with it, scripts run, for someone waiting: no wait on a rate limit. Null when we can't get one. */
+export async function fetchRendered(raw: string): Promise<Scraped | null> {
+  const key = env().FIRECRAWL_API_KEY;
+  return key ? scrape(raw, key, { purpose: "verify" }, false) : null;
+}
+
 /**
  * GETs a page like safeFetchText, with the fallback. Throws what the direct fetch
  * threw when neither route got an answer; UnsafeUrlError always throws.

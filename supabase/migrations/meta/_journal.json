@@ -239,6 +239,27 @@
       "when": 1793546237467,
       "tag": "20261101151717_remove_featured_product",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793621395904,
+      "tag": "20261102120955_live_badge_block",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793633671766,
+      "tag": "20261102153431_directory_stars",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793635326620,
+      "tag": "20261102160206_order_inbox_read_state",
+      "breakpoints": true
     }
   ]
 }

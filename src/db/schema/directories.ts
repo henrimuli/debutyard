@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth";
 import { products } from "./board";
 import { orders } from "./payments";
@@ -52,6 +53,8 @@ export const directories = pgTable(
     avgDaysToLive: real("avg_days_to_live"),
     liveCount: integer("live_count").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
+    /** Staff's favorites: picked first for submission orders. */
+    isStarred: boolean("is_starred").notNull().default(false),
     // Monthly liveness audit of the homepage. Three failures in a row deactivate it.
     auditedAt: timestamp("audited_at", { withTimezone: true }),
     auditFailures: integer("audit_failures").notNull().default(0),
@@ -125,6 +128,18 @@ export const submissionOrders = pgTable(
     inboxKey: text("inbox_key").unique(),
     /** Badge block for clients who allow badges: when we emailed it. */
     badgeBlockSentAt: timestamp("badge_block_sent_at", { withTimezone: true }),
+    /** Public key of the order's live badge block, in the URLs on the client's site. Not a credential. */
+    blockKey: text("block_key")
+      .notNull()
+      .unique()
+      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
+    /** When we found the block on the client's site. Orders without this that allow badges use the emailed block above. */
+    blockInstalledAt: timestamp("block_installed_at", { withTimezone: true }),
+    /** The website it was found on: changing the URL means checking again. */
+    blockInstalledUrl: text("block_installed_url"),
+    blockCheckedAt: timestamp("block_checked_at", { withTimezone: true }),
+    /** The client saved their details and moved on to installing the block. */
+    intakeDraftAt: timestamp("intake_draft_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -177,6 +192,8 @@ export const submissions = pgTable(
     badgeSeenAt: timestamp("badge_seen_at", { withTimezone: true }),
     // Latest link check, denormalised for the dashboards.
     linkVerdict: linkVerdict("link_verdict"),
+    /** The directory's badge code, cleaned, shown in the client's live block while this row is active. */
+    badgeCode: text("badge_code"),
     linkRel: text("link_rel"),
     linkAnchor: text("link_anchor"),
     linkHttpStatus: integer("link_http_status"),
@@ -283,6 +300,8 @@ export const submissionMessages = pgTable(
     /** Resend's id for the received email; makes redelivered webhooks no-ops. */
     resendEmailId: text("resend_email_id").unique(),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When someone on the team opened it. Null is unread, and counts on the order and in the admin nav. */
+    readAt: timestamp("read_at", { withTimezone: true }),
   },
   (t) => [index("submission_messages_order_idx").on(t.submissionOrderId, t.receivedAt)],
 );

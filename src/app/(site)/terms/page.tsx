@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Terms of service" };
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of service" updated="October 26, 2026">
+    <LegalPage title="Terms of service" updated="November 2, 2026">
       <p>
         These terms govern your use of {site.name} ({site.url}), operated by {site.legalName}. By using the site or
         buying anything on it, you agree to them.
@@ -60,6 +60,12 @@ export default function TermsPage() {
         Third-party directories decide independently whether to accept a listing, and may change or remove it later. We
         guarantee the number of submissions we make and an honest report of each outcome, not acceptance by any
         particular directory, traffic, rankings or sales.
+      </p>
+      <p>
+        If you allow directory badges, you agree to add our badge block to your website and keep it there while your
+        listings depend on it, and you allow us to display directories&apos; badges through it, including links to those
+        directories. A directory may remove a listing if its badge is taken down. You can choose no badges instead,
+        which limits your order to directories that don&apos;t ask for one.
       </p>
 
       <h2>Payments</h2>

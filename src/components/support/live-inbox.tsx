@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { pulseAction } from "@/app/admin/email/actions";
 
 /**
- * One shared poll of the support inbox for the whole admin, however many
- * components listen: every 15 seconds while the tab is visible, and at once
- * when it becomes visible again.
+ * One shared poll of the mail counts for the whole admin, however many
+ * components listen: every 5 seconds while the tab is visible, and at once when
+ * it becomes visible again. So new mail shows within 5 seconds of its webhook.
  */
-type Pulse = { unread: number; latest: string | null };
+type MailPulse = { unread: number; latest: string | null };
+type Pulse = MailPulse & { orderMail: MailPulse };
 let pulse: Pulse | null = null;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -20,8 +20,10 @@ export async function pollInbox() {
   if (inFlight || document.hidden) return;
   inFlight = true;
   try {
-    const next = await pulseAction();
-    if (next && (next.unread !== pulse?.unread || next.latest !== pulse?.latest)) {
+    const res = await fetch("/admin/pulse", { cache: "no-store" });
+    if (!res.ok) return;
+    const next = (await res.json()) as Pulse;
+    if (JSON.stringify(next) !== JSON.stringify(pulse)) {
       pulse = next;
       listeners.forEach((l) => l());
     }
@@ -40,7 +42,7 @@ function subscribe(listener: () => void) {
   listeners.add(listener);
   if (listeners.size === 1) {
     void pollInbox();
-    timer = setInterval(pollInbox, 15_000);
+    timer = setInterval(pollInbox, 5_000);
     document.addEventListener("visibilitychange", onVisible);
   }
   return () => {
@@ -59,15 +61,23 @@ const usePulse = () =>
     () => null,
   );
 
-/** Unread conversations, beside "Email" in the admin sidebar. */
-export function InboxBadge({ initial }: { initial: number }) {
-  const n = usePulse()?.unread ?? initial;
+function NavCount({ n }: { n: number }) {
   if (!n) return null;
   return (
     <span className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold leading-5 text-primary-foreground">
       {n > 99 ? "99+" : n}
     </span>
   );
+}
+
+/** Unread conversations, beside "Email" in the admin sidebar. */
+export function InboxBadge({ initial }: { initial: number }) {
+  return <NavCount n={usePulse()?.unread ?? initial} />;
+}
+
+/** Unread emails across order inboxes, beside "Submissions" in the admin sidebar. */
+export function OrderMailBadge({ initial }: { initial: number }) {
+  return <NavCount n={usePulse()?.orderMail.unread ?? initial} />;
 }
 
 /** Re-renders the inbox page when new mail arrives, without a reload. */
@@ -80,5 +90,21 @@ export function LiveRefresh() {
     if (prev.current && latest && latest !== prev.current) router.refresh();
     prev.current = latest;
   }, [latest, router]);
+  return null;
+}
+
+/**
+ * Keeps a page showing order mail current: `rendered` is the pulse it was rendered
+ * with, and it re-renders whenever the live one differs. That also catches the
+ * very first order email, and mail that came while the page was away.
+ */
+export function OrderMailRefresh({ rendered }: { rendered: MailPulse }) {
+  const router = useRouter();
+  const live = usePulse()?.orderMail;
+  const liveKey = live ? `${live.unread}|${live.latest}` : null;
+  const renderedKey = `${rendered.unread}|${rendered.latest}`;
+  useEffect(() => {
+    if (liveKey && liveKey !== renderedKey) router.refresh();
+  }, [liveKey, renderedKey, router]);
   return null;
 }

@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { addDirectoryAction, bulkAction, swapDirectoryAction, updateRowAction } from "@/app/admin/submissions/actions";
+import { useEffect, useRef, useState, useTransition, type ClipboardEvent } from "react";
+import {
+  addDirectoryAction,
+  bulkAction,
+  evidenceUploadAction,
+  setBadgeCodeAction,
+  swapDirectoryAction,
+  updateRowAction,
+} from "@/app/admin/submissions/actions";
 import { LinkVerdict } from "@/components/directories/link-verdict";
 import { AuthorityScore } from "@/components/metrics/authority-score";
 import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/directory-picker";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Badge, Input } from "@/components/ui/primitives";
+import { pastedImage, screenshotProblem, SCREENSHOT_TYPES } from "@/lib/submissions/screenshot";
+import { putToStorage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 
@@ -27,6 +36,11 @@ export type OpsRow = {
   /** Badge-gated and the client's badge isn't on their site yet. */
   held: boolean;
   badgeSeen: boolean;
+  /** What this directory shows in the client's live block. */
+  badgeCode: string | null;
+  /** The client has the live block, so this row can have a badge code. */
+  blockLive: boolean;
+  siteUrl: string | null;
   directory: {
     name: string;
     url: string;
@@ -44,6 +58,180 @@ type Status = (typeof STATUSES)[number];
 
 /** Not live and still meant to happen, so it can still be swapped for a dofollow directory. */
 const isUpcoming = (r: OpsRow) => ["todo", "submitted", "pending", "needs_action"].includes(r.status);
+
+/** Paste a directory's badge code and it's on the client's site, ready for the directory's Verify button. */
+function BadgeCodeBox({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boolean; text: string }) => void }) {
+  const [open, setOpen] = useState(row.directory.badgeRequired && !row.badgeCode && isUpcoming(row));
+  const [code, setCode] = useState(row.badgeCode ?? "");
+  const [pending, start] = useTransition();
+
+  function save(value: string) {
+    start(async () => {
+      const res = await setBadgeCodeAction(row.id, value);
+      onMessage(
+        res.ok
+          ? { ok: true, text: `${row.directory.name}: ${res.message ?? "saved"}` }
+          : { ok: false, text: `${row.directory.name}: ${res.error}` },
+      );
+      if (res.ok) {
+        setCode(value);
+        setOpen(false);
+      }
+    });
+  }
+
+  return (
+    <div className="mt-2 text-xs">
+      {!open ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {row.badgeCode && <Badge tone="success">badge on client site</Badge>}
+          <button type="button" onClick={() => setOpen(true)} className="text-primary hover:underline">
+            {row.badgeCode ? "Edit badge code" : "Add badge code"}
+          </button>
+          {row.badgeCode && row.siteUrl && (
+            <a href={row.siteUrl} target="_blank" rel="noopener" className="text-primary hover:underline">
+              Client&apos;s site ↗
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <textarea
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            rows={3}
+            aria-label={`Badge code for ${row.directory.name}`}
+            placeholder={`Paste the badge code from ${row.directory.name}`}
+            className="w-full rounded-md border border-border bg-card p-2 font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={pending || !code.trim()} onClick={() => save(code)}>
+              {pending ? "Saving…" : "Save badge"}
+            </Button>
+            {row.badgeCode && (
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => save("")}>
+                Remove
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The update panel's fields, with the screenshot uploading straight away from a
+ * file or a paste anywhere in the panel. It saves on the row by itself, so
+ * closing the panel can't lose it.
+ */
+function UpdatePanel({
+  rowId,
+  evidence,
+  setEvidence,
+  onMessage,
+  children,
+}: {
+  rowId: string;
+  evidence: string;
+  setEvidence: (url: string) => void;
+  onMessage: (m: { ok: boolean; text: string }) => void;
+  children: (field: React.ReactNode) => React.ReactNode;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Ready to paste into as soon as it opens.
+  useEffect(() => panel.current?.focus({ preventScroll: true }), []);
+
+  async function upload(file: File) {
+    if (uploading) return;
+    const problem = screenshotProblem(file);
+    if (problem) return onMessage({ ok: false, text: problem });
+    setUploading(true);
+    try {
+      const target = await evidenceUploadAction(file.type, file.size);
+      if (!target.ok) return onMessage({ ok: false, text: target.error });
+      await putToStorage(target.uploadUrl, file);
+      const saved = await updateRowAction(rowId, { evidenceUrl: target.publicUrl });
+      if (!saved.ok) return onMessage({ ok: false, text: saved.error });
+      setEvidence(target.publicUrl);
+      onMessage({ ok: true, text: "Screenshot saved." });
+    } catch (err) {
+      onMessage({ ok: false, text: err instanceof Error ? err.message : "The upload failed. Try again." });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function paste(e: ClipboardEvent) {
+    const image = pastedImage(e.clipboardData);
+    if (!image) return;
+    e.preventDefault();
+    void upload(image);
+  }
+
+  const field = (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-2">
+        <Input
+          value={evidence}
+          onChange={(e) => setEvidence(e.target.value)}
+          placeholder="https:// screenshot URL"
+          className="h-9 min-w-48 flex-1 text-sm"
+        />
+        <label
+          className={cn(
+            "inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3 text-sm hover:bg-muted",
+            uploading && "pointer-events-none opacity-60",
+          )}
+        >
+          {uploading ? "Uploading…" : "Upload"}
+          <input
+            type="file"
+            accept={SCREENSHOT_TYPES.join(",")}
+            className="sr-only"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void upload(file);
+            }}
+          />
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Or paste a screenshot anywhere in this panel with Ctrl+V (⌘V on a Mac).
+        {evidence && (
+          <>
+            {" "}
+            <a href={evidence} target="_blank" rel="noopener" className="text-primary hover:underline">
+              View current ↗
+            </a>
+          </>
+        )}
+      </p>
+    </div>
+  );
+
+  return (
+    <div
+      ref={panel}
+      tabIndex={-1}
+      onPaste={paste}
+      className="mt-3 space-y-2 rounded-md bg-muted/40 p-3 focus:outline-none"
+    >
+      {children(field)}
+    </div>
+  );
+}
 
 function RowEditor({
   row,
@@ -166,6 +354,7 @@ function RowEditor({
           </button>
         </span>
       </div>
+      {row.blockLive && (isUpcoming(row) || row.status === "live") && <BadgeCodeBox row={row} onMessage={onMessage} />}
       {swapping && choices && (
         <div className="mt-3">
           <DirectoryPicker
@@ -177,82 +366,81 @@ function RowEditor({
         </div>
       )}
       {open && (
-        <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-3">
-          {row.directory.instructions && (
-            <p className="whitespace-pre-line rounded bg-card p-2 text-xs text-muted-foreground">
-              {row.directory.instructions}
-            </p>
+        <UpdatePanel rowId={row.id} evidence={evidence} setEvidence={setEvidence} onMessage={onMessage}>
+          {(field) => (
+            <>
+              {row.directory.instructions && (
+                <p className="whitespace-pre-line rounded bg-card p-2 text-xs text-muted-foreground">
+                  {row.directory.instructions}
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Status)}
+                  className="h-9 rounded-md border border-border bg-card px-2 text-sm"
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </Select>
+                <Input
+                  value={liveUrl}
+                  onChange={(e) => setLiveUrl(e.target.value)}
+                  placeholder="Live listing URL (required for live)"
+                  className="h-9 text-sm"
+                />
+                <span className="self-center text-xs text-muted-foreground">Client sees</span>
+                <Input
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                  placeholder="Action needed from the client (needs_action)"
+                  className="h-9 text-sm"
+                />
+                <span className="self-center text-xs text-muted-foreground">Evidence</span>
+                {field}
+                <span className="self-center text-xs text-muted-foreground">Account</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    placeholder="Login email or username"
+                    className="h-9 text-sm"
+                    autoComplete="off"
+                  />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={row.hasPassword ? "Password saved (type to replace)" : "Password (encrypted)"}
+                    className="h-9 text-sm"
+                    autoComplete="new-password"
+                  />
+                </div>
+                {row.directory.badgeRequired && (
+                  <>
+                    <span className="self-center text-xs text-muted-foreground">Badge</span>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={badgeSeen} onChange={(e) => setBadgeSeen(e.target.checked)} />
+                      The client&apos;s badge for this directory is on their site
+                    </label>
+                  </>
+                )}
+                <span className="self-center text-xs text-muted-foreground">Internal notes</span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  className="rounded-md border border-border bg-card p-2 text-sm"
+                  placeholder="Captcha, verification, anything odd…"
+                />
+              </div>
+              <Button size="sm" onClick={save} disabled={pending}>
+                {pending ? "Saving…" : status === "live" ? "Save & verify link" : "Save"}
+              </Button>
+            </>
           )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as Status)}
-              className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-            >
-              {STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </Select>
-            <Input
-              value={liveUrl}
-              onChange={(e) => setLiveUrl(e.target.value)}
-              placeholder="Live listing URL (required for live)"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Client sees</span>
-            <Input
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              placeholder="Action needed from the client (needs_action)"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Evidence</span>
-            <Input
-              value={evidence}
-              onChange={(e) => setEvidence(e.target.value)}
-              placeholder="https:// screenshot URL"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Account</span>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                value={login}
-                onChange={(e) => setLogin(e.target.value)}
-                placeholder="Login email or username"
-                className="h-9 text-sm"
-                autoComplete="off"
-              />
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={row.hasPassword ? "Password saved (type to replace)" : "Password (encrypted)"}
-                className="h-9 text-sm"
-                autoComplete="new-password"
-              />
-            </div>
-            {row.directory.badgeRequired && (
-              <>
-                <span className="self-center text-xs text-muted-foreground">Badge</span>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={badgeSeen} onChange={(e) => setBadgeSeen(e.target.checked)} />
-                  The client&apos;s badge for this directory is on their site
-                </label>
-              </>
-            )}
-            <span className="self-center text-xs text-muted-foreground">Internal notes</span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="rounded-md border border-border bg-card p-2 text-sm"
-              placeholder="Captcha, verification, anything odd…"
-            />
-          </div>
-          <Button size="sm" onClick={save} disabled={pending}>
-            {pending ? "Saving…" : status === "live" ? "Save & verify link" : "Save"}
-          </Button>
-        </div>
+        </UpdatePanel>
       )}
     </div>
   );
@@ -264,7 +452,6 @@ export function OpsRows({
   target,
   canChange,
   choices,
-  badgesFull,
 }: {
   orderId: string;
   rows: OpsRow[];
@@ -272,13 +459,19 @@ export function OpsRows({
   /** The order is active, so staff can change its directories. */
   canChange: boolean;
   choices: DirectoryChoice[];
-  badgesFull: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const active = rows.filter((r) => r.status !== "replaced");
+  const q = query.trim().toLowerCase();
+  const matches = (r: OpsRow) =>
+    !q || [r.directory.name, r.directory.url, r.status].some((v) => v.toLowerCase().includes(q));
+  const matching = rows.filter(matches);
+  // What "Select all" covers: never rows the search is hiding.
+  const selectable = matching.filter((r) => r.status !== "live" && r.status !== "replaced");
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -303,8 +496,6 @@ export function OpsRows({
     });
   }
 
-  // A badge directory can only come in once there's a slot, or in place of another one.
-  const withBadgeSlot = (keepsSlot: boolean) => choices.filter((c) => !c.badgeRequired || !badgesFull || keepsSlot);
   const notDofollow = rows.filter((r) => isUpcoming(r) && r.directory.linkType !== "dofollow").length;
 
   return (
@@ -315,15 +506,33 @@ export function OpsRows({
           dofollow, and the client can see {notDofollow === 1 ? "it" : "them"}. Use Swap to choose dofollow ones.
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, website or status"
+          aria-label="Search this order's directories"
+          className="max-w-md"
+        />
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {q ? `${matching.length} of ${rows.length}` : `${rows.length} directories`}
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={selected.size > 0 && selected.size === active.filter((r) => r.status !== "live").length}
+            checked={selectable.length > 0 && selectable.every((r) => selected.has(r.id))}
             onChange={(e) =>
-              setSelected(
-                e.target.checked ? new Set(active.filter((r) => r.status !== "live").map((r) => r.id)) : new Set(),
-              )
+              setSelected((s) => {
+                const next = new Set(s);
+                for (const r of selectable) {
+                  if (e.target.checked) next.add(r.id);
+                  else next.delete(r.id);
+                }
+                return next;
+              })
             }
           />
           Select all
@@ -341,12 +550,16 @@ export function OpsRows({
         )}
       </div>
       {adding && canChange && (
-        <DirectoryPicker label="Directory to add" choices={withBadgeSlot(false)} disabled={pending} onPick={add} />
+        <DirectoryPicker label="Directory to add" choices={choices} disabled={pending} onPick={add} />
       )}
       {message && <p className={cn("text-sm", message.ok ? "text-success" : "text-danger")}>{message.text}</p>}
       <ul className="divide-y divide-border">
         {rows.map((r) => (
-          <li key={r.id} className={cn("flex gap-3 py-3", r.status === "replaced" && "opacity-50")}>
+          // Hidden rather than removed, so a search can't lose what's being typed in an open row.
+          <li
+            key={r.id}
+            className={cn("flex gap-3 py-3", r.status === "replaced" && "opacity-50", !matches(r) && "hidden")}
+          >
             <input
               type="checkbox"
               className="mt-1"
@@ -357,16 +570,17 @@ export function OpsRows({
             />
             <RowEditor
               row={r}
-              choices={
-                canChange && r.status !== "live" && r.status !== "replaced"
-                  ? withBadgeSlot(r.directory.badgeRequired)
-                  : null
-              }
+              choices={canChange && r.status !== "live" && r.status !== "replaced" ? choices : null}
               onMessage={setMessage}
             />
           </li>
         ))}
       </ul>
+      {matching.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No directories match &ldquo;{query.trim()}&rdquo;.
+        </p>
+      )}
     </div>
   );
 }

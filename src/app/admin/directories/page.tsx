@@ -39,6 +39,7 @@ async function List() {
         guided: d.guided,
         hasInstructions: Boolean(d.instructions),
         isActive: d.isActive,
+        starred: d.isStarred,
         auditFailures: d.auditFailures,
         auditError: d.auditError,
         acceptanceRate: d.acceptanceRate,

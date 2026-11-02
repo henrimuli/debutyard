@@ -17,7 +17,7 @@ const STEPS = [
   ["Pay, no account needed", "Checkout takes a minute. You get a private link by email."],
   [
     "Tell us about your product",
-    "Logo, three description lengths, categories and whether badges are OK. About five minutes.",
+    "Logo, three description lengths, categories and a small block on your homepage for badges. About five minutes.",
   ],
   ["We submit by hand", "Starts within 48 hours. Rejected directories are replaced, so the count holds."],
   ["We verify every link", "Each live listing is fetched and checked: does it load, link to you, and is it dofollow."],
@@ -41,7 +41,10 @@ export function ServiceSteps() {
 
 const NEXT_STEPS = [
   ["Pay", "The order goes on your account right away."],
-  ["Confirm your details", "One form, about five minutes. Logo, descriptions, categories and whether badges are OK."],
+  [
+    "Confirm your details",
+    "About five minutes. Logo, descriptions, categories and a small block on your homepage for badges.",
+  ],
   ["We submit by hand", "Starts within 48 hours. Rejected directories are replaced, so the count holds."],
   ["Follow every link", "Each live listing is checked and shows up in your submission orders."],
 ];

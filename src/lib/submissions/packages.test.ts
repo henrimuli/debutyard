@@ -9,6 +9,7 @@ const dir = (id: string, over: Partial<TargetCandidate> = {}): TargetCandidate =
   badgeRequired: false,
   guided: false,
   isActive: true,
+  starred: false,
   acceptanceRate: null,
   ...over,
 });
@@ -37,10 +38,47 @@ describe("selectTargets", () => {
 
   it("includes badge-gated directories only when allowed, respects count and exclusions", () => {
     expect(selectTargets(all, { count: 2, categories: [], allowBadges: true })).toEqual(["badge-95", "general-80"]);
-    expect(selectTargets(all, { count: 2, categories: [], allowBadges: true, maxBadges: 0 })).not.toContain("badge-95");
     expect(
       selectTargets(all, { count: 10, categories: [], allowBadges: false, exclude: new Set(["general-80"]) }),
     ).not.toContain("general-80");
+  });
+
+  it("puts every badge directory first when badges are allowed, with no limit", () => {
+    const many = Array.from({ length: 8 }, (_, i) => dir(`b-${i}`, { dr: 10 + i, badgeRequired: true }));
+    const picked = selectTargets([...many, dir("strong", { dr: 99 })], {
+      count: 9,
+      categories: [],
+      allowBadges: true,
+    });
+    expect(picked.slice(0, 8).every((id) => id.startsWith("b-"))).toBe(true);
+    expect(picked[8]).toBe("strong");
+  });
+
+  it("always picks starred directories first, over badges, niche and authority", () => {
+    const picked = selectTargets(
+      [
+        dir("badge-99", { dr: 99, badgeRequired: true }),
+        dir("ai-90", { niche: "ai", dr: 90 }),
+        dir("starred-10", { dr: 10, starred: true }),
+      ],
+      { count: 3, categories: ["ai"], allowBadges: true },
+    );
+    expect(picked).toEqual(["starred-10", "badge-99", "ai-90"]);
+  });
+
+  it("still won't put a starred directory on an order it can't go on", () => {
+    const starred = { starred: true, dr: 99 };
+    const picked = selectTargets(
+      [
+        dir("nofollow", { ...starred, linkType: "nofollow" }),
+        dir("inactive", { ...starred, isActive: false }),
+        dir("guided", { ...starred, guided: true }),
+        dir("needs-badge", { ...starred, badgeRequired: true }),
+        dir("plain"),
+      ],
+      { count: 5, categories: [], allowBadges: false },
+    );
+    expect(picked).toEqual(["plain"]);
   });
 
   it("maps SKUs to packages", () => {

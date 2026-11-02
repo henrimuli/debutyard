@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { intakePrefillAction, submitIntakeAction } from "@/app/(site)/orders/[token]/actions";
+import { intakePrefillAction, saveIntakeDraftAction, submitIntakeAction } from "@/app/(site)/orders/[token]/actions";
+import { BlockInstall } from "@/components/submissions/block-install";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { site } from "@/config/site";
@@ -46,13 +47,25 @@ export function IntakeForm({
   token,
   initial,
   categories,
+  block,
 }: {
   token: string;
   initial: Values;
   categories: Array<{ slug: string; name: string }>;
+  block: {
+    /** Where the block loads from. */
+    base: string;
+    key: string;
+    /** The website we've already found the block on. */
+    foundUrl: string | null;
+    /** They saved their details earlier, so pick up at the install step. */
+    resume: boolean;
+  };
 }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
+  const [step, setStep] = useState<"details" | "install">(block.resume ? "install" : "details");
+  const [foundUrl, setFoundUrl] = useState(block.foundUrl);
   const [error, setError] = useState<{ text: string; field?: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -80,19 +93,66 @@ export function IntakeForm({
     });
   }
 
-  function submit() {
+  const saveFailed = () =>
+    setError({
+      text: `We couldn't save your details. Try again in a moment, or email ${site.supportEmail} if it keeps happening.`,
+    });
+
+  /** Sends the order in. */
+  function send(values: Values) {
     setError(null);
     start(async () => {
       try {
-        const res = await submitIntakeAction(token, { ...v, allowAccounts: v.allowAccounts as true });
-        if (!res.ok) return setError({ text: res.error, field: res.field });
+        const res = await submitIntakeAction(token, { ...values, allowAccounts: values.allowAccounts as true });
+        if (!res.ok) {
+          setError({ text: res.error, field: res.field });
+          // The field with the problem is on the details step.
+          if (res.field) setStep("details");
+          return;
+        }
         router.refresh();
       } catch {
-        setError({
-          text: `We couldn't save your details. Try again in a moment, or email ${site.supportEmail} if it keeps happening.`,
-        });
+        saveFailed();
       }
     });
+  }
+
+  /** The details step's button: badges mean installing the block first, otherwise the order can go. */
+  function submit() {
+    if (v.badgePreference !== "allow") return send(v);
+    setError(null);
+    start(async () => {
+      try {
+        const res = await saveIntakeDraftAction(token, { ...v, allowAccounts: v.allowAccounts as true });
+        if (!res.ok) return setError({ text: res.error, field: res.field });
+        setStep("install");
+        window.scrollTo(0, 0);
+      } catch {
+        saveFailed();
+      }
+    });
+  }
+
+  if (step === "install") {
+    return (
+      <BlockInstall
+        token={token}
+        base={block.base}
+        blockKey={block.key}
+        websiteUrl={v.websiteUrl}
+        found={foundUrl === v.websiteUrl}
+        pending={pending}
+        error={error && !error.field ? error.text : null}
+        onFound={() => setFoundUrl(v.websiteUrl)}
+        onBack={() => setStep("details")}
+        onSend={() => send(v)}
+        onSkip={() => {
+          const noBadges = { ...v, badgePreference: "none" as const };
+          setV(noBadges);
+          send(noBadges);
+        }}
+      />
+    );
   }
 
   const count = (s: string, max: number) => (
@@ -233,12 +293,12 @@ export function IntakeForm({
         <legend className="text-sm font-medium">Badge directories</legend>
         {(
           [
-            ["none", "No badges (recommended)", "We only use directories that don't ask for a badge on your site."],
             [
               "allow",
-              "Allow up to 5 badges",
-              "More directories. You paste one HTML block into your footer once; we check it's there.",
+              "Allow badges (recommended)",
+              "Reaches the most directories. Next you add one small block to your homepage, and each badge appears there by itself as we submit.",
             ],
+            ["none", "No badges", "We only use directories that don't ask for a badge, so you reach fewer of them."],
           ] as const
         ).map(([val, title, desc]) => (
           <label
@@ -282,7 +342,7 @@ export function IntakeForm({
       </label>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <Button onClick={submit} disabled={pending} size="lg" className="shrink-0 self-start sm:self-auto">
-          {pending ? "Saving…" : "Start my submissions"}
+          {pending ? "Saving…" : v.badgePreference === "allow" ? "Continue to the last step" : "Start my submissions"}
         </Button>
         {error && (
           <p role="alert" className="text-sm text-danger">

@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy policy" updated="November 1, 2026">
+    <LegalPage title="Privacy policy" updated="November 2, 2026">
       <p>
         This policy explains what {site.legalName} ({site.country}) collects when you use {site.name}, why, and your
         choices. We follow Kenya&apos;s Data Protection Act, 2019, and aim to meet the GDPR standard for visitors from
@@ -40,6 +40,16 @@ export default function PrivacyPage() {
         bot protection (Cloudflare), email (Resend), payments (Paystack, PayPal) and fetching public web pages our own
         checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give us with
         the directories we submit to. We don&apos;t sell personal data.
+      </p>
+
+      <h2>Badge block</h2>
+      <p>
+        If you allow directory badges on a submission order, you add a small block to your website that loads from{" "}
+        {site.name}. As with any file a page loads, our hosting provider receives the IP address and browser details of
+        your visitors when it&apos;s fetched. We use these only to deliver the block and keep it secure, and we
+        don&apos;t use them to identify or track your visitors. The block sets no cookies. The badges it shows may load
+        images from the directories they came from, under those directories&apos; own policies. If your site&apos;s
+        visitors are covered by your own privacy policy, mention this there. Removing the block stops all of this.
       </p>
 
       <h2>Bot protection</h2>

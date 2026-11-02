@@ -1,7 +1,8 @@
-/** The badge block for clients who allow badges (PLAN §4.2a). Pure. */
+/**
+ * The block we used to email for clients to paste themselves, for orders from
+ * before the live block (see lib/badge-block). Pure.
+ */
 
-/** At most this many badge-gated directories per order. */
-export const MAX_BADGES = 5;
 /** Badge-gated rows not found on the client's site after this long are swapped for badge-free directories. */
 export const BADGE_WAIT_DAYS = 7;
 

@@ -1,12 +1,16 @@
 import { CodeBlock } from "@/components/code-block";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { DrChart } from "@/components/metrics/dr-chart";
 import { PrintButton } from "@/components/print-button";
+import { InstallOptions } from "@/components/submissions/block-install";
 import { IntakeForm } from "@/components/submissions/intake-form";
 import { OrderReport } from "@/components/submissions/order-report";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Heading } from "@/components/ui/primitives";
 import { env } from "@/env";
+import { installKit } from "@/lib/badge-block/render";
+import { liveBadgeCount } from "@/lib/badge-block/service";
 import { orderIndexStats } from "@/lib/links/indexed";
 import { drHistory } from "@/lib/metrics/service";
 import { listCategories } from "@/lib/products/queries";
@@ -21,6 +25,11 @@ import {
   summarizeOrder,
 } from "@/lib/submissions/service";
 
+/** Where a maker's block loads from. A preview uses its own database, so it has to serve its own blocks. */
+async function blockBase() {
+  return process.env.VERCEL_ENV === "preview" ? `https://${(await headers()).get("host")}` : env().NEXT_PUBLIC_SITE_URL;
+}
+
 /**
  * A submission order by its private token: intake first, then the live
  * tracking dashboard. Shared by the emailed link (/orders/[token]) and the
@@ -30,6 +39,7 @@ export async function OrderView({ token }: { token: string }) {
   const order = await orderByIntakeToken(token);
   if (!order || order.status === "cancelled") notFound();
   const pkg = PACKAGES[order.package];
+  const base = await blockBase();
 
   if (order.status === "awaiting_intake") {
     return (
@@ -37,12 +47,18 @@ export async function OrderView({ token }: { token: string }) {
         <Heading>Tell us about your product</Heading>
         <p className="mt-2 max-w-2xl text-muted-foreground">
           {pkg.label}: {pkg.count} directories. Directories show different lengths of description, so we ask for three.
-          Submissions start within 48 hours of this form.
+          Submissions start within 48 hours of your order going in.
         </p>
         <Card className="mt-8 p-6">
           <IntakeForm
             token={token}
             categories={await listCategories()}
+            block={{
+              base,
+              key: order.blockKey,
+              foundUrl: order.blockInstalledAt ? order.blockInstalledUrl : null,
+              resume: Boolean(order.intakeDraftAt && order.badgePreference === "allow"),
+            }}
             initial={{
               productName: order.productName ?? "",
               websiteUrl: order.websiteUrl ?? "",
@@ -54,8 +70,9 @@ export async function OrderView({ token }: { token: string }) {
               founderName: order.founderName ?? "",
               contactEmail: order.contactEmail ?? order.email,
               clientNotes: order.clientNotes ?? "",
-              badgePreference: order.badgePreference,
-              allowAccounts: false,
+              // Badges are the recommended option until they've chosen for themselves.
+              badgePreference: order.intakeDraftAt ? order.badgePreference : "allow",
+              allowAccounts: Boolean(order.intakeDraftAt && order.allowAccounts),
             }}
           />
         </Card>
@@ -70,11 +87,13 @@ export async function OrderView({ token }: { token: string }) {
       return null;
     }
   })();
-  const [rows, guided, dr, badgeBlock, accounts, index] = await Promise.all([
+  const blockLive = order.badgePreference === "allow" && Boolean(order.blockInstalledAt);
+  const [rows, guided, dr, badgeBlock, badgesShowing, accounts, index] = await Promise.all([
     orderRows(order.id),
     guidedChecklist(),
     domain ? drHistory(domain) : Promise.resolve([]),
-    order.badgePreference === "allow" && order.status !== "delivered" ? badgeBlockFor(order.id) : null,
+    order.badgePreference === "allow" && !blockLive && order.status !== "delivered" ? badgeBlockFor(order.id) : null,
+    blockLive ? liveBadgeCount(order) : 0,
     // Logins are handed over with the delivery report, and only on this private page.
     order.status === "delivered" ? credentialsFor(order.id) : Promise.resolve([]),
     orderIndexStats(order.id),
@@ -112,6 +131,25 @@ export async function OrderView({ token }: { token: string }) {
               </li>
             ))}
           </ul>
+        </Card>
+      )}
+      {blockLive && (
+        <Card className="space-y-2 p-5 print:hidden">
+          <p className="font-medium">Your badge block</p>
+          <p className="text-sm text-muted-foreground">
+            {badgesShowing === 0
+              ? "Installed, and invisible for now. Each directory's badge appears on your homepage by itself as we submit."
+              : `${badgesShowing} ${badgesShowing === 1 ? "badge" : "badges"} showing on your homepage. New ones appear by themselves.`}{" "}
+            Keep the block in place: directories can check for their badge at any time.
+          </p>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Need to install it again?
+            </summary>
+            <div className="mt-3">
+              <InstallOptions kit={installKit(base, order.blockKey, order.websiteUrl ?? "your website")} />
+            </div>
+          </details>
         </Card>
       )}
       {badgeBlock && badgeBlock.directories.some((x) => !x.seen) && (

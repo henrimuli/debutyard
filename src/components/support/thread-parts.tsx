@@ -14,7 +14,7 @@ import { Select } from "@/components/ui/select";
 
 type Status = "open" | "done" | "spam" | "trash";
 
-function ToolButton({
+export function ToolButton({
   icon,
   label,
   onClick,
