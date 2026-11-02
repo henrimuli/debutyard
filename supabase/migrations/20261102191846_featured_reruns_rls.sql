@@ -1,0 +1,1 @@
+ALTER TABLE "featured_reruns" ENABLE ROW LEVEL SECURITY;
