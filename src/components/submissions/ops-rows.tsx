@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ClipboardEvent } from "react";
 import {
   addDirectoryAction,
   bulkAction,
+  evidenceUploadAction,
   setBadgeCodeAction,
   swapDirectoryAction,
   updateRowAction,
@@ -14,6 +15,8 @@ import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Badge, Input } from "@/components/ui/primitives";
+import { pastedImage, screenshotProblem, SCREENSHOT_TYPES } from "@/lib/submissions/screenshot";
+import { putToStorage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 
@@ -120,6 +123,112 @@ function BadgeCodeBox({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: bo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The update panel's fields, with the screenshot uploading straight away from a
+ * file or a paste anywhere in the panel. It saves on the row by itself, so
+ * closing the panel can't lose it.
+ */
+function UpdatePanel({
+  rowId,
+  evidence,
+  setEvidence,
+  onMessage,
+  children,
+}: {
+  rowId: string;
+  evidence: string;
+  setEvidence: (url: string) => void;
+  onMessage: (m: { ok: boolean; text: string }) => void;
+  children: (field: React.ReactNode) => React.ReactNode;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Ready to paste into as soon as it opens.
+  useEffect(() => panel.current?.focus({ preventScroll: true }), []);
+
+  async function upload(file: File) {
+    if (uploading) return;
+    const problem = screenshotProblem(file);
+    if (problem) return onMessage({ ok: false, text: problem });
+    setUploading(true);
+    try {
+      const target = await evidenceUploadAction(file.type, file.size);
+      if (!target.ok) return onMessage({ ok: false, text: target.error });
+      await putToStorage(target.uploadUrl, file);
+      const saved = await updateRowAction(rowId, { evidenceUrl: target.publicUrl });
+      if (!saved.ok) return onMessage({ ok: false, text: saved.error });
+      setEvidence(target.publicUrl);
+      onMessage({ ok: true, text: "Screenshot saved." });
+    } catch (err) {
+      onMessage({ ok: false, text: err instanceof Error ? err.message : "The upload failed. Try again." });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function paste(e: ClipboardEvent) {
+    const image = pastedImage(e.clipboardData);
+    if (!image) return;
+    e.preventDefault();
+    void upload(image);
+  }
+
+  const field = (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-2">
+        <Input
+          value={evidence}
+          onChange={(e) => setEvidence(e.target.value)}
+          placeholder="https:// screenshot URL"
+          className="h-9 min-w-48 flex-1 text-sm"
+        />
+        <label
+          className={cn(
+            "inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-card px-3 text-sm hover:bg-muted",
+            uploading && "pointer-events-none opacity-60",
+          )}
+        >
+          {uploading ? "Uploading…" : "Upload"}
+          <input
+            type="file"
+            accept={SCREENSHOT_TYPES.join(",")}
+            className="sr-only"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void upload(file);
+            }}
+          />
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Or paste a screenshot anywhere in this panel with Ctrl+V (⌘V on a Mac).
+        {evidence && (
+          <>
+            {" "}
+            <a href={evidence} target="_blank" rel="noopener" className="text-primary hover:underline">
+              View current ↗
+            </a>
+          </>
+        )}
+      </p>
+    </div>
+  );
+
+  return (
+    <div
+      ref={panel}
+      tabIndex={-1}
+      onPaste={paste}
+      className="mt-3 space-y-2 rounded-md bg-muted/40 p-3 focus:outline-none"
+    >
+      {children(field)}
     </div>
   );
 }
@@ -257,82 +366,81 @@ function RowEditor({
         </div>
       )}
       {open && (
-        <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-3">
-          {row.directory.instructions && (
-            <p className="whitespace-pre-line rounded bg-card p-2 text-xs text-muted-foreground">
-              {row.directory.instructions}
-            </p>
+        <UpdatePanel rowId={row.id} evidence={evidence} setEvidence={setEvidence} onMessage={onMessage}>
+          {(field) => (
+            <>
+              {row.directory.instructions && (
+                <p className="whitespace-pre-line rounded bg-card p-2 text-xs text-muted-foreground">
+                  {row.directory.instructions}
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Status)}
+                  className="h-9 rounded-md border border-border bg-card px-2 text-sm"
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </Select>
+                <Input
+                  value={liveUrl}
+                  onChange={(e) => setLiveUrl(e.target.value)}
+                  placeholder="Live listing URL (required for live)"
+                  className="h-9 text-sm"
+                />
+                <span className="self-center text-xs text-muted-foreground">Client sees</span>
+                <Input
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                  placeholder="Action needed from the client (needs_action)"
+                  className="h-9 text-sm"
+                />
+                <span className="self-center text-xs text-muted-foreground">Evidence</span>
+                {field}
+                <span className="self-center text-xs text-muted-foreground">Account</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    placeholder="Login email or username"
+                    className="h-9 text-sm"
+                    autoComplete="off"
+                  />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={row.hasPassword ? "Password saved (type to replace)" : "Password (encrypted)"}
+                    className="h-9 text-sm"
+                    autoComplete="new-password"
+                  />
+                </div>
+                {row.directory.badgeRequired && (
+                  <>
+                    <span className="self-center text-xs text-muted-foreground">Badge</span>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={badgeSeen} onChange={(e) => setBadgeSeen(e.target.checked)} />
+                      The client&apos;s badge for this directory is on their site
+                    </label>
+                  </>
+                )}
+                <span className="self-center text-xs text-muted-foreground">Internal notes</span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  className="rounded-md border border-border bg-card p-2 text-sm"
+                  placeholder="Captcha, verification, anything odd…"
+                />
+              </div>
+              <Button size="sm" onClick={save} disabled={pending}>
+                {pending ? "Saving…" : status === "live" ? "Save & verify link" : "Save"}
+              </Button>
+            </>
           )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as Status)}
-              className="h-9 rounded-md border border-border bg-card px-2 text-sm"
-            >
-              {STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </Select>
-            <Input
-              value={liveUrl}
-              onChange={(e) => setLiveUrl(e.target.value)}
-              placeholder="Live listing URL (required for live)"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Client sees</span>
-            <Input
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              placeholder="Action needed from the client (needs_action)"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Evidence</span>
-            <Input
-              value={evidence}
-              onChange={(e) => setEvidence(e.target.value)}
-              placeholder="https:// screenshot URL"
-              className="h-9 text-sm"
-            />
-            <span className="self-center text-xs text-muted-foreground">Account</span>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Input
-                value={login}
-                onChange={(e) => setLogin(e.target.value)}
-                placeholder="Login email or username"
-                className="h-9 text-sm"
-                autoComplete="off"
-              />
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={row.hasPassword ? "Password saved (type to replace)" : "Password (encrypted)"}
-                className="h-9 text-sm"
-                autoComplete="new-password"
-              />
-            </div>
-            {row.directory.badgeRequired && (
-              <>
-                <span className="self-center text-xs text-muted-foreground">Badge</span>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={badgeSeen} onChange={(e) => setBadgeSeen(e.target.checked)} />
-                  The client&apos;s badge for this directory is on their site
-                </label>
-              </>
-            )}
-            <span className="self-center text-xs text-muted-foreground">Internal notes</span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="rounded-md border border-border bg-card p-2 text-sm"
-              placeholder="Captcha, verification, anything odd…"
-            />
-          </div>
-          <Button size="sm" onClick={save} disabled={pending}>
-            {pending ? "Saving…" : status === "live" ? "Save & verify link" : "Save"}
-          </Button>
-        </div>
+        </UpdatePanel>
       )}
     </div>
   );

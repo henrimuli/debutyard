@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { getCurrentUser, isStaff } from "@/lib/auth";
+import { createUploadUrl } from "@/lib/storage";
+import { screenshotProblem } from "@/lib/submissions/screenshot";
 import { findBlock, setBadgeCode } from "@/lib/badge-block/service";
 import {
   addOrderDirectory,
@@ -46,6 +48,22 @@ export async function updateRowAction(submissionId: string, input: OpsUpdate) {
     if (replacement) return "Replaced with the next best directory.";
     if (row.status === "live" && row.linkVerdict) return `Link check: ${row.linkVerdict}.`;
   });
+}
+
+/** Where the browser sends a listing's screenshot. Saving it on the row is a separate update. */
+export async function evidenceUploadAction(
+  contentType: string,
+  size: number,
+): Promise<{ ok: true; uploadUrl: string; publicUrl: string } | { ok: false; error: string }> {
+  if (!(await staffOnly())) return { ok: false, error: "Not allowed." };
+  const problem = screenshotProblem({ type: contentType, size });
+  if (problem) return { ok: false, error: problem };
+  try {
+    const { uploadUrl, publicUrl } = await createUploadUrl({ folder: "evidence", contentType, contentLength: size });
+    return { ok: true, uploadUrl, publicUrl };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Upload failed." };
+  }
 }
 
 export async function bulkAction(orderId: string, ids: string[], status: "submitted" | "pending" | "skipped" | "todo") {
