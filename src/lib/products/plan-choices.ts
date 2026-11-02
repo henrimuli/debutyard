@@ -8,6 +8,7 @@ import type { ProviderId } from "@/lib/payments/types";
 import { TIERS, tierRank, type Tier } from "@/lib/products/input";
 import { getEditableProduct } from "@/lib/products/queries";
 import { activeFreeCount, badgeRecord, bookableWeeks, MAX_ACTIVE_FREE, nextFreeWeek } from "@/lib/products/service";
+import { PACKAGES } from "@/lib/submissions/packages";
 import { onSpotlightWaitlist, SPOTLIGHT_DAYS, SPOTLIGHT_SPOTS, spotlightAvailable } from "@/lib/products/spotlight";
 import { formatWeekLabel, formatWeekRange, weekKeyFor } from "@/lib/weeks";
 
@@ -81,7 +82,7 @@ const perks: Record<Tier, string[]> = {
     "Top newsletter slot",
     "Guaranteed dofollow link",
     "Written launch post on our blog",
-    "Bundled: submission to 40 directories",
+    `Bundled: submission to ${PACKAGES.starter.count} directories`,
   ],
 };
 

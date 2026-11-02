@@ -280,7 +280,7 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     await addDirectories(directory("one"));
     const order = await newOrder();
     const { spare, spare2 } = await addDirectories(directory("spare"), directory("spare2"));
-    expect(order.targetCount).toBe(40);
+    expect(order.targetCount).toBe(30);
 
     await subs.addOrderDirectory(order.id, spare);
     expect(await clientList(order.id)).toEqual(["one", "spare"]);

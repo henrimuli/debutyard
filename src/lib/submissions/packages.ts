@@ -2,15 +2,32 @@
 
 export type PackageId = "starter" | "growth" | "scale";
 
-/** `monitorMonths`: Link Monitor included after delivery. */
+/**
+ * `monitorMonths`: Link Monitor included after delivery. `extra`: the package
+ * promises more than its count ("90+"), so each order gets 1 to this many on top.
+ */
 export const PACKAGES: Record<
   PackageId,
-  { sku: string; label: string; count: number; days: number; monitorMonths: number }
+  { sku: string; label: string; count: number; extra?: number; days: number; monitorMonths: number }
 > = {
-  starter: { sku: "submission_starter", label: "Starter", count: 40, days: 7, monitorMonths: 3 },
-  growth: { sku: "submission_growth", label: "Growth", count: 100, days: 14, monitorMonths: 6 },
-  scale: { sku: "submission_scale", label: "Scale", count: 180, days: 14, monitorMonths: 12 },
+  starter: { sku: "submission_starter", label: "Starter", count: 30, days: 7, monitorMonths: 3 },
+  growth: { sku: "submission_growth", label: "Growth", count: 60, days: 14, monitorMonths: 6 },
+  scale: { sku: "submission_scale", label: "Scale", count: 90, extra: 5, days: 14, monitorMonths: 12 },
 };
+
+/** A package's size as we advertise it: "30", or "90+". */
+export function countLabel(id: PackageId): string {
+  return `${PACKAGES[id].count}${PACKAGES[id].extra ? "+" : ""}`;
+}
+
+/** The smallest and largest packages, for copy: "30–90+". */
+export const COUNT_RANGE = `${PACKAGES.starter.count}–${countLabel("scale")}`;
+
+/** How many directories a new order gets, fixed when it's bought. Scale lands on 91 to 95. */
+export function targetCountFor(id: PackageId, random: () => number = Math.random): number {
+  const { count, extra } = PACKAGES[id];
+  return extra ? count + 1 + Math.floor(random() * extra) : count;
+}
 
 export function packageForSku(sku: string): PackageId | null {
   return (Object.keys(PACKAGES) as PackageId[]).find((p) => PACKAGES[p].sku === sku) ?? null;

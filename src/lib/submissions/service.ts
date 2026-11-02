@@ -20,7 +20,15 @@ import { formatUsd } from "@/lib/payments/skus";
 import { domainOf } from "@/lib/slug";
 import { BADGE_WAIT_DAYS, badgeBlockHtml } from "./badge-block";
 import { newInboxKey } from "./inbox-rules";
-import { isOrderTarget, PACKAGES, packageForSku, selectTargets, type PackageId } from "./packages";
+import {
+  countLabel,
+  isOrderTarget,
+  packageForSku,
+  PACKAGES,
+  selectTargets,
+  targetCountFor,
+  type PackageId,
+} from "./packages";
 
 const { submissionOrders: orders, submissions, directories } = schema;
 export type SubmissionOrder = typeof orders.$inferSelect;
@@ -85,7 +93,7 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
       productId: product?.id ?? null,
       email: payment.email,
       package: pkg,
-      targetCount: PACKAGES[pkg].count,
+      targetCount: targetCountFor(pkg),
       intakeToken: token(),
       reportToken: token(),
       inboxKey: newInboxKey(),
@@ -113,7 +121,9 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
     `Next step for your ${site.name} ${p.label} order`,
     [
       { heading: "One step left: tell us about your product" },
-      { text: `Thanks for your order (${p.label}: ${p.count} directories, ${formatUsd(payment.amountCents)}).` },
+      {
+        text: `Thanks for your order (${p.label}: ${countLabel(pkg)} directories, ${formatUsd(payment.amountCents)}).`,
+      },
       {
         text: "Tell us about your product and add a small block to your homepage for directory badges. It takes about five minutes, and submissions start within 48 hours of receiving it.",
       },
@@ -130,7 +140,7 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
       {
         facts: [
           ["Buyer", payment.email],
-          ["Package", `${p.label}, ${p.count} directories`],
+          ["Package", `${p.label}, ${order.targetCount} directories`],
           ["Paid", formatUsd(payment.amountCents)],
           ["Status", product ? `Boost for ${product.name}` : "Waiting for intake"],
         ],

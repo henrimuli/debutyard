@@ -14,6 +14,7 @@ import { liveAds, type AdItem } from "@/lib/ads/service";
 import { getCurrentUser } from "@/lib/auth";
 import { cardMediaForSlugs, featuredNow } from "@/lib/board/featured";
 import { applauseForSlugs, categoriesWithCounts, recentWinners } from "@/lib/board/queries";
+import { PACKAGES } from "@/lib/submissions/packages";
 import { addWeeks, formatWeekLabel, formatWeekRange, weekBounds, weekKeyFor } from "@/lib/weeks";
 
 export default function Home() {
@@ -32,7 +33,7 @@ export default function Home() {
           <div className="flex flex-wrap gap-3">
             <DebutLink size="lg">Debut your product</DebutLink>
             <ButtonLink href="/submission-service" size="lg" variant="outline">
-              Get listed on 40+ directories
+              Get listed on {PACKAGES.starter.count}+ directories
             </ButtonLink>
           </div>
         </Container>

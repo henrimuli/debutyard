@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { getCurrentUser } from "@/lib/auth";
 import { enabledProviders } from "@/lib/payments";
 import { formatUsd, getSku } from "@/lib/payments/skus";
-import { PACKAGES } from "@/lib/submissions/packages";
+import { countLabel, PACKAGES } from "@/lib/submissions/packages";
 import { cn } from "@/lib/utils";
 
 /*
@@ -75,7 +75,7 @@ export function NextSteps() {
 function packagePerks(id: keyof typeof PACKAGES) {
   const p = PACKAGES[id];
   return [
-    `${p.count}${id === "scale" ? "+" : ""} niche-matched directories`,
+    `${countLabel(id)} niche-matched directories`,
     `Done in ${p.days} days`,
     "Every link verified, with live tracking",
     ...(id === "scale" ? ["Copy tailored to each directory"] : []),

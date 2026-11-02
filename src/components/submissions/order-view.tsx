@@ -46,8 +46,8 @@ export async function OrderView({ token }: { token: string }) {
       <>
         <Heading>Tell us about your product</Heading>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          {pkg.label}: {pkg.count} directories. Directories show different lengths of description, so we ask for three.
-          Submissions start within 48 hours of your order going in.
+          {pkg.label}: {order.targetCount} directories. Directories show different lengths of description, so we ask for
+          three. Submissions start within 48 hours of your order going in.
         </p>
         <Card className="mt-8 p-6">
           <IntakeForm

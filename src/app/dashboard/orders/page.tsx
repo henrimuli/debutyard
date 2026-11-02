@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/app-shell/page-header";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
 import { requireUser } from "@/lib/auth";
-import { PACKAGES } from "@/lib/submissions/packages";
+import { COUNT_RANGE, PACKAGES } from "@/lib/submissions/packages";
 import { ordersForUser } from "@/lib/submissions/service";
 
 export const metadata: Metadata = { title: "Submission orders", robots: { index: false } };
@@ -37,10 +37,10 @@ async function Orders() {
       <Card className="text-center">
         <p className="font-medium">No submission orders yet.</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Get listed on 40 to 180 niche-matched directories, with every link tracked here.
+          Get listed on {COUNT_RANGE} niche-matched directories, with every link tracked here.
         </p>
         <ButtonLink href="/dashboard/orders/new" className="mt-4">
-          Get listed on 40+ directories
+          Get listed on {PACKAGES.starter.count}+ directories
         </ButtonLink>
       </Card>
     );

@@ -10,6 +10,7 @@ import { CatalogFigures, Faq, ServiceDetails, TrustChips } from "@/components/su
 import { db, schema } from "@/db";
 import { requireUser } from "@/lib/auth";
 import { catalogStats } from "@/lib/directories/service";
+import { COUNT_RANGE } from "@/lib/submissions/packages";
 
 export const metadata: Metadata = { title: "Submission packages", robots: { index: false } };
 
@@ -22,7 +23,7 @@ export default function NewOrderPage(props: PageProps<"/dashboard/orders/new">) 
       </Link>
       <div className="mt-3">
         <PageHeader
-          title="Get listed on 40–180 directories"
+          title={`Get listed on ${COUNT_RANGE} directories`}
           description="We submit your product by hand to directories that fit it, then verify every link ourselves. Follow it live from your submission orders."
         />
       </div>
