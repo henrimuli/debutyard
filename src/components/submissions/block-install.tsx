@@ -49,12 +49,12 @@ export function InstallOptions({ kit }: { kit: InstallKit }) {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             Copy this prompt and paste it into Claude Code, Cursor, Lovable, Bolt or whichever coding agent you use. It
-            has everything the agent needs, and you can read or edit it there.
+            has everything the agent needs.
           </p>
-          {/* A preview: the Copy button takes the whole prompt, and it can be read and edited once pasted. */}
+          {/* A short window that scrolls by itself, not the page. Copy takes the whole prompt. */}
           <CodeBlock
             code={kit.prompt}
-            className="max-h-44 overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-20 after:bg-gradient-to-t after:from-muted after:to-transparent"
+            className="overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-10 after:bg-gradient-to-t after:from-muted after:to-transparent [&>pre]:max-h-44 [&>pre]:overflow-y-auto [&>pre]:overscroll-contain [&>pre]:pb-10"
           />
         </div>
       ) : (
