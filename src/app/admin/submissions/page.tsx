@@ -43,7 +43,7 @@ async function Board() {
               {label} <span className="text-muted-foreground">{items.length}</span>
             </h2>
             <ul className="space-y-2">
-              {items.map(({ o, live, total, open, assignee, overdue: late, unreadMail }) => {
+              {items.map(({ o, live, total, open, waiting, assignee, overdue: late, unreadMail }) => {
                 return (
                   <li key={o.id}>
                     <Link
@@ -56,7 +56,11 @@ async function Board() {
                         <Badge>{PACKAGES[o.package].label}</Badge>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {total > 0 ? `${live}/${total} live · ${open} open` : "No targets yet"}
+                        {total === 0
+                          ? "No targets yet"
+                          : o.status === "delivered"
+                            ? `${live}/${total} live · ${waiting} waiting to go live`
+                            : `${live}/${total} live · ${open} open`}
                         {assignee && ` · ${assignee}`}
                       </p>
                       {o.dueAt && (

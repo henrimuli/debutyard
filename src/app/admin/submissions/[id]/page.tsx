@@ -110,8 +110,9 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
         </div>
       </div>
       <p className="text-sm text-muted-foreground">
-        {s.live} live ({s.dofollow} dofollow) · {s.inReview} in review · {s.needsAction} need the client · {s.scheduled}
-        /{s.target} scheduled ·{" "}
+        {s.live} live ({s.dofollow} dofollow) · {s.inReview} submitted
+        {s.awaitingScreenshot > 0 ? ` (${s.awaitingScreenshot} need a screenshot)` : ""} · {s.needsAction} need the
+        client · {s.scheduled}/{s.target} scheduled ·{" "}
         <a href={`/orders/${order.intakeToken}`} target="_blank" className="text-primary hover:underline">
           client view ↗
         </a>
