@@ -291,6 +291,20 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     await expect(subs.addOrderDirectory(order.id, spare2)).rejects.toThrow("Swap one instead");
   });
 
+  it("counts an order's live and scheduled directories for the maker's and staff's lists", async () => {
+    await addDirectories(directory("one"), directory("two"));
+    const order = await newOrder();
+    await subs.updateOrderSubmission((await rowFor(order.id, "one"))!.id, {
+      status: "live",
+      liveUrl: "https://one.test/acme",
+    });
+
+    const mine = (await subs.ordersForUser("nobody", "buyer@x.test")).find((r) => r.o.id === order.id)!;
+    expect(mine).toMatchObject({ live: 1, total: 2 });
+    const ops = (await subs.listOrdersForOps()).find((r) => r.o.id === order.id)!;
+    expect(ops).toMatchObject({ live: 1, total: 2 });
+  });
+
   it("has no limit on badge directories, and puts them first", async () => {
     await addDirectories(
       ...Array.from({ length: 8 }, (_, i) => directory(`badge-${i}`, { badgeRequired: true, dr: 20 + i })),

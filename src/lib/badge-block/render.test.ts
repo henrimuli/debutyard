@@ -19,6 +19,14 @@ describe("blockHtml", () => {
     expect(html.split(badge)).toHaveLength(3);
   });
 
+  it("gives every badge the same slot, over any size set on the badge itself", () => {
+    const html = blockHtml(key, [badge, '<a href="https://b.example"><img src="b.png" width="400" height="120"></a>']);
+    expect(html.split('<div class="debutyard-badge">')).toHaveLength(3);
+    expect(html).toContain("width:200px;height:54px");
+    expect(html).toContain("width:100%!important;height:100%!important");
+    expect(html).toContain("object-fit:contain");
+  });
+
   it("turns into a looping strip with many, keeping the copy out of the tab order", () => {
     const html = blockHtml(key, Array(MOVING_AT).fill(badge));
     expect(html).toContain('class="debutyard-moving"');

@@ -3,10 +3,15 @@
 const BLOCK_ID = "debutyard-badges";
 /** From this many badges the block is a moving strip rather than a row. */
 export const MOVING_AT = 6;
+/** Every badge fits this slot, whatever size its directory made it, and keeps its own shape. */
+const BADGE_WIDTH = 200;
+const BADGE_HEIGHT = 54;
 
 const STYLE = `#${BLOCK_ID}{width:100%;margin:48px 0;padding:0 16px;box-sizing:border-box}
 #${BLOCK_ID} .debutyard-group{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
-#${BLOCK_ID} img{max-height:54px;width:auto;height:auto}`;
+#${BLOCK_ID} .debutyard-badge{flex:none;display:flex;align-items:center;justify-content:center;width:${BADGE_WIDTH}px;height:${BADGE_HEIGHT}px;overflow:hidden}
+#${BLOCK_ID} .debutyard-badge a{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+#${BLOCK_ID} .debutyard-badge img,#${BLOCK_ID} .debutyard-badge svg{display:block;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain}`;
 
 const movingStyle = (
   seconds: number,
@@ -28,7 +33,7 @@ const movingStyle = (
 export function blockHtml(key: string, badges: string[]): string {
   const items = badges.map((b) => b.trim()).filter(Boolean);
   if (items.length === 0) return `<div hidden style="display:none" data-debutyard-key="${key}"></div>`;
-  const row = items.join("");
+  const row = items.map((b) => `<div class="debutyard-badge">${b}</div>`).join("");
   if (items.length < MOVING_AT) {
     return `<div id="${BLOCK_ID}" data-debutyard-key="${key}"><style>${STYLE}</style><div class="debutyard-group">${row}</div></div>`;
   }

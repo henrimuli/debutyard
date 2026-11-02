@@ -338,13 +338,18 @@ export function summarizeOrder(
   };
 }
 
+// The table is spelled out: in a query on one table Drizzle would print ${orders.id} as a bare "id", which inside
+// these subqueries means the submission's own id, so nothing would ever match.
+const liveRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status = 'live')`;
+const scheduledRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status <> 'replaced')`;
+
 /** A signed-in buyer's orders (matched by account or by the email they paid with). */
 export async function ordersForUser(userId: string, email: string) {
   return db()
     .select({
       o: orders,
-      live: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status = 'live')`,
-      total: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status <> 'replaced')`,
+      live: liveRows,
+      total: scheduledRows,
     })
     .from(orders)
     .where(
@@ -362,8 +367,8 @@ export async function listOrdersForOps() {
   return db()
     .select({
       o: orders,
-      live: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status = 'live')`,
-      total: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status <> 'replaced')`,
+      live: liveRows,
+      total: scheduledRows,
       open: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status in ('todo', 'needs_action'))`,
       overdue: sql<boolean>`${orders.dueAt} < now() and ${orders.status} not in ('delivered', 'cancelled')`,
       assignee: schema.user.name,
