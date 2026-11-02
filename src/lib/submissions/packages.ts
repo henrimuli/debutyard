@@ -46,9 +46,14 @@ export type TargetCandidate = {
   acceptanceRate: number | null;
 };
 
+/** Can this directory go on an order at all? Only ones we know give a dofollow link. */
+export function isOrderTarget(c: Pick<TargetCandidate, "isActive" | "guided" | "linkType">): boolean {
+  return c.isActive && !c.guided && c.linkType === "dofollow";
+}
+
 /**
- * Picks directories for an order, best first: active, not guided, not known
- * nofollow, badge-gated only if the client allows badges. Niche matches and
+ * Picks directories for an order, best first: active, not guided, dofollow,
+ * badge-gated only if the client allows badges. Niche matches and
  * general directories rank above other niches; then DR, then our acceptance
  * rate. Pure.
  */
@@ -60,14 +65,7 @@ export function selectTargets(
   let badges = 0;
   const fit = (c: TargetCandidate) => (niches.has(c.niche) ? 2 : c.niche === "general" || c.niche === "indie" ? 1 : 0);
   return candidates
-    .filter(
-      (c) =>
-        c.isActive &&
-        !c.guided &&
-        c.linkType !== "nofollow" &&
-        (opts.allowBadges || !c.badgeRequired) &&
-        !opts.exclude?.has(c.id),
-    )
+    .filter((c) => isOrderTarget(c) && (opts.allowBadges || !c.badgeRequired) && !opts.exclude?.has(c.id))
     .sort(
       (a, b) =>
         fit(b) - fit(a) ||

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { bulkAction, updateRowAction } from "@/app/admin/submissions/actions";
+import { addDirectoryAction, bulkAction, swapDirectoryAction, updateRowAction } from "@/app/admin/submissions/actions";
 import { LinkVerdict } from "@/components/directories/link-verdict";
 import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/directory-picker";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Badge, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
@@ -33,14 +35,28 @@ export type OpsRow = {
     badgeRequired: boolean;
     needsAccount: boolean;
     instructions: string;
+    linkType: string;
   };
 };
 
 const STATUSES = ["todo", "submitted", "pending", "needs_action", "live", "rejected", "skipped", "dead"] as const;
 type Status = (typeof STATUSES)[number];
 
-function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boolean; text: string }) => void }) {
+/** Not live and still meant to happen, so it can still be swapped for a dofollow directory. */
+const isUpcoming = (r: OpsRow) => ["todo", "submitted", "pending", "needs_action"].includes(r.status);
+
+function RowEditor({
+  row,
+  choices,
+  onMessage,
+}: {
+  row: OpsRow;
+  /** What it can be swapped for. Null when it can't be swapped. */
+  choices: DirectoryChoice[] | null;
+  onMessage: (m: { ok: boolean; text: string }) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [swapping, setSwapping] = useState(false);
   const [status, setStatus] = useState<Status>(row.status as Status);
   const [liveUrl, setLiveUrl] = useState(row.liveUrl ?? "");
   const [notes, setNotes] = useState(row.notes);
@@ -72,6 +88,28 @@ function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boole
     });
   }
 
+  async function swap(choice: DirectoryChoice) {
+    if (
+      row.status !== "todo" &&
+      !(await confirmDialog({
+        title: `Swap ${row.directory.name} for ${choice.name}?`,
+        message: `Work on ${row.directory.name} has started (${row.status}). It leaves the client's list, and ${choice.name} starts from queued.`,
+        confirmLabel: "Swap",
+      }))
+    ) {
+      return;
+    }
+    start(async () => {
+      const res = await swapDirectoryAction(row.id, choice.id);
+      onMessage(
+        res.ok
+          ? { ok: true, text: `${row.directory.name}: ${res.message ?? "swapped"}` }
+          : { ok: false, text: `${row.directory.name}: ${res.error}` },
+      );
+      if (res.ok) setSwapping(false);
+    });
+  }
+
   return (
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -92,20 +130,52 @@ function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boole
             held: badge
           </Badge>
         )}
+        {isUpcoming(row) && row.directory.linkType !== "dofollow" && (
+          <Badge tone="accent" title="Only dofollow directories should be on an order. Swap this one.">
+            {row.directory.linkType === "nofollow" ? "nofollow" : "link unknown"}
+          </Badge>
+        )}
         <Badge tone={row.status === "live" ? "success" : row.status === "needs_action" ? "accent" : "default"}>
           {row.status}
         </Badge>
         {row.status === "live" && (
           <LinkVerdict verdict={row.linkVerdict} anchor={row.linkAnchor} checkedAt={row.linkCheckedAt} />
         )}
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="ml-auto text-xs text-primary hover:underline"
-        >
-          {open ? "Close" : "Update"}
-        </button>
+        <span className="ml-auto flex gap-3">
+          {choices && (
+            <button
+              type="button"
+              onClick={() => {
+                setSwapping((o) => !o);
+                setOpen(false);
+              }}
+              className="text-xs text-primary hover:underline"
+            >
+              {swapping ? "Cancel swap" : "Swap"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen((o) => !o);
+              setSwapping(false);
+            }}
+            className="text-xs text-primary hover:underline"
+          >
+            {open ? "Close" : "Update"}
+          </button>
+        </span>
       </div>
+      {swapping && choices && (
+        <div className="mt-3">
+          <DirectoryPicker
+            label={`Directory to swap ${row.directory.name} for`}
+            choices={choices}
+            disabled={pending}
+            onPick={swap}
+          />
+        </div>
+      )}
       {open && (
         <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-3">
           {row.directory.instructions && (
@@ -188,8 +258,24 @@ function RowEditor({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boole
   );
 }
 
-export function OpsRows({ orderId, rows }: { orderId: string; rows: OpsRow[] }) {
+export function OpsRows({
+  orderId,
+  rows,
+  target,
+  canChange,
+  choices,
+  badgesFull,
+}: {
+  orderId: string;
+  rows: OpsRow[];
+  target: number;
+  /** The order is active, so staff can change its directories. */
+  canChange: boolean;
+  choices: DirectoryChoice[];
+  badgesFull: boolean;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();
   const active = rows.filter((r) => r.status !== "replaced");
@@ -209,8 +295,26 @@ export function OpsRows({ orderId, rows }: { orderId: string; rows: OpsRow[] }) 
     });
   }
 
+  function add(choice: DirectoryChoice) {
+    start(async () => {
+      const res = await addDirectoryAction(orderId, choice.id);
+      setMessage(res.ok ? { ok: true, text: res.message ?? "Added." } : { ok: false, text: res.error });
+      if (res.ok) setAdding(false);
+    });
+  }
+
+  // A badge directory can only come in once there's a slot, or in place of another one.
+  const withBadgeSlot = (keepsSlot: boolean) => choices.filter((c) => !c.badgeRequired || !badgesFull || keepsSlot);
+  const notDofollow = rows.filter((r) => isUpcoming(r) && r.directory.linkType !== "dofollow").length;
+
   return (
     <div className="space-y-3">
+      {canChange && notDofollow > 0 && (
+        <p className="rounded-md bg-muted/40 p-3 text-sm">
+          {notDofollow} {notDofollow === 1 ? "directory on this order isn't" : "directories on this order aren't"}{" "}
+          dofollow, and the client can see {notDofollow === 1 ? "it" : "them"}. Use Swap to choose dofollow ones.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <label className="flex items-center gap-2">
           <input
@@ -230,7 +334,15 @@ export function OpsRows({ orderId, rows }: { orderId: string; rows: OpsRow[] }) 
             Mark {s}
           </Button>
         ))}
+        {canChange && active.length < target && (
+          <Button size="sm" variant="outline" className="ml-auto" onClick={() => setAdding((o) => !o)}>
+            {adding ? "Cancel" : `Add directory (${target - active.length} short)`}
+          </Button>
+        )}
       </div>
+      {adding && canChange && (
+        <DirectoryPicker label="Directory to add" choices={withBadgeSlot(false)} disabled={pending} onPick={add} />
+      )}
       {message && <p className={cn("text-sm", message.ok ? "text-success" : "text-danger")}>{message.text}</p>}
       <ul className="divide-y divide-border">
         {rows.map((r) => (
@@ -243,7 +355,15 @@ export function OpsRows({ orderId, rows }: { orderId: string; rows: OpsRow[] }) 
               checked={selected.has(r.id)}
               onChange={() => toggle(r.id)}
             />
-            <RowEditor row={r} onMessage={setMessage} />
+            <RowEditor
+              row={r}
+              choices={
+                canChange && r.status !== "live" && r.status !== "replaced"
+                  ? withBadgeSlot(r.directory.badgeRequired)
+                  : null
+              }
+              onMessage={setMessage}
+            />
           </li>
         ))}
       </ul>

@@ -10,10 +10,11 @@ import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card, Heading } from "@/components/ui/primitives";
 import { db, schema } from "@/db";
 import { requireStaff } from "@/lib/auth";
+import { effectiveLinkType } from "@/lib/directories/service";
 import { PACKAGES } from "@/lib/submissions/packages";
 import { inboxAddress, messagesFor } from "@/lib/submissions/inbox";
 import { messageLinks } from "@/lib/submissions/inbox-rules";
-import { badgeBlockFor, heldForBadge, orderRows, summarizeOrder } from "@/lib/submissions/service";
+import { badgeBlockFor, directoryChoices, heldForBadge, orderRows, summarizeOrder } from "@/lib/submissions/service";
 
 export const metadata: Metadata = { title: "Submission order · Admin", robots: { index: false } };
 
@@ -38,7 +39,8 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
   if (!z.string().uuid().safeParse(id).success) notFound();
   const order = await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.id, id) });
   if (!order) notFound();
-  const [rows, staff, inbox, messages, badgeBlock] = await Promise.all([
+  const canChange = order.status === "queued" || order.status === "in_progress";
+  const [rows, staff, inbox, messages, badgeBlock, picks] = await Promise.all([
     orderRows(order.id),
     db()
       .select({ id: schema.user.id, name: schema.user.name })
@@ -47,6 +49,7 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
     inboxAddress(order),
     messagesFor(order.id),
     order.badgePreference === "allow" ? badgeBlockFor(order.id) : null,
+    canChange ? directoryChoices(order) : null,
   ]);
   const s = summarizeOrder(
     order,
@@ -150,6 +153,10 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
           <Card className="p-5">
             <OpsRows
               orderId={order.id}
+              target={order.targetCount}
+              canChange={canChange}
+              choices={picks?.choices ?? []}
+              badgesFull={picks?.badgesFull ?? false}
               rows={rows.map(({ s: r, d }) => ({
                 id: r.id,
                 status: r.status,
@@ -173,6 +180,7 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
                   badgeRequired: d.badgeRequired,
                   needsAccount: d.needsAccount,
                   instructions: d.instructions,
+                  linkType: effectiveLinkType(d),
                 },
               }))}
             />
