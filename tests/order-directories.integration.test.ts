@@ -291,6 +291,26 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     await expect(subs.addOrderDirectory(order.id, spare2)).rejects.toThrow("Swap one instead");
   });
 
+  it("counts a submission as done once it has a screenshot, in the summary and the lists", async () => {
+    await addDirectories(directory("one"), directory("two"), directory("three"), directory("four"));
+    const order = await newOrder();
+    const setRow = async (slug: string, input: Parameters<typeof subs.updateOrderSubmission>[1]) =>
+      subs.updateOrderSubmission((await rowFor(order.id, slug))!.id, input);
+    await setRow("one", { status: "submitted" });
+    await setRow("two", { status: "submitted", evidenceUrl: "https://cdn.test/two.png" });
+    await setRow("three", { status: "pending", evidenceUrl: "https://cdn.test/three.png" });
+
+    const summary = subs.summarizeOrder(
+      order,
+      (await subs.orderRows(order.id)).map((r) => r.s),
+    );
+    expect(summary).toMatchObject({ scheduled: 4, inReview: 3, awaitingScreenshot: 1, progress: 50 });
+    const mine = (await subs.ordersForUser("nobody", "buyer@x.test")).find((r) => r.o.id === order.id)!;
+    expect(mine).toMatchObject({ done: 2, live: 0, total: 4 });
+    const ops = (await subs.listOrdersForOps()).find((r) => r.o.id === order.id)!;
+    expect(ops).toMatchObject({ waiting: 3 });
+  });
+
   it("counts an order's live and scheduled directories for the maker's and staff's lists", async () => {
     await addDirectories(directory("one"), directory("two"));
     const order = await newOrder();

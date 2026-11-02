@@ -104,7 +104,7 @@ export function OrderReport({
         {[
           ["Live", summary.live],
           ["Verified dofollow", summary.dofollow],
-          ["In review", summary.inReview],
+          ["Submitted", summary.inReview],
           ["Scheduled", `${summary.scheduled} / ${summary.target}`],
         ].map(([label, n]) => (
           <Card key={label} className="p-4">
@@ -128,6 +128,12 @@ export function OrderReport({
         <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted print:border print:border-border">
           <div className="h-full rounded-full bg-primary" style={{ width: `${summary.progress}%` }} />
         </div>
+        {summary.inReview > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            A submission counts as done once we have proof of it. Each directory then publishes on its own schedule, and
+            the listing shows as live here when it does.
+          </p>
+        )}
         {summary.scheduled < summary.target && (
           <p className="mt-2 text-xs text-muted-foreground">
             {summary.target - summary.scheduled} more directories are added as matching ones join our list.

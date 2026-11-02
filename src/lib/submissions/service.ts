@@ -12,6 +12,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { inspectBacklink } from "@/lib/directories/backlink";
 import { effectiveLinkType } from "@/lib/directories/service";
 import { verifySubmission } from "@/lib/directories/verify";
+import { awaitsScreenshot, rowIsDone } from "@/lib/submissions/progress";
 import { monitorEnd, trackSubmission } from "@/lib/links/service";
 import { baselineSnapshot } from "@/lib/metrics/service";
 import { fetchPage } from "@/lib/fetch-page";
@@ -299,7 +300,10 @@ export type OrderSummary = {
   scheduled: number;
   live: number;
   dofollow: number;
+  /** With the directory and waiting to go live: "submitted" and "pending" rows. */
   inReview: number;
+  /** Of those, the ones with no screenshot yet, which don't count as done until they have one. */
+  awaitingScreenshot: number;
   needsAction: number;
   rejected: number;
   progress: number;
@@ -308,17 +312,18 @@ export type OrderSummary = {
 /** Counts for the progress bar. Replaced rows don't count; their replacements do. */
 export function summarizeOrder(
   order: Pick<SubmissionOrder, "targetCount">,
-  rows: Array<{ status: string; linkVerdict: string | null }>,
+  rows: Array<{ status: string; linkVerdict: string | null; evidenceUrl: string | null }>,
 ): OrderSummary {
   const counted = rows.filter((r) => r.status !== "replaced");
   const n = (...st: string[]) => counted.filter((r) => st.includes(r.status)).length;
-  const done = n("live", "rejected", "dead", "skipped");
+  const done = counted.filter(rowIsDone).length;
   return {
     target: order.targetCount,
     scheduled: counted.length,
     live: n("live"),
     dofollow: counted.filter((r) => r.status === "live" && r.linkVerdict === "dofollow").length,
     inReview: n("submitted", "pending"),
+    awaitingScreenshot: counted.filter(awaitsScreenshot).length,
     needsAction: n("needs_action"),
     rejected: n("rejected", "dead"),
     progress: counted.length ? Math.round((100 * done) / counted.length) : 0,
@@ -329,6 +334,9 @@ export function summarizeOrder(
 // these subqueries means the submission's own id, so nothing would ever match.
 const liveRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status = 'live')`;
 const scheduledRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status <> 'replaced')`;
+// The same rule as rowIsDone, for lists of orders.
+const doneRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and (s.status in ('live', 'rejected', 'dead', 'skipped') or (s.status in ('submitted', 'pending') and s.evidence_url is not null)))`;
+const waitingRows = sql<number>`(select count(*)::int from submissions s where s.submission_order_id = submission_orders.id and s.status in ('submitted', 'pending'))`;
 
 /** A signed-in buyer's orders (matched by account or by the email they paid with). */
 export async function ordersForUser(userId: string, email: string) {
@@ -337,6 +345,7 @@ export async function ordersForUser(userId: string, email: string) {
       o: orders,
       live: liveRows,
       total: scheduledRows,
+      done: doneRows,
     })
     .from(orders)
     .where(
@@ -357,6 +366,7 @@ export async function listOrdersForOps() {
       live: liveRows,
       total: scheduledRows,
       open: sql<number>`(select count(*)::int from submissions s where s.submission_order_id = ${orders.id} and s.status in ('todo', 'needs_action'))`,
+      waiting: waitingRows,
       overdue: sql<boolean>`${orders.dueAt} < now() and ${orders.status} not in ('delivered', 'cancelled')`,
       unreadMail: sql<number>`(select count(*)::int from submission_messages m where m.submission_order_id = submission_orders.id and m.read_at is null)`,
       assignee: schema.user.name,
@@ -664,17 +674,26 @@ export async function deliverOrder(orderId: string, now = new Date()) {
     order,
     rows.map((r) => r.s),
   );
-  await mail(order.contactEmail ?? order.email, `Delivered: ${s.live} live listings for ${order.productName}`, [
+  const submitted = s.live + s.inReview;
+  await mail(order.contactEmail ?? order.email, `Delivered: ${submitted} submissions for ${order.productName}`, [
     { heading: `Your ${PACKAGES[order.package].label} order is complete` },
     {
       facts: [
-        ["Live listings", String(s.live)],
+        ["Submitted", String(submitted)],
+        ["Live so far", String(s.live)],
         ["Verified dofollow", String(s.dofollow)],
       ],
     },
     {
-      text: "Your report lists every directory with its live URL and link check, plus the logins of any accounts we created for you.",
+      text: "Your report lists every directory with its proof of submission or live URL, plus the logins of any accounts we created for you.",
     },
+    ...(s.inReview > 0
+      ? [
+          {
+            text: "Each directory publishes on its own schedule. We keep watching the ones still to come, check each link as it goes live and email you.",
+          },
+        ]
+      : []),
     {
       callout: "Link Monitor included",
       text: `Link Monitor is included for ${months} months: we re-check every live link and email you if one is removed or turns nofollow.`,
@@ -685,15 +704,26 @@ export async function deliverOrder(orderId: string, now = new Date()) {
   return order;
 }
 
-/** Daily: tells clients about listings that went live since their last update. */
+/**
+ * Daily: tells clients about listings that went live since their last update.
+ * Delivered orders stay in while Link Monitor runs, because a submitted listing
+ * goes live whenever its directory gets to it, often after delivery.
+ */
 export async function sendOrderDigests(now = new Date()) {
   const active = await db()
     .select()
     .from(orders)
-    .where(inArray(orders.status, ["in_progress"]));
+    .where(or(eq(orders.status, "in_progress"), and(eq(orders.status, "delivered"), gt(orders.monitorUntil, now))));
   let sent = 0;
   for (const o of active) {
-    const since = o.digestAt ?? o.intakeAt ?? o.createdAt;
+    // The delivery email already covered everything before it.
+    const since =
+      [o.digestAt, o.deliveredAt].reduce(
+        (latest, at) => (at && (!latest || at > latest) ? at : latest),
+        null as Date | null,
+      ) ??
+      o.intakeAt ??
+      o.createdAt;
     const fresh = await db()
       .select({ name: directories.name, needs: submissions.actionNeeded, status: submissions.status })
       .from(submissions)

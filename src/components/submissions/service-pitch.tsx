@@ -65,7 +65,7 @@ const PAINS = [
   },
   {
     quote: "I paid a cheap service and got a spreadsheet of claims.",
-    body: "“Submitted” isn't “live”. Plenty of those links never go up, and nobody checks whether the rest are dofollow.",
+    body: "No proof any of it was submitted. Plenty of those links never go up, and nobody checks whether the rest are dofollow.",
   },
   {
     quote: "My new domain is invisible to Google.",

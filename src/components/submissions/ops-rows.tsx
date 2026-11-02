@@ -15,6 +15,7 @@ import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Badge, Input } from "@/components/ui/primitives";
+import { awaitsScreenshot } from "@/lib/submissions/progress";
 import { pastedImage, screenshotProblem, SCREENSHOT_TYPES } from "@/lib/submissions/screenshot";
 import { putToStorage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
@@ -326,6 +327,11 @@ function RowEditor({
         <Badge tone={row.status === "live" ? "success" : row.status === "needs_action" ? "accent" : "default"}>
           {row.status}
         </Badge>
+        {awaitsScreenshot({ status: row.status, evidenceUrl: row.evidenceUrl }) && (
+          <Badge tone="accent" title="This doesn't count toward the order's progress until it has a screenshot.">
+            needs screenshot
+          </Badge>
+        )}
         {row.status === "live" && (
           <LinkVerdict verdict={row.linkVerdict} anchor={row.linkAnchor} checkedAt={row.linkCheckedAt} />
         )}

@@ -47,7 +47,7 @@ async function Orders() {
   }
   return (
     <ul className="space-y-3">
-      {orders.map(({ o, live, total }) => (
+      {orders.map(({ o, live, total, done }) => (
         <li key={o.id}>
           <Link
             href={`/dashboard/orders/${o.intakeToken}`}
@@ -64,11 +64,11 @@ async function Orders() {
                 <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary"
-                    style={{ width: `${total ? Math.round((live / total) * 100) : 0}%` }}
+                    style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }}
                   />
                 </div>
                 <span className="text-muted-foreground">
-                  {live}/{total} live
+                  {done}/{total} done · {live} live
                 </span>
                 <Badge>{o.status.replace("_", " ")}</Badge>
               </div>

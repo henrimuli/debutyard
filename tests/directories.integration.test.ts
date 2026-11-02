@@ -290,7 +290,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     expect(csv).toContain("https://dir.example/acme");
 
     await subs.deliverOrder(order.id);
-    expect(sent.some((e) => e.subject.startsWith("Delivered: 1 live listings for Acme"))).toBe(true);
+    expect(sent.some((e) => e.subject.startsWith("Delivered: 6 submissions for Acme"))).toBe(true);
     await expect(subs.deliverOrder(order.id)).rejects.toThrow("Only active orders");
 
     await directories.refreshDirectoryStats();
