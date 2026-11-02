@@ -48,10 +48,14 @@ export function InstallOptions({ kit }: { kit: InstallKit }) {
       {tab === "agent" ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            Paste this into Claude Code, Cursor, Lovable, Bolt or whichever coding agent you use. It has everything the
-            agent needs.
+            Copy this prompt and paste it into Claude Code, Cursor, Lovable, Bolt or whichever coding agent you use. It
+            has everything the agent needs, and you can read or edit it there.
           </p>
-          <CodeBlock code={kit.prompt} />
+          {/* A preview: the Copy button takes the whole prompt, and it can be read and edited once pasted. */}
+          <CodeBlock
+            code={kit.prompt}
+            className="max-h-44 overflow-hidden after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-20 after:bg-gradient-to-t after:from-muted after:to-transparent"
+          />
         </div>
       ) : (
         <div className="space-y-2">
