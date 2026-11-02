@@ -6,6 +6,21 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   // forbidden(): admin pages show an "admins only" page (403) to signed-in non-staff.
   experimental: { authInterrupts: true },
+  // Temporary badge check: directories only look at the domain root, so serve the test page there.
+  // Only on the preview domain. Change "script" to "server" to test the other method.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: "/",
+          has: [{ type: "host", value: "preview.debutyard.com" }],
+          destination: "/badge-check/script",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async redirects() {
     return [
       // Submitting happens in a modal on the homepage; editing lives in the dashboard.
