@@ -135,6 +135,10 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     await payments.confirmPayment("paystack", `ref-${orderId}`);
     const so = (await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.orderId, orderId) }))!;
     sent.length = 0;
+    await db()
+      .update(schema.submissionOrders)
+      .set({ blockInstalledAt: new Date(), blockInstalledUrl: "https://acme.io/" })
+      .where(eq(schema.submissionOrders.id, so.id));
     order = await subs.submitIntake(so.intakeToken, {
       productName: "Acme",
       websiteUrl: "https://acme.io/",
@@ -222,13 +226,18 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     ]);
   });
 
-  it("emails a badge block, holds badge rows until the badge is found, then swaps the rest", async () => {
-    expect(order.badgeBlockSentAt).toBeNull(); // set after the intake email, past the returning() snapshot
+  it("on an order from before the live block, emails the block, holds badge rows until found, then swaps the rest", async () => {
+    const { db, schema } = dbmod;
+    const [legacy] = await db()
+      .update(schema.submissionOrders)
+      .set({ blockInstalledAt: null, blockInstalledUrl: null })
+      .where(eq(schema.submissionOrders.id, order.id))
+      .returning();
+    sent.length = 0;
+    expect(await subs.sendBadgeBlock(legacy)).toBe(true);
     const fresh = (await subs.orderByIntakeToken(order.intakeToken))!;
     expect(fresh.badgeBlockSentAt).not.toBeNull();
-    // The block rides in the intake confirmation, not a second email.
-    expect(sent.filter((e) => e.subject.includes("directory badges"))).toHaveLength(0);
-    const mail = sent.find((e) => e.subject.startsWith("We've got everything"));
+    const mail = sent.find((e) => e.subject.includes("directory badges"));
     expect(mail?.to).toBe("ada@acme.io");
     expect(mail?.text).toContain("https://badge-a.test/b.svg");
     expect(mail?.text).toContain("https://badge-b.test/b.svg");

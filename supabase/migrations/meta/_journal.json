@@ -239,6 +239,13 @@
       "when": 1793546237467,
       "tag": "20261101151717_remove_featured_product",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793621395904,
+      "tag": "20261102120955_live_badge_block",
+      "breakpoints": true
     }
   ]
 }

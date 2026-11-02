@@ -37,10 +37,20 @@ describe("selectTargets", () => {
 
   it("includes badge-gated directories only when allowed, respects count and exclusions", () => {
     expect(selectTargets(all, { count: 2, categories: [], allowBadges: true })).toEqual(["badge-95", "general-80"]);
-    expect(selectTargets(all, { count: 2, categories: [], allowBadges: true, maxBadges: 0 })).not.toContain("badge-95");
     expect(
       selectTargets(all, { count: 10, categories: [], allowBadges: false, exclude: new Set(["general-80"]) }),
     ).not.toContain("general-80");
+  });
+
+  it("puts every badge directory first when badges are allowed, with no limit", () => {
+    const many = Array.from({ length: 8 }, (_, i) => dir(`b-${i}`, { dr: 10 + i, badgeRequired: true }));
+    const picked = selectTargets([...many, dir("strong", { dr: 99 })], {
+      count: 9,
+      categories: [],
+      allowBadges: true,
+    });
+    expect(picked.slice(0, 8).every((id) => id.startsWith("b-"))).toBe(true);
+    expect(picked[8]).toBe("strong");
   });
 
   it("maps SKUs to packages", () => {

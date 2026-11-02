@@ -58,6 +58,7 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
   let dbmod: typeof import("@/db");
   let subs: typeof import("@/lib/submissions/service");
   let payments: typeof import("@/lib/payments/service");
+  let block: typeof import("@/lib/badge-block/service");
 
   const directory = (slug: string, over: Record<string, unknown> = {}) => ({
     slug,
@@ -74,8 +75,22 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     return Object.fromEntries(inserted.map((d) => [d.slug, d.id]));
   };
 
-  /** A paid order with its intake done. */
-  const newOrder = async (badgePreference: "none" | "allow" = "none") => {
+  const details = {
+    productName: "Acme",
+    websiteUrl: "https://acme.io/",
+    tagline: "Invoices that chase themselves",
+    shortDescription: "Acme sends polite reminders so clients pay on time, every time, without awkward emails.",
+    longDescription: "Acme connects to your invoicing tool and follows up on late invoices for you. ".repeat(3),
+    categories: ["ai"],
+    logoUrl: "",
+    founderName: "Ada",
+    contactEmail: "ada@acme.io",
+    clientNotes: "",
+    allowAccounts: true as const,
+  };
+
+  /** A paid order, waiting for its intake. */
+  const paidOrder = async () => {
     const { db, schema } = dbmod;
     const { orderId } = await payments.startCheckout({
       skuId: "submission_starter",
@@ -91,22 +106,30 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
       currency: "USD",
     };
     await payments.confirmPayment("paystack", `ref-${orderId}`);
-    const so = (await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.orderId, orderId) }))!;
-    return subs.submitIntake(so.intakeToken, {
-      productName: "Acme",
-      websiteUrl: "https://acme.io/",
-      tagline: "Invoices that chase themselves",
-      shortDescription: "Acme sends polite reminders so clients pay on time, every time, without awkward emails.",
-      longDescription: "Acme connects to your invoicing tool and follows up on late invoices for you. ".repeat(3),
-      categories: ["ai"],
-      logoUrl: "",
-      founderName: "Ada",
-      contactEmail: "ada@acme.io",
-      clientNotes: "",
-      badgePreference,
-      allowAccounts: true,
-    });
+    return (await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.orderId, orderId) }))!;
   };
+
+  /** A paid order with its intake done, and its badge block found if it allows badges. */
+  const newOrder = async (badgePreference: "none" | "allow" = "none") => {
+    const { db, schema } = dbmod;
+    const so = await paidOrder();
+    if (badgePreference === "allow") {
+      await db()
+        .update(schema.submissionOrders)
+        .set({ blockInstalledAt: new Date(), blockInstalledUrl: details.websiteUrl })
+        .where(eq(schema.submissionOrders.id, so.id));
+    }
+    return subs.submitIntake(so.intakeToken, { ...details, badgePreference });
+  };
+
+  /** The site's homepage, for the next install check. */
+  const sitePage = async (body: string) =>
+    vi.mocked((await import("@/lib/net")).safeFetchText).mockResolvedValueOnce({
+      url: details.websiteUrl,
+      status: 200,
+      contentType: "text/html",
+      body,
+    });
 
   const rowFor = async (orderId: string, slug: string) => {
     const { db, schema } = dbmod;
@@ -134,6 +157,7 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     (await import("@/lib/payments")).setProviderForTests("paystack", pay);
     dbmod = await import("@/db");
     subs = await import("@/lib/submissions/service");
+    block = await import("@/lib/badge-block/service");
     payments = await import("@/lib/payments/service");
   });
 
@@ -267,20 +291,85 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     await expect(subs.addOrderDirectory(order.id, spare2)).rejects.toThrow("Swap one instead");
   });
 
-  it("holds a badge order to five badges, counting the one being swapped out", async () => {
+  it("has no limit on badge directories, and puts them first", async () => {
     await addDirectories(
-      ...Array.from({ length: 5 }, (_, i) => directory(`badge-${i}`, { badgeRequired: true, dr: 90 - i })),
-      directory("plain"),
+      ...Array.from({ length: 8 }, (_, i) => directory(`badge-${i}`, { badgeRequired: true, dr: 20 + i })),
+      directory("plain", { dr: 90 }),
     );
     const order = await newOrder("allow");
-    const { extra } = await addDirectories(directory("extra", { badgeRequired: true }));
-    expect((await subs.directoryChoices(order)).badgesFull).toBe(true);
+    expect((await clientList(order.id)).filter((slug) => slug.startsWith("badge-"))).toHaveLength(8);
 
-    await expect(subs.swapOrderDirectory((await rowFor(order.id, "plain"))!.id, extra)).rejects.toThrow(
-      "already has 5 badge",
-    );
-    await subs.swapOrderDirectory((await rowFor(order.id, "badge-0"))!.id, extra);
+    const { extra } = await addDirectories(directory("extra", { badgeRequired: true }));
+    await subs.swapOrderDirectory((await rowFor(order.id, "plain"))!.id, extra);
     expect((await rowFor(order.id, "extra"))!.status).toBe("todo");
+  });
+
+  it("only takes a badge order once the block is on the site, for the URL it was found on", async () => {
+    await addDirectories(directory("plain"));
+    const so = await paidOrder();
+    const input = { ...details, badgePreference: "allow" as const };
+    await subs.saveIntakeDraft(so.intakeToken, input);
+    await expect(subs.submitIntake(so.intakeToken, input)).rejects.toThrow("badge block");
+
+    await sitePage("<html><body>No block here</body></html>");
+    let draft = (await subs.orderByIntakeToken(so.intakeToken))!;
+    expect(await block.checkIntakeBlock(draft)).toEqual({ found: false, reason: "missing" });
+
+    await sitePage(`<script src="https://debutyard.test/badges/${so.blockKey}.js" async></script>`);
+    draft = (await subs.orderByIntakeToken(so.intakeToken))!;
+    expect(await block.checkIntakeBlock(draft, new Date(Date.now() + 60_000))).toEqual({ found: true });
+
+    await expect(
+      subs.submitIntake(so.intakeToken, { ...input, websiteUrl: "https://somewhere-else.io/" }),
+    ).rejects.toThrow("badge block");
+    const order = await subs.submitIntake(so.intakeToken, input);
+    expect(order.status).toBe("queued");
+  });
+
+  it("lets a client continue without badges, block or no block", async () => {
+    await addDirectories(directory("plain"), directory("needs-badge", { badgeRequired: true }));
+    const so = await paidOrder();
+    await subs.saveIntakeDraft(so.intakeToken, { ...details, badgePreference: "allow" });
+    const order = await subs.submitIntake(so.intakeToken, { ...details, badgePreference: "none" });
+    expect(await clientList(order.id)).toEqual(["plain"]);
+  });
+
+  it("shows entered badges in the live block straight away, cleaned, and drops them with their row", async () => {
+    await addDirectories(directory("one"), directory("two"), directory("spare", { dr: 10 }));
+    const order = await newOrder("allow");
+    const badge = '<a href="https://one.test/p/acme" rel="noopener"><img src="https://one.test/b.svg"></a>';
+
+    const empty = (await block.publicBlock(order.blockKey))!;
+    expect(empty.script).toBe("");
+    expect(empty.html).toContain(order.blockKey);
+    expect(empty.html).not.toContain("<div");
+
+    const one = (await rowFor(order.id, "one"))!;
+    const saved = await block.setBadgeCode(one.id, `${badge}<script>alert(1)</script>`);
+    expect(saved.removed).toEqual(["script"]);
+    let live = (await block.publicBlock(order.blockKey))!;
+    expect(live.html).toContain(badge);
+    expect(live.html).not.toContain("alert(1)");
+    expect(live.script).toContain("one.test/p/acme");
+
+    await expect(block.setBadgeCode(one.id, "<script>alert(1)</script>")).rejects.toThrow("script");
+
+    // Rejected: the row gives way to a replacement, and its badge goes with it.
+    await subs.updateOrderSubmission(one.id, { status: "rejected" });
+    live = (await block.publicBlock(order.blockKey))!;
+    expect(live.html).not.toContain("one.test");
+
+    const two = (await rowFor(order.id, "two"))!;
+    await block.setBadgeCode(two.id, '<a href="https://two.test">Two</a>');
+    expect((await block.publicBlock(order.blockKey))!.html).toContain("two.test");
+    const { db, schema } = dbmod;
+    await db()
+      .update(schema.submissionOrders)
+      .set({ status: "cancelled" })
+      .where(eq(schema.submissionOrders.id, order.id));
+    expect((await block.publicBlock(order.blockKey))!.script).toBe("");
+
+    expect(await block.publicBlock("f".repeat(32))).toBeNull();
   });
 
   it("gives a badge directory swapped in late its own full wait", async () => {
@@ -289,7 +378,8 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     const { db, schema } = dbmod;
     await db()
       .update(schema.submissionOrders)
-      .set({ badgeBlockSentAt: new Date(Date.now() - 30 * DAY) })
+      // An order from before the live block.
+      .set({ badgeBlockSentAt: new Date(Date.now() - 30 * DAY), blockInstalledAt: null, blockInstalledUrl: null })
       .where(eq(schema.submissionOrders.id, order.id));
     const { late } = await addDirectories(directory("late", { badgeRequired: true }));
     await subs.swapOrderDirectory((await rowFor(order.id, "badge-old"))!.id, late);

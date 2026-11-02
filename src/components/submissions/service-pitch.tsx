@@ -275,15 +275,16 @@ export function Comparison() {
 export function ServiceDetails({ compact = false }: { compact?: boolean }) {
   const items = [
     {
-      title: "Badges: your call",
+      title: "Badges: we handle them",
       icon: (
         <svg {...icon}>
           <circle cx="12" cy="9" r="5.5" />
           <path d="m8.5 13.5-1.5 7 5-2.5 5 2.5-1.5-7" />
         </svg>
       ),
-      body: "Some directories only list you if you show their badge. By default we skip those. Say yes and you paste one HTML block into your footer once; we check it's live before submitting anywhere that needs it.",
-      extra: "Why say yes: it opens up more directories, some of them with strong authority.",
+      body: "Many directories only list you if you show their badge, so we recommend allowing them. You add one small block to your homepage when you order. It stays invisible until the first badge arrives, then each one appears by itself as we submit.",
+      extra:
+        "Would rather not? Choose no badges and we'll only use directories that don't ask for one, so you reach fewer of them.",
     },
     {
       title: "Accounts and logins",
@@ -349,7 +350,11 @@ export const FAQ: Array<{
   },
   {
     q: "What do I need to provide?",
-    a: "Your logo, three description lengths, your categories and whether badges are OK. It takes about five minutes on one form, and we write the rest from it.",
+    a: "Your logo, three description lengths and your categories, plus one small block on your homepage for directory badges. It takes about five minutes, and we write the rest from it.",
+  },
+  {
+    q: "What will the badge block look like on my site?",
+    a: "Nothing at all until a directory's badge is ready. Then the badges sit in a row just above your footer, and once there are several they become a slowly moving strip. A coding agent can install it from a prompt we give you, or you can paste one line yourself.",
   },
   {
     q: "Do I need a DebutYard account?",

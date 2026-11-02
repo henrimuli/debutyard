@@ -5,11 +5,12 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 import { OpsRows } from "@/components/submissions/ops-rows";
-import { OrderControls, ResendBadgeBlock } from "@/components/submissions/order-controls";
+import { OrderControls, RecheckBlock, ResendBadgeBlock } from "@/components/submissions/order-controls";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge, Card, Heading } from "@/components/ui/primitives";
 import { db, schema } from "@/db";
 import { requireStaff } from "@/lib/auth";
+import { liveBadgeCount } from "@/lib/badge-block/service";
 import { effectiveLinkType } from "@/lib/directories/service";
 import { PACKAGES } from "@/lib/submissions/packages";
 import { inboxAddress, messagesFor } from "@/lib/submissions/inbox";
@@ -40,7 +41,8 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
   const order = await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.id, id) });
   if (!order) notFound();
   const canChange = order.status === "queued" || order.status === "in_progress";
-  const [rows, staff, inbox, messages, badgeBlock, picks] = await Promise.all([
+  const blockLive = order.badgePreference === "allow" && Boolean(order.blockInstalledAt);
+  const [rows, staff, inbox, messages, badgeBlock, badgesShowing, picks] = await Promise.all([
     orderRows(order.id),
     db()
       .select({ id: schema.user.id, name: schema.user.name })
@@ -48,7 +50,8 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
       .innerJoin(schema.adminUsers, eq(schema.adminUsers.email, sql`lower(${schema.user.email})`)),
     inboxAddress(order),
     messagesFor(order.id),
-    order.badgePreference === "allow" ? badgeBlockFor(order.id) : null,
+    order.badgePreference === "allow" && !blockLive ? badgeBlockFor(order.id) : null,
+    blockLive ? liveBadgeCount(order) : 0,
     canChange ? directoryChoices(order) : null,
   ]);
   const s = summarizeOrder(
@@ -65,7 +68,7 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
     ["Founder", order.founderName],
     ["Contact", order.contactEmail ?? order.email],
     ["Inbox", inbox ?? "Set INBOUND_EMAIL_DOMAIN to give orders an inbox"],
-    ["Badges", order.badgePreference === "allow" ? "Allowed (up to 5)" : "None"],
+    ["Badges", order.badgePreference === "allow" ? "Allowed" : "None"],
     ["Client notes", order.clientNotes],
   ];
 
@@ -124,7 +127,29 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
               </dl>
             </details>
           </Card>
-          {order.badgePreference === "allow" && (
+          {blockLive && (
+            <Card className="space-y-2 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-medium">Badge block</h2>
+                <RecheckBlock orderId={order.id} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Installed on{" "}
+                <a
+                  href={order.websiteUrl ?? "#"}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-primary hover:underline"
+                >
+                  {order.websiteUrl}
+                </a>
+                . {badgesShowing} {badgesShowing === 1 ? "badge" : "badges"} showing. Paste a directory&apos;s badge
+                code on its row below, give it about 10 seconds, then click Verify on the directory. A badge comes off
+                by itself if its directory is swapped, rejected, skipped or dead.
+              </p>
+            </Card>
+          )}
+          {order.badgePreference === "allow" && !blockLive && (
             <Card className="space-y-3 p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-medium">Badge block</h2>
@@ -156,7 +181,6 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
               target={order.targetCount}
               canChange={canChange}
               choices={picks?.choices ?? []}
-              badgesFull={picks?.badgesFull ?? false}
               rows={rows.map(({ s: r, d }) => ({
                 id: r.id,
                 status: r.status,
@@ -172,6 +196,9 @@ async function Detail({ params, searchParams }: PageProps<"/admin/submissions/[i
                 hasPassword: Boolean(r.accountSecret),
                 held: heldForBadge(order, d, r),
                 badgeSeen: Boolean(r.badgeSeenAt),
+                badgeCode: r.badgeCode,
+                blockLive,
+                siteUrl: order.websiteUrl,
                 directory: {
                   name: d.name,
                   url: d.url,

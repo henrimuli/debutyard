@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addDirectoryAction, bulkAction, swapDirectoryAction, updateRowAction } from "@/app/admin/submissions/actions";
+import {
+  addDirectoryAction,
+  bulkAction,
+  setBadgeCodeAction,
+  swapDirectoryAction,
+  updateRowAction,
+} from "@/app/admin/submissions/actions";
 import { LinkVerdict } from "@/components/directories/link-verdict";
 import { AuthorityScore } from "@/components/metrics/authority-score";
 import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/directory-picker";
@@ -27,6 +33,11 @@ export type OpsRow = {
   /** Badge-gated and the client's badge isn't on their site yet. */
   held: boolean;
   badgeSeen: boolean;
+  /** What this directory shows in the client's live block. */
+  badgeCode: string | null;
+  /** The client has the live block, so this row can have a badge code. */
+  blockLive: boolean;
+  siteUrl: string | null;
   directory: {
     name: string;
     url: string;
@@ -44,6 +55,74 @@ type Status = (typeof STATUSES)[number];
 
 /** Not live and still meant to happen, so it can still be swapped for a dofollow directory. */
 const isUpcoming = (r: OpsRow) => ["todo", "submitted", "pending", "needs_action"].includes(r.status);
+
+/** Paste a directory's badge code and it's on the client's site, ready for the directory's Verify button. */
+function BadgeCodeBox({ row, onMessage }: { row: OpsRow; onMessage: (m: { ok: boolean; text: string }) => void }) {
+  const [open, setOpen] = useState(row.directory.badgeRequired && !row.badgeCode && isUpcoming(row));
+  const [code, setCode] = useState(row.badgeCode ?? "");
+  const [pending, start] = useTransition();
+
+  function save(value: string) {
+    start(async () => {
+      const res = await setBadgeCodeAction(row.id, value);
+      onMessage(
+        res.ok
+          ? { ok: true, text: `${row.directory.name}: ${res.message ?? "saved"}` }
+          : { ok: false, text: `${row.directory.name}: ${res.error}` },
+      );
+      if (res.ok) {
+        setCode(value);
+        setOpen(false);
+      }
+    });
+  }
+
+  return (
+    <div className="mt-2 text-xs">
+      {!open ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {row.badgeCode && <Badge tone="success">badge on client site</Badge>}
+          <button type="button" onClick={() => setOpen(true)} className="text-primary hover:underline">
+            {row.badgeCode ? "Edit badge code" : "Add badge code"}
+          </button>
+          {row.badgeCode && row.siteUrl && (
+            <a href={row.siteUrl} target="_blank" rel="noopener" className="text-primary hover:underline">
+              Client&apos;s site ↗
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <textarea
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            rows={3}
+            aria-label={`Badge code for ${row.directory.name}`}
+            placeholder={`Paste the badge code from ${row.directory.name}`}
+            className="w-full rounded-md border border-border bg-card p-2 font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={pending || !code.trim()} onClick={() => save(code)}>
+              {pending ? "Saving…" : "Save badge"}
+            </Button>
+            {row.badgeCode && (
+              <Button size="sm" variant="outline" disabled={pending} onClick={() => save("")}>
+                Remove
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RowEditor({
   row,
@@ -166,6 +245,7 @@ function RowEditor({
           </button>
         </span>
       </div>
+      {row.blockLive && (isUpcoming(row) || row.status === "live") && <BadgeCodeBox row={row} onMessage={onMessage} />}
       {swapping && choices && (
         <div className="mt-3">
           <DirectoryPicker
@@ -264,7 +344,6 @@ export function OpsRows({
   target,
   canChange,
   choices,
-  badgesFull,
 }: {
   orderId: string;
   rows: OpsRow[];
@@ -272,7 +351,6 @@ export function OpsRows({
   /** The order is active, so staff can change its directories. */
   canChange: boolean;
   choices: DirectoryChoice[];
-  badgesFull: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
@@ -303,8 +381,6 @@ export function OpsRows({
     });
   }
 
-  // A badge directory can only come in once there's a slot, or in place of another one.
-  const withBadgeSlot = (keepsSlot: boolean) => choices.filter((c) => !c.badgeRequired || !badgesFull || keepsSlot);
   const notDofollow = rows.filter((r) => isUpcoming(r) && r.directory.linkType !== "dofollow").length;
 
   return (
@@ -341,7 +417,7 @@ export function OpsRows({
         )}
       </div>
       {adding && canChange && (
-        <DirectoryPicker label="Directory to add" choices={withBadgeSlot(false)} disabled={pending} onPick={add} />
+        <DirectoryPicker label="Directory to add" choices={choices} disabled={pending} onPick={add} />
       )}
       {message && <p className={cn("text-sm", message.ok ? "text-success" : "text-danger")}>{message.text}</p>}
       <ul className="divide-y divide-border">
@@ -357,11 +433,7 @@ export function OpsRows({
             />
             <RowEditor
               row={r}
-              choices={
-                canChange && r.status !== "live" && r.status !== "replaced"
-                  ? withBadgeSlot(r.directory.badgeRequired)
-                  : null
-              }
+              choices={canChange && r.status !== "live" && r.status !== "replaced" ? choices : null}
               onMessage={setMessage}
             />
           </li>

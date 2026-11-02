@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { getCurrentUser, isStaff } from "@/lib/auth";
+import { findBlock, setBadgeCode } from "@/lib/badge-block/service";
 import {
   addOrderDirectory,
   assignOrder,
@@ -55,7 +56,35 @@ export async function bulkAction(orderId: string, ids: string[], status: "submit
 }
 
 const placed = (verb: string, directory: { name: string; badgeRequired: boolean }) =>
-  `${verb} ${directory.name}.${directory.badgeRequired ? " Email the client the badge block so they can add its badge." : ""}`;
+  `${verb} ${directory.name}.${directory.badgeRequired ? " It needs a badge." : ""}`;
+
+export async function setBadgeCodeAction(submissionId: string, code: string) {
+  if (!uuid.safeParse(submissionId).success) return { ok: false as const, error: "Not found." };
+  return run(async () => {
+    const { showing, removed, hasLink } = await setBadgeCode(submissionId, code);
+    if (!showing) return "Badge removed from the client's site.";
+    const notes = [
+      removed.length ? `We removed what can't go on a client's site: ${removed.join(", ")}.` : "",
+      hasLink ? "" : "There's no link in it, and most Verify buttons look for one.",
+    ];
+    return ["Badge saved. It's on the client's site within about 10 seconds.", ...notes].filter(Boolean).join(" ");
+  });
+}
+
+export async function recheckBlockAction(orderId: string) {
+  if (!uuid.safeParse(orderId).success) return { ok: false as const, error: "Not found." };
+  return run(async () => {
+    const order = await db().query.submissionOrders.findFirst({ where: eq(schema.submissionOrders.id, orderId) });
+    if (!order) throw new SubmissionError("Not found.");
+    const check = await findBlock(order);
+    if (check.found) return "The block is on the client's site.";
+    throw new SubmissionError(
+      check.reason === "missing"
+        ? "The block isn't on the client's site anymore. Ask them to put it back."
+        : "We couldn't reach the client's site to check.",
+    );
+  });
+}
 
 export async function swapDirectoryAction(submissionId: string, directoryId: string) {
   if (!uuid.safeParse(submissionId).success || !uuid.safeParse(directoryId).success) {
