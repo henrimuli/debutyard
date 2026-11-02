@@ -39,7 +39,7 @@ export async function OrderView({ token }: { token: string }) {
   const order = await orderByIntakeToken(token);
   if (!order || order.status === "cancelled") notFound();
   const pkg = PACKAGES[order.package];
-  const kit = installKit(await blockBase(), order.blockKey);
+  const base = await blockBase();
 
   if (order.status === "awaiting_intake") {
     return (
@@ -54,7 +54,8 @@ export async function OrderView({ token }: { token: string }) {
             token={token}
             categories={await listCategories()}
             block={{
-              kit,
+              base,
+              key: order.blockKey,
               foundUrl: order.blockInstalledAt ? order.blockInstalledUrl : null,
               resume: Boolean(order.intakeDraftAt && order.badgePreference === "allow"),
             }}
@@ -146,7 +147,7 @@ export async function OrderView({ token }: { token: string }) {
               Need to install it again?
             </summary>
             <div className="mt-3">
-              <InstallOptions kit={kit} />
+              <InstallOptions kit={installKit(base, order.blockKey, order.websiteUrl ?? "your website")} />
             </div>
           </details>
         </Card>

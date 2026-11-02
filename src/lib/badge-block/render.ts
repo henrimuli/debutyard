@@ -21,20 +21,21 @@ const movingStyle = (
 #${BLOCK_ID} .debutyard-copy{display:none}}`;
 
 /**
- * The block's HTML. With no badges it's only a comment: nothing shows, but our
- * install check can still find it in a server-rendered page.
+ * The block's HTML. With no badges it's an empty hidden element: nothing shows,
+ * but our install check can still find it in a server-rendered page. Not a
+ * comment, which some build tools strip.
  */
 export function blockHtml(key: string, badges: string[]): string {
   const items = badges.map((b) => b.trim()).filter(Boolean);
-  if (items.length === 0) return `<!-- ${BLOCK_ID}:${key} -->`;
+  if (items.length === 0) return `<div hidden style="display:none" data-debutyard-key="${key}"></div>`;
   const row = items.join("");
   if (items.length < MOVING_AT) {
-    return `<div id="${BLOCK_ID}" data-key="${key}"><style>${STYLE}</style><div class="debutyard-group">${row}</div></div>`;
+    return `<div id="${BLOCK_ID}" data-debutyard-key="${key}"><style>${STYLE}</style><div class="debutyard-group">${row}</div></div>`;
   }
   // Two identical halves slide left by one half, so the loop has no visible seam.
   const copy = row.replace(/<a /g, '<a tabindex="-1" ');
   return (
-    `<div id="${BLOCK_ID}" class="debutyard-moving" data-key="${key}"><style>${STYLE}\n${movingStyle(items.length * 4)}</style>` +
+    `<div id="${BLOCK_ID}" class="debutyard-moving" data-debutyard-key="${key}"><style>${STYLE}\n${movingStyle(items.length * 4)}</style>` +
     `<div class="debutyard-track"><div class="debutyard-group">${row}</div>` +
     `<div class="debutyard-group debutyard-copy" aria-hidden="true">${copy}</div></div></div>`
   );
@@ -82,8 +83,8 @@ export function blockScript(html: string, hasBadges: boolean): string {
 
 export type InstallKit = { scriptTag: string; htmlUrl: string; prompt: string };
 
-/** What a maker needs to install their block, by hand or through a coding agent. */
-export function installKit(base: string, key: string): InstallKit {
+/** What a maker needs to install their block on their website, by hand or through a coding agent. */
+export function installKit(base: string, key: string, websiteUrl: string): InstallKit {
   const scriptTag = `<script src="${new URL(`/badges/${key}.js`, base)}" async></script>`;
   const htmlUrl = new URL(`/badges/${key}.html`, base).toString();
   const prompt = `Add the DebutYard badge block to my website's homepage.
@@ -104,6 +105,15 @@ Rules:
 - Don't copy the block's contents into the code, proxy it or restyle it.
 - If the site has a Content Security Policy, allow what the option you chose needs: the script's host in script-src, https: in img-src, and 'unsafe-inline' or a matching hash in style-src for the block's small style tag.
 
-Then deploy, open the live homepage's page source and confirm it contains "${key}". Tell me when that's done so I can click "Check my site" on DebutYard.`;
+When the code is in place, check that the homepage's HTML output contains "${key}". Run the site locally if you can. If you can't, check the code and tell me you couldn't test it.
+
+Then follow this project's usual way of shipping. Don't commit, push, merge or deploy unless I've asked you to or it's already part of how we work here.
+
+Finish by telling me:
+1. What you changed.
+2. Whether you were able to test it.
+3. What's left before it's live at ${websiteUrl}, such as reviewing a PR, merging or deploying. If it's already live, say so.
+
+Once it's live at that address, I need to click "Check my site" on DebutYard. A local copy or preview link won't pass that check.`;
   return { scriptTag, htmlUrl, prompt };
 }

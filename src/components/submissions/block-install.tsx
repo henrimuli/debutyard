@@ -6,7 +6,7 @@ import { CodeBlock } from "@/components/code-block";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { site } from "@/config/site";
-import type { InstallKit } from "@/lib/badge-block/render";
+import { installKit, type InstallKit } from "@/lib/badge-block/render";
 import { cn } from "@/lib/utils";
 
 const NOT_FOUND = {
@@ -80,7 +80,8 @@ export function InstallOptions({ kit }: { kit: InstallKit }) {
 /** Last step of intake for makers who allow badges: install the block, we find it, then the order can go in. */
 export function BlockInstall({
   token,
-  kit,
+  base,
+  blockKey,
   websiteUrl,
   found,
   pending,
@@ -91,7 +92,9 @@ export function BlockInstall({
   onSkip,
 }: {
   token: string;
-  kit: InstallKit;
+  /** Where the block loads from. */
+  base: string;
+  blockKey: string;
   websiteUrl: string;
   found: boolean;
   /** Sending the order. */
@@ -143,8 +146,11 @@ export function BlockInstall({
           appears on its own just above your footer as we submit. You won&apos;t need to touch your site again.
         </p>
       </div>
-      <InstallOptions kit={kit} />
+      <InstallOptions kit={installKit(base, blockKey, websiteUrl)} />
       <div className="space-y-3 border-t border-border pt-5">
+        {!found && (
+          <p className="text-sm text-muted-foreground">We check your live site, so publish your changes first.</p>
+        )}
         {found ? (
           <p role="status" className="text-sm text-success">
             Found it. Your block is installed, and you&apos;re ready to send your order.

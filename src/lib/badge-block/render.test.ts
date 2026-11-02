@@ -5,9 +5,10 @@ const key = "a".repeat(32);
 const badge = '<a href="https://dir.example/p/acme"><img src="https://dir.example/b.svg" alt="Dir"></a>';
 
 describe("blockHtml", () => {
-  it("is only an invisible marker without badges", () => {
-    expect(blockHtml(key, [])).toBe(`<!-- debutyard-badges:${key} -->`);
-    expect(blockHtml(key, ["", "  "])).toBe(`<!-- debutyard-badges:${key} -->`);
+  it("is only an empty hidden element without badges, not a comment that build tools could strip", () => {
+    const marker = `<div hidden style="display:none" data-debutyard-key="${key}"></div>`;
+    expect(blockHtml(key, [])).toBe(marker);
+    expect(blockHtml(key, ["", "  "])).toBe(marker);
   });
 
   it("is a still row with a few badges, each one's code untouched", () => {
@@ -73,10 +74,17 @@ describe("blockScript", () => {
 
 describe("installKit", () => {
   it("gives both install methods, and the prompt carries them", () => {
-    const kit = installKit("https://debutyard.com", key);
+    const kit = installKit("https://debutyard.com", key, "https://acme.io/");
     expect(kit.scriptTag).toBe(`<script src="https://debutyard.com/badges/${key}.js" async></script>`);
     expect(kit.htmlUrl).toBe(`https://debutyard.com/badges/${key}.html`);
     expect(kit.prompt).toContain(kit.scriptTag);
     expect(kit.prompt).toContain(kit.htmlUrl);
+  });
+
+  it("leaves shipping to the maker's workflow and names the address that has to pass", () => {
+    const { prompt } = installKit("https://debutyard.com", key, "https://acme.io/");
+    expect(prompt).toContain("Don't commit, push, merge or deploy unless");
+    expect(prompt).toContain("before it's live at https://acme.io/");
+    expect(prompt).not.toContain("Then deploy");
   });
 });

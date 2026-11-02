@@ -342,7 +342,8 @@ describe.skipIf(!TEST_DB)("choosing an order's directories (Postgres)", () => {
     const empty = (await block.publicBlock(order.blockKey))!;
     expect(empty.script).toBe("");
     expect(empty.html).toContain(order.blockKey);
-    expect(empty.html).not.toContain("<div");
+    expect(empty.html).toContain("hidden");
+    expect(empty.html).not.toContain("<a");
 
     const one = (await rowFor(order.id, "one"))!;
     const saved = await block.setBadgeCode(one.id, `${badge}<script>alert(1)</script>`);

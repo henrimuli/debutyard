@@ -7,7 +7,6 @@ import { BlockInstall } from "@/components/submissions/block-install";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { site } from "@/config/site";
-import type { InstallKit } from "@/lib/badge-block/render";
 import { cn } from "@/lib/utils";
 
 type Values = {
@@ -54,7 +53,9 @@ export function IntakeForm({
   initial: Values;
   categories: Array<{ slug: string; name: string }>;
   block: {
-    kit: InstallKit;
+    /** Where the block loads from. */
+    base: string;
+    key: string;
     /** The website we've already found the block on. */
     foundUrl: string | null;
     /** They saved their details earlier, so pick up at the install step. */
@@ -136,7 +137,8 @@ export function IntakeForm({
     return (
       <BlockInstall
         token={token}
-        kit={block.kit}
+        base={block.base}
+        blockKey={block.key}
         websiteUrl={v.websiteUrl}
         found={foundUrl === v.websiteUrl}
         pending={pending}
