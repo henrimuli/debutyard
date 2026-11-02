@@ -77,6 +77,8 @@ export const products = pgTable(
     createdVia: createdVia("created_via").notNull().default("web"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
+    /** When the maker was emailed that their paid debut's run finished. */
+    runEndedEmailAt: timestamp("run_ended_email_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -231,6 +233,27 @@ export const productOrders = pgTable(
 );
 
 /** Month and year boards that have been closed and awarded (weeks use launch_weeks.closed_at). */
+/** Featured time bought after a paid debut's own run: in the featured section only, not back on the board. */
+export const featuredReruns = pgTable(
+  "featured_reruns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** Unique, so a repeated payment webhook can't add time twice. */
+    orderId: uuid("order_id")
+      .notNull()
+      .unique()
+      .references(() => orders.id),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    endedEmailAt: timestamp("ended_email_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("featured_reruns_product_idx").on(t.productId, t.endsAt)],
+);
+
 export const closedPeriods = pgTable(
   "closed_periods",
   {

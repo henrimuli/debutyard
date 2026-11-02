@@ -11,6 +11,7 @@ import { checkBadgeBlocks, sendOrderDigests } from "@/lib/submissions/service";
 import { draftWeeklyRecap, notifyScheduledLaunchPosts } from "@/lib/blog/service";
 import { sendWeeklyDigest } from "@/lib/newsletter/service";
 import { reconcilePendingOrders } from "@/lib/payments/service";
+import { sendRunEndEmails } from "@/lib/products/relaunch";
 import { notifySpotlightWaitlist } from "@/lib/products/spotlight";
 import { runCron } from "@/lib/cron";
 import { pruneCronRuns } from "@/lib/admin/overview";
@@ -33,6 +34,7 @@ export function GET(request: Request) {
     ["payments", () => reconcilePendingOrders()],
     ["subscriptions", () => syncSubscriptions()],
     ["ads", () => settleBookings()],
+    ["run end emails", () => sendRunEndEmails()],
     ["spotlight waitlist", () => notifySpotlightWaitlist()],
     ["submission digests", () => sendOrderDigests()],
     ["badge blocks", () => checkBadgeBlocks()],

@@ -34,7 +34,7 @@ export function duplicateCheck(existing: Existing): Check {
     return {
       ...base,
       status: "warn",
-      detail: `Already debuted at /p/${existing.slug}. Shipped a big new version? A Relaunch puts it back on the board.`,
+      detail: `Already debuted at /p/${existing.slug}. Shipped a big new version? Update your listing from your dashboard instead.`,
     };
   }
   return {

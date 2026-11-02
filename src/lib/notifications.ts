@@ -5,6 +5,7 @@ import { env } from "@/env";
 import { site } from "@/config/site";
 import { sendEmail } from "@/lib/email";
 import { renderEmail, type Block } from "@/lib/email-template";
+import { formatUsd } from "@/lib/payments/skus";
 import { formatPeriodLabel } from "@/lib/periods";
 import { PERK_LABELS, type PerkTask } from "@/lib/perks/service";
 import { TIERS, type Tier } from "@/lib/products/input";
@@ -137,6 +138,101 @@ export async function notifyPaidTierApplied(p: Product, tierLabel: string, bundl
         ]
       : []),
   ]);
+}
+
+export type RunStats = {
+  views: number;
+  clicks: number;
+  applause: number;
+  comments: number;
+  /** Best weekly award, if any. */
+  place: number | null;
+};
+
+const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const PLACES = ["1st", "2nd", "3rd"];
+const BOOK_A_SLOT = "/dashboard/sponsorships#book";
+
+/**
+ * A paid debut or a relaunch has finished: how it did, the reassurance that the
+ * listing itself stays, and what to do next. Rows at zero are left out.
+ */
+export async function notifyRunEnded(
+  p: Product,
+  run: {
+    rerun: boolean;
+    days: number;
+    endedAt: Date;
+    stats: RunStats;
+    /** More featured time, for every tier but Spotlight. */
+    offer: { days: number; amountCents: number } | null;
+  },
+) {
+  const { views, clicks, applause, comments, place } = run.stats;
+  const tierLabel = TIERS[p.tier].label;
+  const where = p.tier === "spotlight" && !run.rerun ? "homepage Spotlight" : "featured section";
+  const title = run.rerun ? `Extra featured time for ${p.name}` : `Your ${tierLabel} for ${p.name}`;
+  const facts: Array<[string, string]> = [
+    ["Page views", views],
+    ["Clicks to your site", clicks],
+    ["Total applause", applause],
+    ["Total comments", comments],
+  ]
+    .filter(([, n]) => Number(n) > 0)
+    .map(([label, n]) => [String(label), String(n)]);
+  if (place) facts.push(["Award", `Debut of the Week, ${PLACES[place - 1] ?? `#${place}`} place`]);
+
+  const sponsor = `sponsor ${p.name} on the homepage, a category page or in the newsletter`;
+  await toMaker(p, `${title} has finished${views > 0 ? `: ${views} view${views === 1 ? "" : "s"}` : ""}`, [
+    { heading: `${title} has finished` },
+    {
+      text: `${p.name}'s ${run.days} ${run.rerun ? "extra " : ""}days in the ${where} ended on ${day(run.endedAt)}.${facts.length > 0 ? " Here's how it went." : ""}`,
+    },
+    ...(facts.length > 0 ? [{ facts }] : []),
+    {
+      callout: "Your listing stays up for good",
+      text: "Your product page is permanent and keeps its dofollow link. No badge required.",
+    },
+    { section: "Want more eyes on it?" },
+    ...(run.offer
+      ? [
+          {
+            text: `Put ${p.name} back in the featured section for ${run.offer.days} more days. It starts right away, no delays.`,
+          },
+          {
+            button: `Feature ${p.name} for ${run.offer.days} more days, ${formatUsd(run.offer.amountCents)}`,
+            href: url(`/dashboard/products/${p.id}/relaunch`),
+          },
+          { text: `You can also ${sponsor}: [book a slot](${url(BOOK_A_SLOT)}).` },
+        ]
+      : [{ text: `You can ${sponsor} whenever you like.` }, { button: `Sponsor ${p.name}`, href: url(BOOK_A_SLOT) }]),
+    { link: "View your listing", href: url(`/p/${p.slug}`) },
+  ]);
+}
+
+/** Payment cleared for more featured time: one email to the maker, one to the team. */
+export async function notifyRerunStarted(p: Product, run: { startsAt: Date; endsAt: Date }, paidCents: number) {
+  await toMaker(p, `${p.name} is featured again`, [
+    { heading: `${p.name} is featured again` },
+    {
+      text: `Payment received. ${p.name} is in the featured section ${run.startsAt > new Date() ? `from ${day(run.startsAt)} ` : ""}until ${day(run.endsAt)}. We'll email you how it did when that ends.`,
+    },
+    { button: "View your listing", href: url(`/p/${p.slug}`) },
+  ]);
+  await toStaff(
+    "Orders",
+    `Relaunch: ${p.name} (${formatUsd(paidCents)})`,
+    [
+      { heading: `Relaunch: ${p.name}` },
+      {
+        facts: [
+          ["Paid", formatUsd(paidCents)],
+          ["Featured until", day(run.endsAt)],
+        ],
+      },
+    ],
+    "A maker bought more featured time.",
+  );
 }
 
 export async function notifyWinner(p: Product, place: number, weekKey: string) {

@@ -49,11 +49,11 @@ describe("pageChecks", () => {
     expect(scoreChecks(checks)).toBeLessThan(50);
   });
 
-  it("fails duplicates and suggests a relaunch for past debuts", () => {
+  it("fails duplicates and points past debuts to their listing", () => {
     expect(duplicateCheck({ slug: "acme", status: "pending", debutEnded: false }).status).toBe("fail");
     const past = duplicateCheck({ slug: "acme", status: "approved", debutEnded: true });
     expect(past.status).toBe("warn");
-    expect(past.detail).toContain("Relaunch");
+    expect(past.detail).toContain("Update your listing");
   });
 
   it("suggests a listing within the form's limits", () => {

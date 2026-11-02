@@ -21,10 +21,20 @@ export type FeaturedItem = {
  * (instant debuts approved mid-week get their full days). Pure.
  */
 export function isFeaturedNow(tier: string, weekKey: string, approvedAt: Date | null, now = new Date()): boolean {
+  const ends = featuredEndsAt(tier, weekKey, approvedAt);
+  return ends !== null && now >= featuredStartsAt(weekKey, approvedAt) && now < ends;
+}
+
+/** When a listing's featured window opens. Pure. */
+export function featuredStartsAt(weekKey: string, approvedAt: Date | null): Date {
+  return new Date(Math.max(weekBounds(weekKey).startsAt.getTime(), approvedAt?.getTime() ?? 0));
+}
+
+/** When a paid tier's own featured window closes; null for tiers that don't have one. Pure. */
+export function featuredEndsAt(tier: string, weekKey: string, approvedAt: Date | null): Date | null {
   const days = FEATURED_DAYS[tier as keyof typeof FEATURED_DAYS];
-  if (!days) return false;
-  const start = Math.max(weekBounds(weekKey).startsAt.getTime(), approvedAt?.getTime() ?? 0);
-  return now.getTime() >= start && now.getTime() < start + days * 86_400_000;
+  if (!days) return null;
+  return new Date(featuredStartsAt(weekKey, approvedAt).getTime() + days * 86_400_000);
 }
 
 /**
@@ -35,11 +45,13 @@ export function isHeroNow(tier: string, weekKey: string, approvedAt: Date | null
   return tier === "spotlight" && isFeaturedNow(tier, weekKey, approvedAt, now);
 }
 
-/** What's in the featured rail now: paid debuts inside their window. */
+/** What's in the featured rail now: paid debuts inside their window, or a relaunch of one. */
 export async function featuredNow(now = new Date()): Promise<FeaturedItem[]> {
   const current = weekKeyFor(now);
   const rows = (await queryRows(sql`
-    select slug, name, tagline, logo_url, tier, launch_week_key, approved_at
+    select slug, name, tagline, logo_url, tier, launch_week_key, approved_at,
+      exists (select 1 from featured_reruns r where r.product_id = products.id
+        and r.starts_at <= ${now.toISOString()}::timestamptz and r.ends_at > ${now.toISOString()}::timestamptz) as rerun
     from products
     where status = 'approved' and tier in ('fast_track', 'pro', 'premium', 'spotlight') and launch_week_key <= ${current}
     order by case tier when 'spotlight' then 0 when 'premium' then 1 when 'pro' then 2 else 3 end, approved_at
@@ -51,9 +63,12 @@ export async function featuredNow(now = new Date()): Promise<FeaturedItem[]> {
     tier: FeaturedItem["tier"];
     launch_week_key: string;
     approved_at: Date | string | null;
+    rerun: boolean;
   }>;
   const paid = rows
-    .filter((r) => isFeaturedNow(r.tier, r.launch_week_key, r.approved_at ? new Date(r.approved_at) : null, now))
+    .filter(
+      (r) => r.rerun || isFeaturedNow(r.tier, r.launch_week_key, r.approved_at ? new Date(r.approved_at) : null, now),
+    )
     .map((r) => ({
       slug: r.slug,
       name: r.name,

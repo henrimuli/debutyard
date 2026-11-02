@@ -89,6 +89,20 @@ export async function CheckoutResult({
       </>
     );
   }
+  if (order?.status === "paid" && order.kind === "relaunch") {
+    return (
+      <>
+        {broadcast}
+        <Message
+          inDashboard={inDashboard}
+          title="Payment received. You're featured again"
+          body={`Your listing is back in the featured section, and we've emailed a confirmation to ${order.email}.`}
+          href="/dashboard/products"
+          cta="See your products"
+        />
+      </>
+    );
+  }
   if (order?.status === "paid" && order.kind === "featured") {
     return (
       <>

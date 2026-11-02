@@ -79,7 +79,10 @@ export const SKUS = [
     14900,
     `Instant debut on approval, 30 days in the homepage Spotlight (3 spots at any time), written launch post, ${PACKAGES.starter.count}-directory submission package.`,
   ),
-  oneTime("relaunch", "relaunch", "Relaunch", 1500, "One more week on the board for a new version."),
+  // More featured time after a paid debut, sold from the email it gets when its run ends. Not Spotlight: its spots are limited.
+  oneTime("relaunch", "relaunch_fast_track", "Relaunch: Fast Track", 900, "7 more days in the featured section."),
+  oneTime("relaunch", "relaunch_pro", "Relaunch: Pro", 1400, "14 more days in the featured section."),
+  oneTime("relaunch", "relaunch_premium", "Relaunch: Premium", 3900, "30 more days in the featured section."),
 
   // Featured placements
   oneTime(
