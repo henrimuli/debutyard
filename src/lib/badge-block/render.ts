@@ -4,7 +4,7 @@ const BLOCK_ID = "debutyard-badges";
 /** From this many badges the block is a moving strip rather than a row. */
 export const MOVING_AT = 6;
 
-const STYLE = `#${BLOCK_ID}{margin:48px auto;padding:0 16px;box-sizing:border-box;max-width:100%}
+const STYLE = `#${BLOCK_ID}{width:100%;margin:48px 0;padding:0 16px;box-sizing:border-box}
 #${BLOCK_ID} .debutyard-group{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
 #${BLOCK_ID} img{max-height:54px;width:auto;height:auto}`;
 

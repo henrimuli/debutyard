@@ -25,6 +25,8 @@ describe("blockHtml", () => {
     expect(html).toContain('aria-hidden="true"');
     expect(html.split('<a tabindex="-1" ')).toHaveLength(MOVING_AT + 1);
     expect(html).toContain("prefers-reduced-motion");
+    // Auto side margins would collapse a clipped block to nothing in a flex-column page.
+    expect(html).toContain("width:100%;margin:48px 0");
   });
 });
 
