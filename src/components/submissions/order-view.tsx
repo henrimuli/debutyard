@@ -19,11 +19,11 @@ import { PACKAGES } from "@/lib/submissions/packages";
 import {
   badgeBlockFor,
   credentialsFor,
-  guidedChecklist,
   orderByIntakeToken,
   orderRows,
   summarizeOrder,
 } from "@/lib/submissions/service";
+import { cn } from "@/lib/utils";
 
 /** Where a maker's block loads from. A preview uses its own database, so it has to serve its own blocks. */
 async function blockBase() {
@@ -88,9 +88,8 @@ export async function OrderView({ token }: { token: string }) {
     }
   })();
   const blockLive = order.badgePreference === "allow" && Boolean(order.blockInstalledAt);
-  const [rows, guided, dr, badgeBlock, badgesShowing, accounts, index] = await Promise.all([
+  const [rows, dr, badgeBlock, badgesShowing, accounts, index] = await Promise.all([
     orderRows(order.id),
-    guidedChecklist(),
     domain ? drHistory(domain) : Promise.resolve([]),
     order.badgePreference === "allow" && !blockLive && order.status !== "delivered" ? badgeBlockFor(order.id) : null,
     blockLive ? liveBadgeCount(order) : 0,
@@ -133,24 +132,35 @@ export async function OrderView({ token }: { token: string }) {
           </ul>
         </Card>
       )}
-      {blockLive && (
-        <Card className="space-y-2 p-5 print:hidden">
-          <p className="font-medium">Your badge block</p>
-          <p className="text-sm text-muted-foreground">
-            {badgesShowing === 0
-              ? "Installed, and invisible for now. Each directory's badge appears on your homepage by itself as we submit."
-              : `${badgesShowing} ${badgesShowing === 1 ? "badge" : "badges"} showing on your homepage. New ones appear by themselves.`}{" "}
-            Keep the block in place: directories can check for their badge at any time.
-          </p>
-          <details className="text-sm">
-            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              Need to install it again?
-            </summary>
-            <div className="mt-3">
-              <InstallOptions kit={installKit(base, order.blockKey, order.websiteUrl ?? "your website")} />
-            </div>
-          </details>
-        </Card>
+      {(blockLive || dr.length > 0) && (
+        <div className={cn("grid gap-6", blockLive && dr.length > 0 && "md:grid-cols-[minmax(0,1fr)_18rem]")}>
+          {blockLive && (
+            <Card className="space-y-2 p-5 print:hidden">
+              <p className="font-medium">Your badge block</p>
+              <p className="text-sm text-muted-foreground">
+                {badgesShowing === 0
+                  ? "Installed, and invisible for now. Each directory's badge appears on your homepage by itself as we submit."
+                  : `${badgesShowing} ${badgesShowing === 1 ? "badge" : "badges"} showing on your homepage. New ones appear by themselves.`}{" "}
+                Keep the block in place: directories can check for their badge at any time.
+              </p>
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  Need to install it again?
+                </summary>
+                <div className="mt-3">
+                  <InstallOptions kit={installKit(base, order.blockKey, order.websiteUrl ?? "your website")} />
+                </div>
+              </details>
+            </Card>
+          )}
+          {dr.length > 0 && (
+            <Card className="p-4">
+              <p className="text-sm font-medium">Authority Score</p>
+              <p className="mb-2 truncate text-xs text-muted-foreground">{domain}</p>
+              <DrChart points={dr} compact />
+            </Card>
+          )}
+        </div>
       )}
       {badgeBlock && badgeBlock.directories.some((x) => !x.seen) && (
         <Card className="space-y-3 p-5 print:hidden">
@@ -197,34 +207,6 @@ export async function OrderView({ token }: { token: string }) {
               </tbody>
             </table>
           </div>
-        </Card>
-      )}
-      {dr.length > 0 && (
-        <Card className="p-5">
-          <p className="mb-3 font-medium">Authority Score for {domain}</p>
-          <DrChart points={dr} />
-        </Card>
-      )}
-      {guided.length > 0 && (
-        <Card className="p-5 print:hidden">
-          <p className="font-medium">Do these yourself (they need you personally)</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            These sites need your own account or vendor verification, so they aren&apos;t in your package count. Track
-            them in the free{" "}
-            <a href="/dashboard/tracker" className="text-primary hover:underline">
-              directory tracker
-            </a>
-            .
-          </p>
-          <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            {guided.map((g) => (
-              <li key={g.slug}>
-                <a href={g.url} target="_blank" rel="noopener nofollow" className="hover:text-primary">
-                  {g.name} ↗
-                </a>
-              </li>
-            ))}
-          </ul>
         </Card>
       )}
       <Card className="p-5 text-sm print:hidden">

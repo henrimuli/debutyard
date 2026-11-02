@@ -294,20 +294,6 @@ export async function orderRows(orderId: string) {
     );
 }
 
-/** Guided directories (Product Hunt, HN, G2…): a checklist for the maker, not counted in the package. */
-export async function guidedChecklist() {
-  return db()
-    .select({
-      name: directories.name,
-      url: directories.url,
-      notes: directories.submissionNotes,
-      slug: directories.slug,
-    })
-    .from(directories)
-    .where(and(eq(directories.guided, true), eq(directories.isActive, true)))
-    .orderBy(sql`${directories.dr} desc nulls last`);
-}
-
 export type OrderSummary = {
   target: number;
   scheduled: number;

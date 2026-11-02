@@ -1,4 +1,5 @@
 import { LinkVerdict } from "@/components/directories/link-verdict";
+import { FoldedTable } from "@/components/submissions/folded-table";
 import { AuthorityScore } from "@/components/metrics/authority-score";
 import { Badge, Card } from "@/components/ui/primitives";
 import { PACKAGES } from "@/lib/submissions/packages";
@@ -35,6 +36,68 @@ export function OrderReport({
   shared?: boolean;
 }) {
   const visible = rows.filter((r) => r.s.status !== "replaced");
+  const table = (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Directory</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">Submitted</th>
+            <th className="px-3 py-2 font-medium">Live</th>
+            <th className="px-3 py-2 font-medium">Link check</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {visible.map(({ s, d }) => (
+            <tr key={s.id} className="align-top">
+              <td className="px-3 py-2">
+                <span className="inline-flex items-center gap-2">
+                  <span className="font-medium">{d.name}</span>
+                  {d.dr !== null && <AuthorityScore score={d.dr} />}
+                </span>
+                {s.liveUrl && (
+                  <a
+                    href={s.liveUrl}
+                    target="_blank"
+                    rel="noopener nofollow"
+                    className="block max-w-72 truncate text-xs text-primary hover:underline"
+                  >
+                    {s.liveUrl}
+                  </a>
+                )}
+                {!shared && s.status === "needs_action" && s.actionNeeded && (
+                  <p className="mt-1 text-xs text-accent-foreground">→ {s.actionNeeded}</p>
+                )}
+                {!shared && s.evidenceUrl && (
+                  <a
+                    href={s.evidenceUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="block text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Evidence screenshot
+                  </a>
+                )}
+              </td>
+              <td className="px-3 py-2">
+                <Badge tone={STATUS[s.status]?.tone ?? "default"}>{STATUS[s.status]?.label ?? s.status}</Badge>
+              </td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{date(s.submittedAt)}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{date(s.liveAt)}</td>
+              <td className="px-3 py-2">
+                {s.status === "live" ? (
+                  <LinkVerdict verdict={s.linkVerdict} anchor={s.linkAnchor} checkedAt={s.linkCheckedAt} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">–</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -71,66 +134,7 @@ export function OrderReport({
           </p>
         )}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Directory</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Submitted</th>
-              <th className="px-3 py-2 font-medium">Live</th>
-              <th className="px-3 py-2 font-medium">Link check</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {visible.map(({ s, d }) => (
-              <tr key={s.id} className="align-top">
-                <td className="px-3 py-2">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="font-medium">{d.name}</span>
-                    {d.dr !== null && <AuthorityScore score={d.dr} />}
-                  </span>
-                  {s.liveUrl && (
-                    <a
-                      href={s.liveUrl}
-                      target="_blank"
-                      rel="noopener nofollow"
-                      className="block max-w-72 truncate text-xs text-primary hover:underline"
-                    >
-                      {s.liveUrl}
-                    </a>
-                  )}
-                  {!shared && s.status === "needs_action" && s.actionNeeded && (
-                    <p className="mt-1 text-xs text-accent-foreground">→ {s.actionNeeded}</p>
-                  )}
-                  {!shared && s.evidenceUrl && (
-                    <a
-                      href={s.evidenceUrl}
-                      target="_blank"
-                      rel="noopener"
-                      className="block text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Evidence screenshot
-                    </a>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <Badge tone={STATUS[s.status]?.tone ?? "default"}>{STATUS[s.status]?.label ?? s.status}</Badge>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{date(s.submittedAt)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{date(s.liveAt)}</td>
-                <td className="px-3 py-2">
-                  {s.status === "live" ? (
-                    <LinkVerdict verdict={s.linkVerdict} anchor={s.linkAnchor} checkedAt={s.linkCheckedAt} />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">–</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {shared ? table : <FoldedTable total={visible.length}>{table}</FoldedTable>}
     </div>
   );
 }

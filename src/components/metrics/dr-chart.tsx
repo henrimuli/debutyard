@@ -1,12 +1,22 @@
 import { AuthorityScore } from "./authority-score";
 import { chartPoints, drChange, type DrPoint } from "@/lib/metrics/providers";
+import { cn } from "@/lib/utils";
 
 const W = 320;
 const H = 80;
 const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** A small SVG line chart of Authority Score over time, with the latest score's ring and "7 → 19 since …". No chart library. */
-export function DrChart({ points, since = "intake" }: { points: DrPoint[]; since?: string }) {
+export function DrChart({
+  points,
+  since = "intake",
+  compact = false,
+}: {
+  points: DrPoint[];
+  since?: string;
+  /** For a narrow card: a smaller headline and a shorter chart that fills the card. */
+  compact?: boolean;
+}) {
   const change = drChange(points);
   if (!change) return null;
   const xy = chartPoints(points, W, H);
@@ -15,8 +25,8 @@ export function DrChart({ points, since = "intake" }: { points: DrPoint[]; since
   return (
     <figure className="space-y-2">
       <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <AuthorityScore score={change.to} size="md" />
-        <span className="font-display text-xl font-bold">
+        <AuthorityScore score={change.to} size={compact ? undefined : "md"} />
+        <span className={cn("font-display font-bold", compact ? "text-base" : "text-xl")}>
           {change.from} → {change.to}
         </span>
         <span className={tone}>
@@ -27,7 +37,7 @@ export function DrChart({ points, since = "intake" }: { points: DrPoint[]; since
       {xy.length > 1 ? (
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="h-20 w-full max-w-md text-primary"
+          className={cn("w-full text-primary", compact ? "h-10" : "h-20 max-w-md")}
           role="img"
           aria-label={`Authority Score from ${change.from} to ${change.to}`}
           preserveAspectRatio="none"
@@ -42,9 +52,7 @@ export function DrChart({ points, since = "intake" }: { points: DrPoint[]; since
           />
           {xy.map(([x, y], i) => (
             <circle key={i} cx={x} cy={y} r="2.5" fill="currentColor">
-              <title>
-                {day(sorted[i].at)}: Authority Score {sorted[i].dr}
-              </title>
+              <title>{`${day(sorted[i].at)}: Authority Score ${sorted[i].dr}`}</title>
             </circle>
           ))}
         </svg>
@@ -52,7 +60,7 @@ export function DrChart({ points, since = "intake" }: { points: DrPoint[]; since
         <p className="text-xs text-muted-foreground">Measured {day(sorted[0].at)}. We re-check every week.</p>
       )}
       {xy.length > 1 && (
-        <p className="flex max-w-md justify-between text-xs text-muted-foreground">
+        <p className={cn("flex justify-between text-xs text-muted-foreground", !compact && "max-w-md")}>
           <span>{day(sorted[0].at)}</span>
           <span>{day(sorted[sorted.length - 1].at)}</span>
         </p>
