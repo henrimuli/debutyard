@@ -15,6 +15,9 @@ import { notifySpotlightWaitlist } from "@/lib/products/spotlight";
 import { runCron } from "@/lib/cron";
 import { pruneCronRuns } from "@/lib/admin/overview";
 
+// Checking pages can wait out Firecrawl's rate limit, a minute at a time.
+export const maxDuration = 300;
+
 /**
  * One daily job (Vercel Hobby allows few crons), scheduled just after Monday
  * 00:00 UTC rolls the week. Each task is independent and idempotent.
