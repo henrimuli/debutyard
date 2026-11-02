@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { packageForSku, selectTargets, type TargetCandidate } from "./packages";
+import {
+  COUNT_RANGE,
+  countLabel,
+  packageForSku,
+  selectTargets,
+  targetCountFor,
+  type TargetCandidate,
+} from "./packages";
+
+describe("package sizes", () => {
+  it("advertises 30, 60 and 90+", () => {
+    expect([countLabel("starter"), countLabel("growth"), countLabel("scale")]).toEqual(["30", "60", "90+"]);
+    expect(COUNT_RANGE).toBe("30–90+");
+  });
+
+  it("gives Starter and Growth exactly their count", () => {
+    expect(targetCountFor("starter")).toBe(30);
+    expect(targetCountFor("growth")).toBe(60);
+  });
+
+  it("gives Scale 91 to 95, across the whole range of the random number", () => {
+    expect(targetCountFor("scale", () => 0)).toBe(91);
+    expect(targetCountFor("scale", () => 0.2)).toBe(92);
+    expect(targetCountFor("scale", () => 0.5)).toBe(93);
+    expect(targetCountFor("scale", () => 0.7)).toBe(94);
+    expect(targetCountFor("scale", () => 0.999999)).toBe(95);
+  });
+});
 
 const dir = (id: string, over: Partial<TargetCandidate> = {}): TargetCandidate => ({
   id,

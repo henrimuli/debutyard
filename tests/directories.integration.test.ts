@@ -231,7 +231,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     expect(order).toMatchObject({
       status: "awaiting_intake",
       package: "starter",
-      targetCount: 40,
+      targetCount: 30,
       email: "buyer@x.test",
     });
     const intakeMail = sent.find((e) => e.to === "buyer@x.test");
@@ -244,7 +244,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     await expect(subs.submitIntake(order.intakeToken, kit)).rejects.toThrow("already have");
 
     let rows = await subs.orderRows(order.id);
-    expect(rows).toHaveLength(40);
+    expect(rows).toHaveLength(30);
     // No guided, badge-gated or nofollow directories; AI-niche directories first.
     expect(rows.some((r) => r.d.guided || r.d.badgeRequired || r.d.linkTypeClaimed === "nofollow")).toBe(false);
     expect(rows.filter((r) => r.d.niche === "ai").length).toBeGreaterThan(5);
@@ -273,7 +273,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
       order,
       rows.map((r) => r.s),
     );
-    expect(summary).toMatchObject({ scheduled: 40, live: 1, dofollow: 1, inReview: 5 });
+    expect(summary).toMatchObject({ scheduled: 30, live: 1, dofollow: 1, inReview: 5 });
 
     await subs.updateOrderSubmission(rest[6].s.id, {
       status: "needs_action",
@@ -286,7 +286,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     expect(await subs.sendOrderDigests()).toEqual({ sent: 0 });
 
     const csv = subs.ordersCsv(rows);
-    expect(csv.split("\n")).toHaveLength(41);
+    expect(csv.split("\n")).toHaveLength(31);
     expect(csv).toContain("https://dir.example/acme");
 
     await subs.deliverOrder(order.id);
@@ -315,7 +315,7 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
       .query.submissionOrders.findFirst({ where: eq(dbmod.schema.submissionOrders.productId, p.id) });
     expect(boost).toMatchObject({
       package: "growth",
-      targetCount: 100,
+      targetCount: 60,
       productName: "boost.io",
       websiteUrl: "https://boost.io/",
     });

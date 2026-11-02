@@ -275,7 +275,7 @@ Verified market prices (Oct 2026): skip the queue **$6–$39.99**, featured laun
 | **Fast Track** | **$15** | Skip the queue (next week with room), no badge, guaranteed permanent dofollow |
 | **Pro Launch** | **$39** | Pick any week, no badge, dofollow, **7 days featured** (rail + rotating leaderboard slot), weekly newsletter inclusion |
 | **Premium Launch** | **$79** | Pro + **30 days featured**, social posts (X/LinkedIn/Bluesky), **written launch post** on our blog (AEO-optimised, 3 links), priority on its category page |
-| **Spotlight** | **$149** | Premium + **top-of-homepage hero for the launch week (max 3 concurrent, shown as "N spots left")**, newsletter top slot, and a **Starter submission package (40 directories) bundled** |
+| **Spotlight** | **$149** | Premium + **top-of-homepage hero for the launch week (max 3 concurrent, shown as "N spots left")**, newsletter top slot, and a **Starter submission package (30 directories) bundled** |
 | **Relaunch** | **$15** | Already-launched product, new version: one more week on the board |
 
 All paid tiers come with a **money-back guarantee**: a full refund if the listing isn't approved, isn't live within 48h, or the link isn't dofollow (SaaSCity's guarantee; it removes the risk for buyers).
@@ -298,9 +298,9 @@ Include click stats for every slot, plus a "stays up until CPC ≤ $1" guarantee
 
 | Package | Price | Scope |
 |---|---|---|
-| **Starter** | **$99** | **40** niche-matched directories (DR 30+), starts in 48h, done in 7 days, live tracking dashboard, 3 months Link Monitor |
-| **Growth** ★ | **$179** | **100** directories, high-DR free + paid, 10–14 days, 6 months Link Monitor |
-| **Scale** | **$299** | **180+** directories incl. AI-tool and "alternatives" sites, copy tailored per directory, 14 days, 12 months Link Monitor, DR before/after report |
+| **Starter** | **$99** | **30** niche-matched directories (DR 30+), starts in 48h, done in 7 days, live tracking dashboard, 3 months Link Monitor |
+| **Growth** ★ | **$179** | **60** directories, high-DR free + paid, 10–14 days, 6 months Link Monitor |
+| **Scale** | **$299** | **90+** directories (each order gets 91 to 95) incl. AI-tool and "alternatives" sites, copy tailored per directory, 14 days, 12 months Link Monitor, DR before/after report |
 | **Agency** | **$799/mo** | 5 client submissions/month at Growth scope, white-label reports, shared dashboards |
 
 All packages replace rejected directories. Rationale: Nick charges $99/$149/$199 for 30/60/100, Uneed $249 for 100+, PeerPush from $149, TinyLaunch $279 for 110. We give more directories per dollar, plus verification, monitoring and a live dashboard.

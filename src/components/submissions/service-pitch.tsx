@@ -148,7 +148,7 @@ export function ValueSection({ stats }: { stats: CatalogStats }) {
     },
     {
       title: "Your hours back, while you build",
-      body: "At roughly 15 minutes a directory for the account, the form and the copy, 100 directories is 25+ hours before the rejections and follow-ups. Your part here is one five-minute form.",
+      body: "At roughly 15 minutes a directory for the account, the form and the copy, 60 directories is 15+ hours before the rejections and follow-ups. Your part here is one five-minute form.",
       icon: (
         <svg {...icon}>
           <circle cx="12" cy="12" r="8.5" />

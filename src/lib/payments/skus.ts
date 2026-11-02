@@ -3,6 +3,8 @@
  * Amounts are USD cents. Both Paystack and PayPal read prices from here.
  */
 
+import { countLabel, PACKAGES } from "@/lib/submissions/packages";
+
 export type OneTimeKind = "launch" | "relaunch" | "featured" | "submission";
 export type Interval = "weekly" | "monthly" | "annually";
 
@@ -75,7 +77,7 @@ export const SKUS = [
     "launch_spotlight",
     "Spotlight",
     14900,
-    "Instant debut on approval, 30 days in the homepage Spotlight (3 spots at any time), written launch post, 40-directory submission package.",
+    `Instant debut on approval, 30 days in the homepage Spotlight (3 spots at any time), written launch post, ${PACKAGES.starter.count}-directory submission package.`,
   ),
   oneTime("relaunch", "relaunch", "Relaunch", 1500, "One more week on the board for a new version."),
 
@@ -126,21 +128,21 @@ export const SKUS = [
     "submission_starter",
     "Submissions: Starter",
     9900,
-    "40 niche-matched directories, live tracking, 3 months Link Monitor.",
+    `${countLabel("starter")} niche-matched directories, live tracking, 3 months Link Monitor.`,
   ),
   oneTime(
     "submission",
     "submission_growth",
     "Submissions: Growth",
     17900,
-    "100 directories, live tracking, 6 months Link Monitor.",
+    `${countLabel("growth")} directories, live tracking, 6 months Link Monitor.`,
   ),
   oneTime(
     "submission",
     "submission_scale",
     "Submissions: Scale",
     29900,
-    "180+ directories, tailored copy, 12 months Link Monitor.",
+    `${countLabel("scale")} directories, tailored copy, 12 months Link Monitor.`,
   ),
 
   // Subscriptions

@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { env } from "@/env";
 import { drEnabled } from "@/lib/metrics/service";
+import { COUNT_RANGE } from "@/lib/submissions/packages";
 import { site } from "@/config/site";
 import { weekBoard } from "@/lib/board/queries";
 import { addWeeks, formatWeekLabel, weekKeyFor } from "@/lib/weeks";
@@ -23,7 +24,7 @@ export async function GET() {
     `- [Blog](${base}/blog): launch stories, roundups and comparisons of tools on the board, weekly recaps, and guides on launching and growth`,
     `- [Launch directories](${base}/directories): where to list a product after launch, with link types we've verified`,
     `- [Launch wall](${base}/launch-wall): makers and the directory backlinks we've verified for them`,
-    `- [Submission service](${base}/submission-service): we submit a product to 40–180 directories and verify every link`,
+    `- [Submission service](${base}/submission-service): we submit a product to ${COUNT_RANGE} directories and verify every link`,
     `- [Launch readiness check](${base}/tools/launch-readiness): free pre-launch audit of any product URL`,
     `- [Dofollow checker](${base}/tools/dofollow-checker): does a page link to a site, and is the link followed`,
     ...(drEnabled()
