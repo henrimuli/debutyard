@@ -16,12 +16,15 @@ const MAX_BYTES = 1_500_000;
 const THIN_PAGE_CHARS = 200;
 
 /**
- * verify: is this page up, does it link to us? Always a fresh copy, kept out of Firecrawl's cache.
+ * verify: is this page up, does it link to us? Always a fresh copy, kept out of Firecrawl's cache, and
+ * worth waiting out a rate limit for: a page we never got to check mustn't look like a page that's down.
  * read: its content, for someone waiting. A shorter wait, a recent copy is fine, and a near-empty page is retried.
  */
 export type PagePurpose = "verify" | "read";
 
 const FIRECRAWL_MS: Record<PagePurpose, number> = { verify: 30_000, read: 15_000 };
+/** Firecrawl's rate limit is per minute, so no wait should be longer than this. */
+const MAX_LIMIT_WAIT_MS = 60_000;
 
 export type PageResult = SafeResponse & {
   via: "direct" | "firecrawl";
@@ -39,6 +42,8 @@ export type FetchPageOpts = FetchOpts & {
   markdown?: boolean;
   /** Direct only, e.g. for a site's secondary pages once its homepage needed no help. */
   fallback?: boolean;
+  /** How to wait out Firecrawl's rate limit. Tests pass their own. */
+  wait?: (ms: number) => Promise<void>;
 };
 
 const WALL_STATUSES = new Set([401, 403, 429]);
@@ -64,6 +69,14 @@ const turnedAway = (res: SafeResponse) => res.status === 503 || isBotWall(res);
 
 type Scraped = SafeResponse & { markdown?: string };
 
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+/** The wait Firecrawl's 429 asks for ("please retry after 37s"), plus a second in case the clocks differ. */
+function limitWait(error = ""): number {
+  const seconds = Number(/retry after (\d+)s/i.exec(error)?.[1]);
+  return seconds ? Math.min((seconds + 1) * 1000, MAX_LIMIT_WAIT_MS) : MAX_LIMIT_WAIT_MS;
+}
+
 type FirecrawlBody = {
   success?: boolean;
   error?: string;
@@ -74,9 +87,17 @@ type FirecrawlBody = {
   };
 };
 
-/** One Firecrawl scrape. Returns null on any failure (out of credits, rate limited, down): the fallback only ever helps. */
-async function scrape(raw: string, key: string, opts: FetchPageOpts): Promise<Scraped | null> {
-  const { purpose, markdown, maxBytes = MAX_BYTES, resolve, fetchImpl = fetch } = opts;
+/**
+ * One Firecrawl scrape, tried once more after a rate limit when verifying. Returns null on
+ * any failure (out of credits, still rate limited, down): the fallback only ever helps.
+ */
+async function scrape(
+  raw: string,
+  key: string,
+  opts: FetchPageOpts,
+  retry = opts.purpose === "verify",
+): Promise<Scraped | null> {
+  const { purpose, markdown, maxBytes = MAX_BYTES, resolve, fetchImpl = fetch, wait = sleep } = opts;
   const timeout = FIRECRAWL_MS[purpose];
   try {
     await assertPublicUrl(raw, resolve);
@@ -94,6 +115,10 @@ async function scrape(raw: string, key: string, opts: FetchPageOpts): Promise<Sc
       signal: AbortSignal.timeout(timeout + 2000),
     });
     const body = (await res.json().catch(() => null)) as FirecrawlBody | null;
+    if (res.status === 429 && retry) {
+      await wait(limitWait(body?.error));
+      return await scrape(raw, key, opts, false);
+    }
     const html = body?.data?.rawHtml;
     if (!res.ok || !body?.success || !html) {
       console.error("firecrawl failed", raw, res.status, body?.error ?? "");

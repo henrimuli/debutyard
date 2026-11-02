@@ -7,7 +7,7 @@ const publicDns = async () => ["93.184.216.34"];
 const longText = `<html><title>Acme</title><body><p>${"Invoices that chase themselves. ".repeat(20)}</p></body></html>`;
 const rescued = "<html><title>Acme, as a browser saw it</title><body>Real page</body></html>";
 
-type Scrape = { status?: number; body?: unknown; throws?: boolean };
+type Scrape = { status?: number; body?: unknown; throws?: boolean; limitedTimes?: number; limitError?: string };
 
 /** Routes Firecrawl's endpoint to `scrape` and everything else to `direct`, recording what Firecrawl was sent. */
 function fakeFetch(direct: () => Response | Promise<Response>, scrape: Scrape = {}) {
@@ -16,6 +16,9 @@ function fakeFetch(direct: () => Response | Promise<Response>, scrape: Scrape = 
     if (String(url).startsWith("https://api.firecrawl.dev/")) {
       sent.push(JSON.parse(String(init?.body)));
       if (scrape.throws) throw new Error("socket hang up");
+      if (sent.length <= (scrape.limitedTimes ?? 0)) {
+        return Response.json({ success: false, error: scrape.limitError ?? "Rate limit exceeded" }, { status: 429 });
+      }
       const body = scrape.body ?? {
         success: true,
         data: {
@@ -35,6 +38,7 @@ const opts = (fetchImpl: typeof fetch, rest: Partial<FetchPageOpts> = {}): Fetch
   purpose: "verify",
   resolve: publicDns,
   fetchImpl,
+  wait: async () => {},
   ...rest,
 });
 const html = (body: string, status = 200) => new Response(body, { status, headers: { "content-type": "text/html" } });
@@ -160,6 +164,54 @@ describe("fetchPage", () => {
     expect(await fetchPage(URL_, opts(blocked.fetchImpl))).toMatchObject({ via: "direct", status: 403, blocked: true });
     const failing = fakeFetch(() => Promise.reject(new TypeError("fetch failed")), scrape);
     await expect(fetchPage(URL_, opts(failing.fetchImpl))).rejects.toThrow("fetch failed");
+  });
+
+  describe("when Firecrawl is rate limited", () => {
+    const limited = (limitError?: string) => ({ limitedTimes: 1, limitError });
+
+    it("waits as long as it's told and tries again when verifying", async () => {
+      const wait = vi.fn(async () => {});
+      const { fetchImpl, sent } = fakeFetch(
+        () => html("nope", 403),
+        limited(
+          "Rate limit exceeded. Consumed (req/min): 11, Remaining (req/min): 0. please retry after 37s, resets at",
+        ),
+      );
+      expect(await fetchPage(URL_, opts(fetchImpl, { wait }))).toMatchObject({ via: "firecrawl", blocked: false });
+      expect(wait).toHaveBeenCalledExactlyOnceWith(38_000);
+      expect(sent).toHaveLength(2);
+    });
+
+    it.each([
+      ["no wait in the error", "Rate limit exceeded"],
+      ["a wait past the limit's window", "please retry after 600s"],
+    ])("waits a minute with %s", async (_name, limitError) => {
+      const wait = vi.fn(async () => {});
+      const { fetchImpl } = fakeFetch(() => html("nope", 403), limited(limitError));
+      await fetchPage(URL_, opts(fetchImpl, { wait }));
+      expect(wait).toHaveBeenCalledExactlyOnceWith(60_000);
+    });
+
+    it("rescues a connection error too, instead of throwing", async () => {
+      const { fetchImpl } = fakeFetch(() => Promise.reject(new TypeError("fetch failed")), limited());
+      expect(await fetchPage(URL_, opts(fetchImpl))).toMatchObject({ via: "firecrawl", status: 200 });
+    });
+
+    it("tries only once more", async () => {
+      const wait = vi.fn(async () => {});
+      const { fetchImpl, sent } = fakeFetch(() => html("nope", 403), { limitedTimes: 5 });
+      expect(await fetchPage(URL_, opts(fetchImpl, { wait }))).toMatchObject({ via: "direct", blocked: true });
+      expect(wait).toHaveBeenCalledOnce();
+      expect(sent).toHaveLength(2);
+    });
+
+    it("doesn't keep someone waiting when reading", async () => {
+      const wait = vi.fn(async () => {});
+      const { fetchImpl, sent } = fakeFetch(() => html("nope", 403), limited());
+      expect(await fetchPage(URL_, opts(fetchImpl, { purpose: "read", wait }))).toMatchObject({ via: "direct" });
+      expect(wait).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(1);
+    });
   });
 
   it("does nothing extra without an API key", async () => {
