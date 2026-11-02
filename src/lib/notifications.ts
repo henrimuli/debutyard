@@ -191,13 +191,13 @@ export async function notifyRunEnded(
     ...(facts.length > 0 ? [{ facts }] : []),
     {
       callout: "Your listing stays up for good",
-      text: "Your product page is permanent and keeps its dofollow link. No badge is required, now or later.",
+      text: "Your product page is permanent and keeps its dofollow link. No badge required.",
     },
     { section: "Want more eyes on it?" },
     ...(run.offer
       ? [
           {
-            text: `Put ${p.name} back in the featured section for ${run.offer.days} more days. It starts as soon as you pay.`,
+            text: `Put ${p.name} back in the featured section for ${run.offer.days} more days. It starts right away, no delays.`,
           },
           {
             button: `Feature ${p.name} for ${run.offer.days} more days, ${formatUsd(run.offer.amountCents)}`,

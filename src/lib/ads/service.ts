@@ -536,7 +536,7 @@ async function sendReport(to: string, b: Booking, productName: string, paidCents
           ? [
               {
                 callout: "Your listing stays up for good",
-                text: "Your product page is permanent and keeps its dofollow link. No badge is required, now or later.",
+                text: "Your product page is permanent and keeps its dofollow link. No badge required.",
               },
             ]
           : []),

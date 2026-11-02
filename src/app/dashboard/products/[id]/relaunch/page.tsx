@@ -74,7 +74,7 @@ async function Offer({ params }: Pick<PageProps<"/dashboard/products/[id]/relaun
           <p className="font-display text-2xl font-bold">{formatUsd(offer.amountCents)}</p>
         </div>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Back on the homepage as soon as you pay</li>
+          <li>Back on the homepage right away</li>
           <li>We&apos;ll email you how it did when the {offer.days} days are up</li>
           <li>Your product page stays permanent either way, with its dofollow link and no badge required</li>
         </ul>
