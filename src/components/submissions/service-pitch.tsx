@@ -340,7 +340,7 @@ export const FAQ: Array<{
   },
   {
     q: "Are all the links dofollow?",
-    a: "We skip directories known to use nofollow links and check every live listing ourselves, so your report shows exactly which links are dofollow. A directory can change its policy, which is what Link Monitor watches for after delivery.",
+    a: "We only use directories known to give dofollow links and check every live listing ourselves, so your report shows exactly which links are dofollow. A directory can change its policy, which is what Link Monitor watches for after delivery.",
   },
   {
     short: true,

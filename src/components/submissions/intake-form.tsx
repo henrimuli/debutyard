@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { intakePrefillAction, submitIntakeAction } from "@/app/(site)/orders/[token]/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
+import { site } from "@/config/site";
 import { cn } from "@/lib/utils";
 
 type Values = {
@@ -20,6 +21,22 @@ type Values = {
   clientNotes: string;
   badgePreference: "none" | "allow";
   allowAccounts: boolean;
+};
+
+/** What each field is called by the button, where its own label is a long way up the form. */
+const FIELD_LABELS: Record<string, string> = {
+  websiteUrl: "Website",
+  productName: "Product name",
+  logoUrl: "Logo URL",
+  tagline: "Tagline",
+  shortDescription: "Short description",
+  longDescription: "Long description",
+  categories: "Categories",
+  founderName: "Founder name",
+  contactEmail: "Contact email",
+  badgePreference: "Badge directories",
+  clientNotes: "Notes",
+  allowAccounts: "Account permission",
 };
 
 const areaCls =
@@ -66,9 +83,15 @@ export function IntakeForm({
   function submit() {
     setError(null);
     start(async () => {
-      const res = await submitIntakeAction(token, { ...v, allowAccounts: v.allowAccounts as true });
-      if (!res.ok) return setError({ text: res.error, field: res.field });
-      router.refresh();
+      try {
+        const res = await submitIntakeAction(token, { ...v, allowAccounts: v.allowAccounts as true });
+        if (!res.ok) return setError({ text: res.error, field: res.field });
+        router.refresh();
+      } catch {
+        setError({
+          text: `We couldn't save your details. Try again in a moment, or email ${site.supportEmail} if it keeps happening.`,
+        });
+      }
     });
   }
 
@@ -78,6 +101,7 @@ export function IntakeForm({
     </span>
   );
   const err = (field: string) => error?.field === field && <p className="text-xs text-danger">{error.text}</p>;
+  const errorLabel = error?.field && FIELD_LABELS[error.field];
 
   return (
     <div className="space-y-6">
@@ -192,6 +216,7 @@ export function IntakeForm({
         <div className="space-y-1.5">
           <Label htmlFor="founder">Founder name (optional)</Label>
           <Input id="founder" value={v.founderName} onChange={(e) => set("founderName", e.target.value)} />
+          {err("founderName")}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="contact">Contact email for updates</Label>
@@ -246,6 +271,7 @@ export function IntakeForm({
           onChange={(e) => set("clientNotes", e.target.value)}
           placeholder="Directories to skip, launch date, wording to avoid…"
         />
+        {err("clientNotes")}
       </div>
       <label className="flex gap-3 text-sm">
         <input type="checkbox" checked={v.allowAccounts} onChange={(e) => set("allowAccounts", e.target.checked)} />
@@ -254,11 +280,18 @@ export function IntakeForm({
           order is delivered.
         </span>
       </label>
-      {err("allowAccounts")}
-      {error && !error.field && <p className="text-sm text-danger">{error.text}</p>}
-      <Button onClick={submit} disabled={pending} size="lg">
-        {pending ? "Saving…" : "Start my submissions"}
-      </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Button onClick={submit} disabled={pending} size="lg" className="shrink-0 self-start sm:self-auto">
+          {pending ? "Saving…" : "Start my submissions"}
+        </Button>
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {errorLabel && <span className="font-medium">{errorLabel}: </span>}
+            {/[.!?]$/.test(error.text) ? error.text : `${error.text}.`}
+            {error.field && " Fix that above, then try again."}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

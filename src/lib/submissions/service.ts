@@ -19,7 +19,7 @@ import { formatUsd } from "@/lib/payments/skus";
 import { domainOf } from "@/lib/slug";
 import { BADGE_WAIT_DAYS, badgeBlockHtml, MAX_BADGES } from "./badge-block";
 import { newInboxKey } from "./inbox-rules";
-import { PACKAGES, packageForSku, selectTargets, type PackageId } from "./packages";
+import { isOrderTarget, PACKAGES, packageForSku, selectTargets, type PackageId } from "./packages";
 
 const { submissionOrders: orders, submissions, directories } = schema;
 export type SubmissionOrder = typeof orders.$inferSelect;
@@ -144,27 +144,29 @@ export async function openOrderFromPayment(payment: Payment, bundled?: PackageId
 const optionalUrl = z
   .string()
   .trim()
-  .max(500)
+  .max(500, "Keep the URL to 500 characters")
   .refine((v) => v === "" || /^https:\/\/\S+$/.test(v), "Use an https:// URL")
   .transform((v) => v || null);
 
 export const intakeInput = z.object({
-  productName: z.string().trim().min(2, "Add your product's name").max(60),
+  productName: z.string().trim().min(2, "Add your product's name").max(60, "Keep the name to 60 characters"),
   websiteUrl: z
     .string()
     .trim()
-    .max(300)
+    .max(300, "Keep the URL to 300 characters")
     .refine((v) => /^https?:\/\/[^\s.]+\.\S+$/.test(v), "Use your full website URL, starting with https://"),
   tagline: z.string().trim().min(10, "Add a tagline (10+ characters)").max(60, "Keep the tagline to 60 characters"),
   shortDescription: z.string().trim().min(40, "At least 40 characters").max(160, "Keep it to 160 characters"),
   longDescription: z.string().trim().min(100, "At least 100 characters").max(500, "Keep it to 500 characters"),
-  categories: z.array(z.string().max(40)).min(1, "Pick at least one category").max(3),
+  categories: z.array(z.string().max(40)).min(1, "Pick at least one category").max(3, "Pick up to 3 categories"),
   logoUrl: optionalUrl,
-  founderName: z.string().trim().max(80).default(""),
-  contactEmail: z.string().trim().email("Add a contact email").max(200),
-  clientNotes: z.string().trim().max(2000).default(""),
+  founderName: z.string().trim().max(80, "Keep the name to 80 characters").default(""),
+  contactEmail: z.string().trim().email("Add a contact email").max(200, "Keep the email to 200 characters"),
+  clientNotes: z.string().trim().max(2000, "Keep your notes to 2,000 characters").default(""),
   badgePreference: z.enum(["none", "allow"]),
-  allowAccounts: z.literal(true, { message: "We need permission to create accounts in your product's name." }),
+  allowAccounts: z.literal(true, {
+    message: "Tick the box to give us permission to create accounts in your product's name",
+  }),
 });
 export type IntakeInput = z.input<typeof intakeInput>;
 
@@ -178,18 +180,20 @@ export async function orderByReportToken(t: string) {
   return (await db().query.submissionOrders.findFirst({ where: eq(orders.reportToken, t) })) ?? null;
 }
 
+const toCandidate = (d: typeof directories.$inferSelect) => ({
+  id: d.id,
+  niche: d.niche,
+  dr: d.dr,
+  linkType: effectiveLinkType(d),
+  badgeRequired: d.badgeRequired,
+  guided: d.guided,
+  isActive: d.isActive,
+  acceptanceRate: d.acceptanceRate,
+});
+
 async function candidates() {
   const rows = await db().select().from(directories);
-  return rows.map((d) => ({
-    id: d.id,
-    niche: d.niche,
-    dr: d.dr,
-    linkType: effectiveLinkType(d),
-    badgeRequired: d.badgeRequired,
-    guided: d.guided,
-    isActive: d.isActive,
-    acceptanceRate: d.acceptanceRate,
-  }));
+  return rows.map(toCandidate);
 }
 
 /** Saves the product kit, queues the order and picks its directories. */
@@ -509,6 +513,139 @@ export async function assignOrder(orderId: string, assigneeId: string | null) {
   await db().update(orders).set({ assigneeId }).where(eq(orders.id, orderId));
 }
 
+// --- Choosing an order's directories -------------------------------------------
+
+/** What staff can put on an order, best fit first (one swapped out earlier can come back), and whether its badge slots are used up. */
+export async function directoryChoices(order: SubmissionOrder) {
+  const [all, used, badges] = await Promise.all([
+    db().select().from(directories),
+    db()
+      .select({ id: submissions.directoryId })
+      .from(submissions)
+      .where(and(eq(submissions.submissionOrderId, order.id), ne(submissions.status, "replaced"))),
+    badgeRows(order.id),
+  ]);
+  const byId = new Map(all.map((d) => [d.id, d]));
+  const ids = selectTargets(all.map(toCandidate), {
+    count: all.length,
+    categories: order.categories,
+    allowBadges: order.badgePreference === "allow",
+    exclude: new Set(used.map((u) => u.id)),
+  });
+  return {
+    choices: ids.map((id) => {
+      const { name, dr, niche, badgeRequired } = byId.get(id)!;
+      return { id, name, dr, niche, badgeRequired };
+    }),
+    badgesFull: badges.length >= MAX_BADGES,
+  };
+}
+
+async function changeableOrder(orderId: string) {
+  const order = await db().query.submissionOrders.findFirst({ where: eq(orders.id, orderId) });
+  if (!order) throw new SubmissionError("Not found.");
+  if (order.status !== "queued" && order.status !== "in_progress") {
+    throw new SubmissionError("Directories can only be changed while an order is active.");
+  }
+  return order;
+}
+
+/** Checks a directory can go on an order, and finds the row it was swapped out of, if any. */
+async function checkPlacement(order: SubmissionOrder, directoryId: string, replacingId?: string) {
+  const directory = await db().query.directories.findFirst({ where: eq(directories.id, directoryId) });
+  if (!directory || !isOrderTarget(toCandidate(directory))) {
+    throw new SubmissionError("Only active, dofollow directories can go on an order.");
+  }
+  if (directory.badgeRequired) {
+    if (order.badgePreference !== "allow") throw new SubmissionError("This client chose no badge directories.");
+    const badges = (await badgeRows(order.id)).filter((r) => r.s.id !== replacingId);
+    if (badges.length >= MAX_BADGES) {
+      throw new SubmissionError(`This order already has ${MAX_BADGES} badge directories.`);
+    }
+  }
+  const existing = await db().query.submissions.findFirst({
+    where: and(eq(submissions.submissionOrderId, order.id), eq(submissions.directoryId, directoryId)),
+  });
+  if (existing && existing.status !== "replaced") throw new SubmissionError("That directory is already on this order.");
+  return { directory, existing };
+}
+
+/** Writes a checked placement: a new row, or the old one starting over (an order has one row per directory). */
+async function place(
+  tx: Pick<ReturnType<typeof db>, "insert" | "update">,
+  order: SubmissionOrder,
+  { directory, existing }: Awaited<ReturnType<typeof checkPlacement>>,
+  replacesId: string | null,
+) {
+  const [row] = existing
+    ? await tx
+        .update(submissions)
+        .set({
+          status: "todo",
+          replacesId,
+          submittedAt: null,
+          liveAt: null,
+          liveUrl: null,
+          actionNeeded: null,
+          evidenceUrl: null,
+          badgeSeenAt: null,
+          linkVerdict: null,
+          linkRel: null,
+          linkAnchor: null,
+          linkHttpStatus: null,
+          linkCheckedAt: null,
+        })
+        .where(and(eq(submissions.id, existing.id), eq(submissions.status, "replaced")))
+        .returning()
+    : await tx
+        .insert(submissions)
+        .values({ directoryId: directory.id, submissionOrderId: order.id, replacesId })
+        .onConflictDoNothing()
+        .returning();
+  if (!row) throw new SubmissionError("That directory is already on this order.");
+  return row;
+}
+
+/**
+ * Staff replace one of an order's directories with one they chose. The old row
+ * leaves the client's list and the new one shows up there, queued.
+ */
+export async function swapOrderDirectory(submissionId: string, directoryId: string) {
+  const s = await db().query.submissions.findFirst({ where: eq(submissions.id, submissionId) });
+  if (!s?.submissionOrderId) throw new SubmissionError("Not found.");
+  const order = await changeableOrder(s.submissionOrderId);
+  if (s.status === "live") throw new SubmissionError("This listing is live, so it can't be swapped.");
+  if (s.status === "replaced") throw new SubmissionError("This directory was already swapped out.");
+  const placement = await checkPlacement(order, directoryId, s.id);
+  const row = await db().transaction(async (tx) => {
+    const [old] = await tx
+      .update(submissions)
+      .set({ status: "replaced" })
+      .where(and(eq(submissions.id, s.id), eq(submissions.status, s.status)))
+      .returning({ id: submissions.id });
+    if (!old) throw new SubmissionError("This directory just changed. Reload and try again.");
+    return place(tx, order, placement, s.id);
+  });
+  // A dead listing being swapped out shouldn't keep being monitored.
+  await trackSubmission(s.id);
+  return { row, directory: placement.directory };
+}
+
+/** Staff add a directory they chose to an order that's short of its package's count. */
+export async function addOrderDirectory(orderId: string, directoryId: string) {
+  const order = await changeableOrder(orderId);
+  const [{ scheduled }] = await db()
+    .select({ scheduled: sql<number>`count(*)::int` })
+    .from(submissions)
+    .where(and(eq(submissions.submissionOrderId, order.id), ne(submissions.status, "replaced")));
+  if (scheduled >= order.targetCount) {
+    throw new SubmissionError(`This order already has its ${order.targetCount} directories. Swap one instead.`);
+  }
+  const placement = await checkPlacement(order, directoryId);
+  const row = await place(db(), order, placement, null);
+  return { row, directory: placement.directory };
+}
+
 /** Marks an order delivered and sends the client their report. */
 export async function deliverOrder(orderId: string, now = new Date()) {
   const [order] = await db()
@@ -743,8 +880,10 @@ export async function checkBadgeBlocks(now = new Date()) {
     } catch {
       // Unreachable today: try again tomorrow (the wait still runs).
     }
-    const waited = now.getTime() - (order.badgeBlockSentAt ?? order.intakeAt ?? now).getTime();
+    const askedAt = (order.badgeBlockSentAt ?? order.intakeAt ?? now).getTime();
     for (const r of held) {
+      // A directory staff swapped in after the block went out gets its own full wait.
+      const waited = now.getTime() - Math.max(askedAt, r.s.updatedAt.getTime());
       let domain: string;
       try {
         domain = domainOf(r.d.url);

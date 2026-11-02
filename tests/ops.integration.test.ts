@@ -97,6 +97,7 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
           name: "Badge A",
           url: "https://badge-a.test",
           dr: 95,
+          linkTypeClaimed: "dofollow" as const,
           badgeRequired: true,
           badgeSnippet: '<a href="https://badge-a.test/p/acme"><img src="https://badge-a.test/b.svg"></a>',
         },
@@ -105,6 +106,7 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
           name: "Badge B",
           url: "https://badge-b.test",
           dr: 94,
+          linkTypeClaimed: "dofollow" as const,
           badgeRequired: true,
           badgeSnippet: '<a href="https://badge-b.test"><img src="https://badge-b.test/b.svg"></a>',
         },
@@ -113,6 +115,7 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
           name: `Plain ${i}`,
           url: `https://plain-${i}.test`,
           dr: 60 + i,
+          linkTypeClaimed: "dofollow" as const,
         })),
       ]);
 
@@ -242,7 +245,7 @@ describe.skipIf(!TEST_DB)("submission ops tooling (Postgres)", () => {
     await dbmod
       .db()
       .insert(dbmod.schema.directories)
-      .values({ slug: "spare", name: "Spare", url: "https://spare.test" });
+      .values({ slug: "spare", name: "Spare", url: "https://spare.test", linkTypeClaimed: "dofollow" });
     expect(await subs.checkBadgeBlocks(new Date())).toMatchObject({ found: 1, replaced: 0 });
     expect((await rowFor("badge-a"))!.badgeSeenAt).not.toBeNull();
     await subs.updateOrderSubmission(a.id, { status: "submitted" });

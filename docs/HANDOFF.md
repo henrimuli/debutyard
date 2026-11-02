@@ -179,7 +179,7 @@ These are smaller and mostly independent. Pick them up after A and B, or interle
 ## 4. Owner's tasks (not code; mention them in PR descriptions when relevant)
 
 - **Deploy:** run `pnpm db:migrate` against Supabase after each merge that adds migrations. Set Vercel env vars per `.env.example`: `RESEND_API_KEY`, the Paystack and PayPal keys, `CRON_SECRET`, `ADMIN_EMAIL`, the R2 keys, and any new keys these workstreams add (`DR_*`, `WORKER_*`, `SERP_*`, `GEMINI_API_KEY`).
-- **Directory DR values:** import a CSV at `/admin/directories` from the owner's own Ahrefs or Moz export. The seed has DR empty on purpose: it came from a competitor's catalog, so only plain facts were kept.
+- **Directory DR values:** the daily job fills them in, or edit one at `/admin/directories`. The seed has DR empty on purpose: it came from a competitor's catalog, so only plain facts were kept.
 - **Business:** register the business and KRA PIN, open the USD bank account, finish Paystack verification (enable USD and confirm USD subscriptions) and set up PayPal Business. Set `legalName` in `src/config/site.ts`. Get the policy pages reviewed, and confirm VAT with an accountant. Make a real low-value purchase with each provider and refund it.
 - **Brand:** domains, social handles, a trademark search (PLAN §11).
 

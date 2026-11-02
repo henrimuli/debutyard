@@ -176,23 +176,6 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     }
   });
 
-  it("imports CSV: updates by slug or host, creates new rows, reports bad rows", async () => {
-    const result = await directories.importDirectoriesCsv(
-      [
-        "name,url,slug,dr,niche,badge_required,notes",
-        "Uneed,https://www.uneed.best,uneed,72,,,",
-        ',https://www.saashub.com/,,81,devtools,no,"Free, but reviewed"',
-        "New Board,https://newboard.example,,40,indie,yes,",
-        "Broken,not-a-url,,,,,",
-      ].join("\n"),
-    );
-    expect(result).toMatchObject({ created: 1, updated: 2 });
-    expect(result.errors).toHaveLength(1);
-    expect((await directories.getDirectory("uneed"))?.dr).toBe(72);
-    expect(await directories.getDirectory("saashub")).toMatchObject({ dr: 81, submissionNotes: "Free, but reviewed" });
-    expect(await directories.getDirectory("new-board")).toMatchObject({ badgeRequired: true, niche: "indie" });
-  });
-
   it("tracks DIY submissions and verifies the live link automatically", async () => {
     const u = await makeUser();
     const other = await makeUser();

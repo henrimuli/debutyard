@@ -6,11 +6,13 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { getCurrentUser, isStaff } from "@/lib/auth";
 import {
+  addOrderDirectory,
   assignOrder,
   bulkUpdate,
   deliverOrder,
   sendBadgeBlock,
   SubmissionError,
+  swapOrderDirectory,
   updateOrderSubmission,
   type OpsUpdate,
 } from "@/lib/submissions/service";
@@ -50,6 +52,23 @@ export async function bulkAction(orderId: string, ids: string[], status: "submit
     return { ok: false as const, error: "Bad request." };
   }
   return run(async () => `${await bulkUpdate(orderId, ids, status)} updated.`);
+}
+
+const placed = (verb: string, directory: { name: string; badgeRequired: boolean }) =>
+  `${verb} ${directory.name}.${directory.badgeRequired ? " Email the client the badge block so they can add its badge." : ""}`;
+
+export async function swapDirectoryAction(submissionId: string, directoryId: string) {
+  if (!uuid.safeParse(submissionId).success || !uuid.safeParse(directoryId).success) {
+    return { ok: false as const, error: "Not found." };
+  }
+  return run(async () => placed("Swapped in", (await swapOrderDirectory(submissionId, directoryId)).directory));
+}
+
+export async function addDirectoryAction(orderId: string, directoryId: string) {
+  if (!uuid.safeParse(orderId).success || !uuid.safeParse(directoryId).success) {
+    return { ok: false as const, error: "Not found." };
+  }
+  return run(async () => placed("Added", (await addOrderDirectory(orderId, directoryId)).directory));
 }
 
 export async function assignAction(orderId: string, assigneeId: string | null) {

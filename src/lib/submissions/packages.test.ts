@@ -21,6 +21,7 @@ describe("selectTargets", () => {
     dir("badge-95", { dr: 95, badgeRequired: true }),
     dir("guided-99", { dr: 99, guided: true }),
     dir("nofollow-85", { dr: 85, linkType: "nofollow" }),
+    dir("unknown-75", { dr: 75, linkType: "unknown" }),
     dir("inactive-70", { dr: 70, isActive: false }),
     dir("unmeasured", { dr: null }),
   ];
