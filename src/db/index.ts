@@ -4,6 +4,7 @@ import type { SQL } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { env } from "@/env";
+import { installQueryErrorRedaction } from "./redact-query-errors";
 import * as schema from "./schema";
 
 export type Database = NodePgDatabase<typeof schema>;
@@ -28,6 +29,7 @@ function createDb(): Database {
   pool.on("error", (e) => console.error("Postgres pool error:", e.message));
   // On Vercel, releases idle connections before the instance is suspended.
   attachDatabasePool(pool);
+  installQueryErrorRedaction();
   return drizzle(pool, { schema, casing: "snake_case" });
 }
 
