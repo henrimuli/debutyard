@@ -276,7 +276,7 @@ Verified market prices (Oct 2026): skip the queue **$6–$39.99**, featured laun
 | **Pro Launch** | **$39** | Pick any week, no badge, dofollow, **7 days featured** (rail + rotating leaderboard slot), weekly newsletter inclusion |
 | **Premium Launch** | **$79** | Pro + **30 days featured**, social posts (X/LinkedIn/Bluesky), **written launch post** on our blog (AEO-optimised, 3 links), priority on its category page |
 | **Spotlight** | **$149** | Premium + **top-of-homepage hero for the launch week (max 3 concurrent, shown as "N spots left")**, newsletter top slot, and a **Starter submission package (30 directories) bundled** |
-| **Relaunch** | **$15** | Already-launched product, new version: one more week on the board |
+| **Relaunch** | **$9 / $14 / $39** | Finished Fast Track, Pro or Premium debut: another 7, 14 or 30 days in the featured section, not back on the board. No Spotlight |
 
 All paid tiers come with a **money-back guarantee**: a full refund if the listing isn't approved, isn't live within 48h, or the link isn't dofollow (SaaSCity's guarantee; it removes the risk for buyers).
 

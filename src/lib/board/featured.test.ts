@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => ({ db: () => ({}) }));
-const { isFeaturedNow, isHeroNow } = await import("./featured");
+const { featuredEndsAt, featuredStartsAt, isFeaturedNow, isHeroNow } = await import("./featured");
 
 describe("featured windows", () => {
   const week = "2026-W44"; // starts Mon Oct 26 2026
   const at = (iso: string) => new Date(iso);
+
+  it("opens at the debut week, or at approval if that came later, and closes after the tier's days", () => {
+    expect(featuredStartsAt(week, at("2026-10-01T00:00:00Z"))).toEqual(at("2026-10-26T00:00:00Z"));
+    expect(featuredStartsAt(week, at("2026-10-28T15:00:00Z"))).toEqual(at("2026-10-28T15:00:00Z"));
+    expect(featuredEndsAt("pro", week, null)).toEqual(at("2026-11-09T00:00:00Z"));
+    expect(featuredEndsAt("free", week, null)).toBeNull();
+  });
   const booked = at("2026-10-20T09:00:00Z"); // approved before its week started
 
   it("features Fast Track 7 days, Pro 14 and Premium/Spotlight 30 from the debut week's start", () => {

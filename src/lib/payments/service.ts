@@ -339,6 +339,14 @@ export async function refundOrder(orderId: string, reason: string, amountCents?:
       .set({ status: "cancelled" })
       .where(and(eq(schema.submissionOrders.orderId, orderId), ne(schema.submissionOrders.status, "delivered")));
   }
+  // A fully refunded relaunch comes down, with nothing to report on.
+  if (full && order.kind === "relaunch") {
+    const now = new Date();
+    await db()
+      .update(schema.featuredReruns)
+      .set({ endsAt: now, endedEmailAt: now })
+      .where(eq(schema.featuredReruns.orderId, orderId));
+  }
   // A fully refunded featured slot comes down and frees its inventory.
   if (full && order.kind === "featured") {
     await db().update(schema.adBookings).set({ status: "cancelled" }).where(eq(schema.adBookings.orderId, orderId));

@@ -11,6 +11,7 @@ import type { ProviderId } from "@/lib/payments/types";
 import { limit } from "@/lib/billing/entitlements";
 import { MAX_EXTRA_BOOKING_WEEKS } from "@/lib/billing/plans";
 import { withRef } from "@/lib/board/links";
+import { paidDebutStands } from "@/lib/products/relaunch";
 import { addWeeks, formatWeekLabel, formatWeekRange, upcomingWeekKeys, weekBounds, weekKeyFor } from "@/lib/weeks";
 import {
   BOOKING_HORIZON_WEEKS,
@@ -457,7 +458,7 @@ export async function settleBookings(now = new Date()) {
   }
 
   const due = await db()
-    .select({ b: adBookings, paidCents: orders.amountCents, productName: products.name })
+    .select({ b: adBookings, paidCents: orders.amountCents, productName: products.name, product: products })
     .from(adBookings)
     .innerJoin(products, eq(products.id, adBookings.productId))
     .leftJoin(orders, eq(orders.id, adBookings.orderId))
@@ -472,7 +473,7 @@ export async function settleBookings(now = new Date()) {
     );
 
   const result = { extended: 0, completed: 0 };
-  for (const { b, paidCents, productName } of due) {
+  for (const { b, paidCents, productName, product } of due) {
     const paid = paidCents ?? 0;
     if (shouldExtend({ placement: b.placement, paidCents: paid, clicks: b.clicks, extensions: b.extensions })) {
       await db()
@@ -490,19 +491,27 @@ export async function settleBookings(now = new Date()) {
     if (!done) continue;
     result.completed++;
     const owner = b.userId ? await db().query.user.findFirst({ where: eq(schema.user.id, b.userId) }) : null;
-    if (owner)
-      await sendReport(owner.email, done, productName, paid).catch((err) => console.error("ad report failed", err));
+    if (owner) {
+      const keepsListing =
+        product.status === "approved" && product.tier !== "free" && (await paidDebutStands(product.id));
+      await sendReport(owner.email, done, productName, paid, keepsListing).catch((err) =>
+        console.error("ad report failed", err),
+      );
+    }
   }
   return result;
 }
 
-async function sendReport(to: string, b: Booking, productName: string, paidCents: number) {
+async function sendReport(to: string, b: Booking, productName: string, paidCents: number, keepsListing: boolean) {
   const label = PLACEMENTS[b.placement].label;
   const cpc = cpcCents(paidCents, b.clicks);
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   const facts: Array<[string, string]> = [
+    ["Ran", `${day(b.startsAt)} to ${day(b.endsAt)}`],
     ["Impressions", String(b.impressions)],
     ["Clicks", String(b.clicks)],
   ];
+  if (b.impressions > 0) facts.push(["Click rate", `${((100 * b.clicks) / b.impressions).toFixed(1)}%`]);
   if (cpc !== null && paidCents > 0) facts.push(["Cost per click", formatUsd(cpc)]);
   await sendEmail({
     to,
@@ -523,7 +532,18 @@ async function sendReport(to: string, b: Booking, productName: string, paidCents
               },
             ]
           : []),
-        { button: "Book again", href: new URL("/advertise", env().NEXT_PUBLIC_SITE_URL).toString() },
+        ...(keepsListing
+          ? [
+              {
+                callout: "Your listing stays up for good",
+                text: "Your product page is permanent and keeps its dofollow link. No badge is required, now or later.",
+              },
+            ]
+          : []),
+        {
+          button: "Book another slot",
+          href: new URL("/dashboard/sponsorships#book", env().NEXT_PUBLIC_SITE_URL).toString(),
+        },
       ],
     }),
   });

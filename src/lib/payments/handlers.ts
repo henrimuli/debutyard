@@ -47,6 +47,12 @@ registerFulfillment("launch", async (order) => {
   });
 });
 
+/** More featured time for a finished paid debut. */
+registerFulfillment("relaunch", async (order) => {
+  const { startRerun } = await import("@/lib/products/relaunch");
+  await startRerun(order);
+});
+
 /** Submission packages: open the order and send the buyer their private intake link. */
 registerFulfillment("submission", async (order) => {
   const { openOrderFromPayment } = await import("@/lib/submissions/service");

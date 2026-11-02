@@ -272,6 +272,8 @@ export async function applyPaidTier(productId: string, tier: Tier, requestedWeek
 
   const newTier = tierRank(tier) > tierRank(p.tier) ? tier : p.tier;
   const patch: Partial<Product> = { tier: newTier, requestedWeekKey: requestedWeekKey ?? p.requestedWeekKey };
+  // A bigger tier is a new run, which gets its own email when it ends.
+  if (newTier !== p.tier) patch.runEndedEmailAt = null;
   if (p.status === "draft" || p.status === "rejected") {
     Object.assign(patch, { status: "pending", submittedAt: new Date(), rejectionReason: null });
   }

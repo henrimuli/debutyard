@@ -776,8 +776,120 @@ describe.skipIf(!TEST_DB)("launch board (Postgres)", () => {
     expect(await ads.settleBookings(later)).toEqual({ extended: 0, completed: 1 });
     b = await dbmod.db().query.adBookings.findFirst({ where: eq(dbmod.schema.adBookings.id, bookingId) });
     expect(b?.status).toBe("completed");
-    expect(sent.some((e) => e.subject === "Your Leaderboard slot results: 15 clicks")).toBe(true);
+    const report = sent.find((e) => e.subject === "Your Leaderboard slot results: 15 clicks");
+    expect(report?.text).toContain("/dashboard/sponsorships#book");
+    // A free listing's link depends on its badge, so there's no promise about it.
+    expect(report?.text).not.toContain("stays up for good");
     expect(await ads.settleBookings(later)).toEqual({ extended: 0, completed: 0 });
+  });
+
+  it("emails a finished paid debut once, and sells it more featured time", async () => {
+    const { relaunchFor, sendRunEndEmails } = await import("@/lib/products/relaunch");
+    const { featuredNow } = await import("@/lib/board/featured");
+    const P = dbmod.schema.products;
+    const startedWeeksAgo = async (id: string, weeks: number, tier: "pro" | "spotlight" | "free") => {
+      const week = addWeeks(thisWeek, -weeks);
+      await products.ensureWeek(week);
+      await dbmod
+        .db()
+        .update(P)
+        .set({ tier, launchWeekKey: week, approvedAt: weekBounds(week).startsAt })
+        .where(eq(P.id, id));
+    };
+    const about = (text: string) => sent.filter((e) => e.subject.includes(text));
+
+    const u = await makeUser();
+    const p = await liveProduct(u, "rerun.io");
+    await startedWeeksAgo(p.id, 2, "pro");
+    await dbmod
+      .db()
+      .insert(dbmod.schema.productEvents)
+      .values({ productId: p.id, kind: "view", createdAt: weekBounds(addWeeks(thisWeek, -2)).startsAt });
+    // Spotlight gets the email with no offer; a free listing and a long-finished debut get nothing.
+    const spot = await liveProduct(await makeUser(), "rerun-spot.io");
+    await startedWeeksAgo(spot.id, 5, "spotlight");
+    const freeOwner = await makeUser();
+    const free = await liveProduct(freeOwner, "rerun-free.io");
+    await startedWeeksAgo(free.id, 2, "free");
+    const old = await liveProduct(await makeUser(), "rerun-old.io");
+    await startedWeeksAgo(old.id, 8, "pro");
+
+    sent.length = 0;
+    await sendRunEndEmails();
+    expect(about("rerun.io")).toHaveLength(1);
+    expect(about("rerun.io")[0].subject).toBe("Your Pro Debut for rerun.io has finished: 1 view");
+    expect(about("rerun.io")[0].text).toContain("14 more days, $14");
+    expect(about("rerun.io")[0].text).toContain("stays up for good");
+    expect(about("rerun-spot.io")).toHaveLength(1);
+    expect(about("rerun-spot.io")[0].text).not.toContain("more days");
+    expect(about("rerun-free.io")).toHaveLength(0);
+    expect(about("rerun-old.io")).toHaveLength(0);
+    await sendRunEndEmails();
+    expect(about("rerun.io")).toHaveLength(1);
+
+    // Only the owner, and not a tier with no offer.
+    expect(await relaunchFor(await makeUser(), p.id)).toBeNull();
+    expect(await relaunchFor(freeOwner, free.id)).toBeNull();
+    const view = await relaunchFor(u, p.id);
+    expect(view).toMatchObject({ offer: { sku: "relaunch_pro", days: 14, amountCents: 1400 }, featuredUntil: null });
+
+    // Paying features it again, once however many times the payment is confirmed.
+    const buy = async () => {
+      const { url } = await payments.startCheckout({
+        skuId: "relaunch_pro",
+        provider: "paystack",
+        email: `${u}@x.test`,
+        userId: u,
+        metadata: { productId: p.id },
+      });
+      await pay(url, 1400);
+      await pay(url, 1400);
+      return url.split("/").pop()!;
+    };
+    const orderId = await buy();
+    const R = dbmod.schema.featuredReruns;
+    const reruns = await dbmod.db().select().from(R).where(eq(R.productId, p.id));
+    expect(reruns).toHaveLength(1);
+    expect(reruns[0].endsAt.getTime() - reruns[0].startsAt.getTime()).toBe(14 * 86_400_000);
+    expect((await featuredNow()).map((f) => f.slug)).toContain("rerun-io");
+    expect((await relaunchFor(u, p.id))?.featuredUntil).toEqual(reruns[0].endsAt);
+    expect(sent.filter((e) => e.subject === "rerun.io is featured again")).toHaveLength(1);
+
+    // It reports when it ends, with the offer again.
+    const after = new Date(reruns[0].endsAt.getTime() + 3600_000);
+    sent.length = 0;
+    await sendRunEndEmails(after);
+    expect(about("Extra featured time for rerun.io")).toHaveLength(1);
+    expect(about("Extra featured time for rerun.io")[0].text).toContain("14 more days, $14");
+    await sendRunEndEmails(after);
+    expect(about("Extra featured time for rerun.io")).toHaveLength(1);
+
+    // A refund takes a relaunch down, with no report; refunding the debut stops the offer and the promise.
+    await dbmod
+      .db()
+      .update(R)
+      .set({ endsAt: new Date(Date.now() - 1000) })
+      .where(eq(R.orderId, orderId));
+    const second = await buy();
+    expect((await featuredNow()).map((f) => f.slug)).toContain("rerun-io");
+    await payments.refundOrder(second, "test");
+    expect((await featuredNow()).map((f) => f.slug)).not.toContain("rerun-io");
+    sent.length = 0;
+    await sendRunEndEmails(new Date(Date.now() + 15 * 86_400_000));
+    expect(about("Extra featured time for rerun.io")).toHaveLength(0);
+
+    const { url: debutUrl } = await payments.startCheckout({
+      skuId: "launch_pro",
+      provider: "paystack",
+      email: `${u}@x.test`,
+      userId: u,
+      metadata: { productId: p.id },
+    });
+    await pay(debutUrl, 3900);
+    const debut = debutUrl.split("/").pop()!;
+    await dbmod.db().insert(dbmod.schema.productOrders).values({ orderId: debut, productId: p.id });
+    await payments.refundOrder(debut, "test");
+    expect(await relaunchFor(u, p.id)).toBeNull();
   });
 
   it("puts a booked newsletter sponsor in that week's digest", async () => {
