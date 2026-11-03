@@ -3,6 +3,7 @@ import {
   asksIfSpam,
   asksToStop,
   declines,
+  readFailure,
   bouncedAddress,
   isAutoReply,
   isBounce,
@@ -92,5 +93,29 @@ describe("declines", () => {
     expect(declines("Not interested in SEO, but do you do directories in Germany?")).toBe(false);
     expect(declines(`${"We looked at this closely and thought about it. ".repeat(6)} not interested`)).toBe(false);
     expect(declines("Sounds good, tell me more")).toBe(false);
+  });
+});
+
+describe("readFailure", () => {
+  const failure = (extra: object) => Object.assign(new Error("Command failed"), extra);
+
+  it("says what the server answered", () => {
+    expect(readFailure(failure({ responseText: "Mailbox doesn't exist" }))).toBe(
+      "Command failed: Mailbox doesn't exist",
+    );
+  });
+
+  it("calls a refused login what it is", () => {
+    expect(readFailure(failure({ authenticationFailed: true, responseText: "Invalid credentials" }))).toBe(
+      "The server refused the login: Invalid credentials",
+    );
+    expect(readFailure(failure({ authenticationFailed: true }))).toBe("The server refused the login");
+  });
+
+  it("keeps other errors as they are", () => {
+    expect(readFailure(new Error("getaddrinfo ENOTFOUND imap.example.com"))).toBe(
+      "getaddrinfo ENOTFOUND imap.example.com",
+    );
+    expect(readFailure("odd")).toBe("odd");
   });
 });

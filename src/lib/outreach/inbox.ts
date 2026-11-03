@@ -12,6 +12,7 @@ import {
   asksIfSpam,
   asksToStop,
   declines,
+  readFailure,
   bouncedAddress,
   isAutoReply,
   isBounce,
@@ -246,8 +247,7 @@ async function pollOne(
     return { read: read.mails.length, filed, failed: 0 };
   } catch (err) {
     console.error("outreach mailbox read failed", box.address, err);
-    const message = err instanceof Error ? err.message : String(err);
-    await saveMailboxState(box.address, { imapCheckedAt: now, imapError: message.slice(0, 500) });
+    await saveMailboxState(box.address, { imapCheckedAt: now, imapError: readFailure(err).slice(0, 500) });
     return { read: 0, filed: 0, failed: 1 };
   }
 }

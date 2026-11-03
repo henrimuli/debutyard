@@ -31,6 +31,20 @@ export const suppressionFor = (c: ReplyClass): string | null =>
 
 export type InboundHeaders = Record<string, string>;
 
+/**
+ * Why a mailbox couldn't be read, for the dashboard. The IMAP library says only
+ * "Command failed" whatever the server answered, and keeps the answer on the side.
+ */
+export function readFailure(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const { authenticationFailed, responseText } = err as Error & {
+    authenticationFailed?: boolean;
+    responseText?: string;
+  };
+  const said = responseText ? `: ${responseText}` : "";
+  return authenticationFailed ? `The server refused the login${said}` : `${err.message}${said}`;
+}
+
 const BOUNCE_FROM = /^(mailer-daemon|postmaster|mail-daemon|bounces?)@/i;
 const BOUNCE_SUBJECT =
   /delivery (status notification|has failed|failure|incomplete)|undeliverable|undelivered mail|returned mail|mail delivery failed|failure notice/i;
