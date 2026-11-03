@@ -34,13 +34,16 @@ export type InboundHeaders = Record<string, string>;
 /** Sent once when a mailbox joins the warm-up network. */
 const WARMUP_SUBJECT = /^(re:\s*)?trulyinbox mailbox verification\b/i;
 
+/** The "Warmup Filter ID" in TrulyInbox's mailbox settings. It's editable there, so the two have to match. */
+const WARMUP_FILTER_ID = "20998800";
+
 /**
- * Warm-up mail from other mailboxes in the network. Each one carries a marker in
- * its text, set as OUTREACH_WARMUP_TAGS. The warm-up service deals with these
- * itself, so we only have to leave them alone.
+ * Warm-up mail from other mailboxes in the network, which carries the filter ID
+ * in its text. The warm-up service deals with these itself, so we only have to
+ * leave them alone.
  */
-export const isWarmup = (mail: { subject: string; text: string }, tags: string[]) =>
-  WARMUP_SUBJECT.test(mail.subject.trim()) || tags.some((tag) => mail.text.includes(tag));
+export const isWarmup = (mail: { subject: string; text: string }) =>
+  WARMUP_SUBJECT.test(mail.subject.trim()) || mail.text.includes(WARMUP_FILTER_ID);
 
 /**
  * Why a mailbox couldn't be read, for the dashboard. The IMAP library says only

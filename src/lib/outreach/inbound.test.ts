@@ -122,28 +122,26 @@ describe("readFailure", () => {
 });
 
 describe("isWarmup", () => {
-  const tags = ["20998800"];
   const signed = (phone: string) => ({
     subject: "Henry, let's get real",
     text: `Hi Henry\n\nGood to connect with you.\n\nCheers,\nLinda White\nPhone: ${phone}`,
   });
 
-  it("spots the marker however the number is written around it", () => {
-    expect(isWarmup(signed("+61 2 20998800"), tags)).toBe(true);
-    expect(isWarmup(signed("+1 (312) 20998800"), tags)).toBe(true);
+  it("spots the filter ID however the number is written around it", () => {
+    expect(isWarmup(signed("+61 2 20998800"))).toBe(true);
+    expect(isWarmup(signed("+1 (312) 20998800"))).toBe(true);
   });
 
   it("spots it in a reply that only quotes it", () => {
-    expect(isWarmup({ subject: "Re: x", text: "Thanks!\n\n> Phone: +49 30 20998800" }, tags)).toBe(true);
+    expect(isWarmup({ subject: "Re: x", text: "Thanks!\n\n> Phone: +49 30 20998800" })).toBe(true);
   });
 
-  it("spots the verification email without any tag", () => {
-    expect(isWarmup({ subject: "TrulyInbox mailbox verification 295ecd9f", text: "" }, [])).toBe(true);
+  it("spots the verification email", () => {
+    expect(isWarmup({ subject: "TrulyInbox mailbox verification 295ecd9f", text: "" })).toBe(true);
   });
 
   it("leaves someone with a different number alone", () => {
-    expect(isWarmup(signed("+61 2 20998811"), tags)).toBe(false);
-    expect(isWarmup(signed("+61 2 20998800"), [])).toBe(false);
-    expect(isWarmup({ subject: "How does TrulyInbox compare?", text: "Curious." }, tags)).toBe(false);
+    expect(isWarmup(signed("+61 2 20998811"))).toBe(false);
+    expect(isWarmup({ subject: "How does TrulyInbox compare?", text: "Curious." })).toBe(false);
   });
 });

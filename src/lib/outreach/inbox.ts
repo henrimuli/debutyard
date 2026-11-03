@@ -74,12 +74,6 @@ async function classify(mail: InboundMail, own: string): Promise<ReplyClass> {
   }
 }
 
-const warmupTags = () =>
-  (env().OUTREACH_WARMUP_TAGS ?? "")
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
-
 async function matchEmail(mail: InboundMail) {
   const refs = referenced(mail.inReplyTo, mail.references);
   if (refs.length) {
@@ -151,7 +145,7 @@ export async function receiveMail(mail: InboundMail, now = new Date(), receivedB
 
   const email = await matchEmail(mail);
   // Checked before the model so warm-up volume costs nothing. Anything that answers a real email still gets filed.
-  if (!email && isWarmup(mail, warmupTags())) return null;
+  if (!email && isWarmup(mail)) return null;
   const ownText = splitQuoted(mail.text).own || mail.text;
   const kind = await classify(mail, ownText);
   const human = kind !== "auto_reply";
