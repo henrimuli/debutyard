@@ -30,6 +30,7 @@ describe("blockHtml", () => {
   it("turns into a looping strip with many, keeping the copy out of the tab order", () => {
     const html = blockHtml(key, Array(MOVING_AT).fill(badge));
     expect(html).toContain('class="debutyard-moving"');
+    expect(html).toContain("max-width:800px;margin:48px auto");
     expect(html.split(badge)).toHaveLength(MOVING_AT + 1);
     expect(html).toContain('aria-hidden="true"');
     expect(html.split('<a tabindex="-1" ')).toHaveLength(MOVING_AT + 1);
