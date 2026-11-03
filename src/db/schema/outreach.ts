@@ -166,9 +166,8 @@ export const outreachEmails = pgTable(
     toAddress: text("to_address").notNull().unique(),
     fromAddress: text("from_address"),
     subject: text("subject").notNull(),
-    /** Plain text, with the links in it. */
+    /** The email exactly as it goes out: plain text, with its link in it. */
     body: text("body").notNull(),
-    html: text("html").notNull(),
     /** In the click and unsubscribe links. */
     token: text("token").notNull().unique(),
     /** RFC Message-ID, angle brackets included, fixed before sending so replies always match. */

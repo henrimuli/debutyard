@@ -439,6 +439,16 @@ export function looksLikeScanner(userAgent: string | null, secondsSinceSent: num
   return !userAgent || SCANNER_UA.test(userAgent) || secondsSinceSent < 20;
 }
 
+/** How many sends in a row with no response before the dashboard says something. */
+export const IGNORED_AFTER = 30;
+
+/**
+ * Nothing from a whole batch usually means it isn't being seen. We don't track
+ * opens, so this stands in for the guide's "open rate dropped". It only warns.
+ */
+export const looksIgnored = (recent: Array<{ clicked: boolean; replied: boolean }>) =>
+  recent.length >= IGNORED_AFTER && !recent.some((r) => r.clicked || r.replied);
+
 /** Stops sending once the last sends look unhealthy. Null means carry on. */
 export function healthProblem(recent: { sent: number; bounced: number; complained: number }): string | null {
   if (recent.complained >= 1 && recent.sent < 100) return `a spam complaint in the last ${recent.sent} sends`;

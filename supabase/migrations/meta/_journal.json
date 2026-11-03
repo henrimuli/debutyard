@@ -302,6 +302,13 @@
       "when": 1793700568458,
       "tag": "20261103100928_outreach_mailboxes_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793711922824,
+      "tag": "20261103131842_outreach_text_only",
+      "breakpoints": true
     }
   ]
 }

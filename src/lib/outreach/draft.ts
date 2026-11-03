@@ -1,11 +1,12 @@
 import { site } from "@/config/site";
-import { esc } from "@/lib/email-template";
+import { allSpins, spin, variations } from "./variety";
 
 /**
  * Turns the writer's answer into the email. The model only ever writes words:
  * every name, keyword and score reaches the email through a placeholder that
  * code fills from the research, so it can't state a fact we didn't measure.
- * Greeting, link, sign-off and footer are fixed here. Pure.
+ * Greeting, sign-off and opt-out are set here in spintax, so no two emails share
+ * the same fixed wording. Plain text only. Pure.
  */
 
 export type DraftFacts = {
@@ -42,6 +43,15 @@ const PRICES =
   /[$€£¥]|\b(prices?|pricing|costs?|fees?|discounts?|cheap|affordable|afford|packages?|per month|monthly|usd|dollars?|free|offer|deal)\b/i;
 const OVERCLAIMS =
   /\b(first place|first page|number one|guarantee[ds]?|guaranteeing|will rank|rank you|top of google|skyrocket|explode|10x|game[- ]chang\w*|revolution\w*|act now|limited time|urgent|don't miss)\b|#\s?1/i;
+/**
+ * Words spam filters and checkers commonly dislike. Our own list, kept short
+ * because a draft that hits one gets rewritten, and that costs a model call.
+ */
+const SPAM_WORDS =
+  /\b(act now|apply now|buy now|call now|click (here|below)|order now|sign up now|best price|lowest price|bargain|cash|credit card|make money|earn(ing)?|extra income|exclusive|expires?|hurry|instant(ly)?|incredible|amazing|miracle|winner|congratulations|promise[ds]?|promotion(al)?|opportunity|no obligation|no cost|risk[- ]free|double your|boost your|increase your|dear friend|once in a lifetime|spam|unsubscribe)\b/i;
+
+export const spamWordIn = (text: string) => SPAM_WORDS.exec(text)?.[0] ?? null;
+
 const LINKS = /https?:|www\.|\b[a-z0-9-]+\.(com|io|ai|co|app|net|org|dev)\b/i;
 /** A capitalised word in mid-sentence is a name, and names come from placeholders. */
 const MID_SENTENCE_NAME = /(?<=[a-z,;:'"] )([A-Z][a-zA-Z]+)/g;
@@ -56,6 +66,8 @@ function problemsIn(raw: string, ctx: DraftContext, known: Record<string, string
   if (price) problems.push(`mentions pricing: "${price}"`);
   const claim = OVERCLAIMS.exec(words)?.[0];
   if (claim) problems.push(`overclaims: "${claim}"`);
+  const spam = spamWordIn(words);
+  if (spam) problems.push(`uses a word spam filters dislike: "${spam}"`);
   if (LINKS.test(words)) problems.push("wrote a link or domain");
   if (/[{}]/.test(words)) problems.push("broken placeholder");
   if (/[—]/.test(words)) problems.push("uses an em dash");
@@ -96,9 +108,31 @@ export function fillDraft(answer: WriterAnswer, ctx: DraftContext): FilledDraft 
   return { ok: true, subject: fill(subject, known), paragraphs: paragraphs.map((p) => fill(p, known)) };
 }
 
-/** The sentence that carries the link, e.g. "{link:Here's how it works} if you'd like a look." */
-const CLOSING_LINK = /\{link:([^}]+)\}/;
-export const closingIsValid = (closing: string) => CLOSING_LINK.test(closing) && !PRICES.test(closing);
+/** The sentence just above the link. Every wording it can spin to has to pass. */
+export function closingIsValid(closing: string): boolean {
+  try {
+    const all = allSpins(closing);
+    return all.every((c) => c.trim() && !/[{}]/.test(c) && !PRICES.test(c) && !LINKS.test(c) && !spamWordIn(c));
+  } catch {
+    return false;
+  }
+}
+
+/** The wording around what the writer writes. "Hey team" and the launch line are Henry's own; the rest are close to them. */
+export const FIXED_COPY = {
+  greeting: "{{Hey|Hi|Hello}} {{team|there}},",
+  opening:
+    "{{Congrats on the launch|Congrats on launching|Nice launch}}, {{I came across|I found|I just came across}} {business} and {{wanted to reach out directly|thought I'd reach out directly|wanted to write to you directly}}.",
+  signOff: "{{Thanks|Best|Cheers}},\nHenry\nFounder, DebutYard",
+  // Replies are read, and these ones block the sender. The one-click header in pipeline.ts covers everyone else.
+  optOut:
+    "{{If you'd rather not hear from me, just let me know.|Reply \"not interested\" if this isn't relevant.|If this isn't useful, just say so and I won't write again.|If you don't want to hear from me again, just reply and tell me.}}",
+};
+
+/** How many ways the fixed wording can come out, before the version's closing. */
+export const fixedVariations = () => Object.values(FIXED_COPY).reduce((n, t) => n * variations(t), 1);
+
+export const footerLine = (postalAddress: string) => `${site.legalName}, ${postalAddress}`;
 
 export type RenderInput = {
   business: string;
@@ -106,38 +140,24 @@ export type RenderInput = {
   paragraphs: string[];
   closing: string;
   linkUrl: string;
-  unsubscribeUrl: string;
   postalAddress: string;
+  /** The email's token: its choices stay the same however many times it's rendered. */
+  seed: string;
 };
 
-export const SIGN_OFF = "Henry\nFounder, DebutYard";
-
-/** A plain email: no logo, no button, just what someone would write by hand, in text and in the simplest HTML. */
-export function renderOutreachEmail(e: RenderInput): { subject: string; text: string; html: string } {
-  const opening = `Congrats on the launch, I came across ${e.business} and wanted to reach out directly.`;
-  const label = CLOSING_LINK.exec(e.closing)?.[1] ?? "Here's how it works";
-  const closingText = e.closing.replace(CLOSING_LINK, label);
-  const footer = `${site.legalName}, ${e.postalAddress}`;
+/** A plain text email, just what someone would write by hand. */
+export function renderOutreachEmail(e: RenderInput): { subject: string; text: string } {
+  const choose = (template: string, part: string) => spin(template, `${e.seed}:${part}`);
+  const closing = choose(e.closing, "closing");
+  if (/[{}]/.test(closing)) throw new Error("A version's closing has a placeholder left in it");
   const text = [
-    "Hey team,",
-    opening,
+    choose(FIXED_COPY.greeting, "greeting"),
+    choose(FIXED_COPY.opening, "opening").replace("{business}", () => e.business),
     ...e.paragraphs,
-    `${closingText}\n${e.linkUrl}`,
-    SIGN_OFF,
-    `--\n${footer}\nNot useful? Unsubscribe here: ${e.unsubscribeUrl}`,
+    `${closing}\n${e.linkUrl}`,
+    choose(FIXED_COPY.signOff, "signOff"),
+    choose(FIXED_COPY.optOut, "optOut"),
+    footerLine(e.postalAddress),
   ].join("\n\n");
-  const p = (inner: string) => `<p style="margin:0 0 14px">${inner}</p>`;
-  const closingHtml = esc(e.closing).replace(
-    /\{link:([^}]+)\}/,
-    (_, words: string) => `<a href="${esc(e.linkUrl)}">${words}</a>`,
-  );
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#222222">${[
-    p("Hey team,"),
-    p(esc(opening)),
-    ...e.paragraphs.map((x) => p(esc(x))),
-    p(closingHtml),
-    p(SIGN_OFF.split("\n").map(esc).join("<br>")),
-    `<p style="margin:22px 0 0;font-size:12px;line-height:1.5;color:#777777">${esc(footer)}<br>Not useful? <a href="${esc(e.unsubscribeUrl)}" style="color:#777777">Unsubscribe</a>.</p>`,
-  ].join("")}</div>`;
-  return { subject: e.subject, text, html };
+  return { subject: e.subject, text };
 }

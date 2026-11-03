@@ -73,7 +73,7 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
         return { uidValidity: "1", lastUid: since.lastUid + mails.length, mails };
       },
     });
-    await variants.ensureControl();
+    await variants.ensureSeeds();
   });
 
   beforeEach(async () => {
@@ -122,13 +122,19 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
         toAddress: to,
         subject: "Hello",
         body: "Hey team,",
-        html: "<p>Hey team,</p>",
         token: `tok-${domain}`,
         messageId: `<${domain}@trydebutyard.com>`,
       })
       .returning();
     return { prospect: prospect!, email: email! };
   }
+
+  it("starts with one version running and two waiting for approval, and adds them only once", async () => {
+    await variants.ensureSeeds();
+    const rows = await variants.variantStats();
+    expect(rows.filter((r) => r.variant.status === "testing")).toHaveLength(1);
+    expect(rows.filter((r) => r.variant.status === "pending")).toHaveLength(2);
+  });
 
   it("starts switched off, at 5 a day", async () => {
     const s = await settings.getSettings();

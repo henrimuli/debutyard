@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   asksIfSpam,
   asksToStop,
+  declines,
   bouncedAddress,
   isAutoReply,
   isBounce,
@@ -73,5 +74,23 @@ describe("threading", () => {
   it("collects referenced message ids", () => {
     expect(referenced("<a@x>", "<b@x> <a@x>")).toEqual(["<a@x>", "<b@x>"]);
     expect(referenced(null, undefined)).toEqual([]);
+  });
+});
+
+describe("declines", () => {
+  it.each([
+    "Not interested",
+    "not interested, thanks",
+    "No thanks.",
+    "No thank you",
+    "This isn't useful, not relevant to us.",
+  ])("catches %s", (t) => {
+    expect(declines(t)).toBe(true);
+  });
+
+  it("leaves questions and long replies to the model", () => {
+    expect(declines("Not interested in SEO, but do you do directories in Germany?")).toBe(false);
+    expect(declines(`${"We looked at this closely and thought about it. ".repeat(6)} not interested`)).toBe(false);
+    expect(declines("Sounds good, tell me more")).toBe(false);
   });
 });

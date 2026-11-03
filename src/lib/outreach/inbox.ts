@@ -11,6 +11,7 @@ import { site } from "@/config/site";
 import {
   asksIfSpam,
   asksToStop,
+  declines,
   bouncedAddress,
   isAutoReply,
   isBounce,
@@ -49,6 +50,7 @@ async function classify(mail: InboundMail, own: string): Promise<ReplyClass> {
   if (isAutoReply(mail.subject, mail.headers)) return "auto_reply";
   if (asksIfSpam(own)) return "complaint";
   if (asksToStop(own)) return "unsubscribe";
+  if (declines(own)) return "not_interested";
   if (!geminiConfigured()) return "other";
   try {
     const answer = (await geminiJson({

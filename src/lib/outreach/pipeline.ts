@@ -17,7 +17,7 @@ import { researchProspect, serpSearch } from "./research";
 import { dailyTarget, healthProblem, pickSender, registrableDomain, sendsDue } from "./rules";
 import { getSettings, saveMailboxState, updateSettings } from "./settings";
 import { isSuppressed } from "./suppressions";
-import { ensureControl, pickVariant, proposeIfDue, retireLosers, variantStats } from "./variants";
+import { ensureSeeds, pickVariant, proposeIfDue, retireLosers, variantStats } from "./variants";
 import { writeEmail } from "./writer";
 
 /**
@@ -283,7 +283,6 @@ export async function sendDraft(
       to: claimed.toAddress,
       subject: claimed.subject,
       text: claimed.body,
-      html: claimed.html,
       messageId: claimed.messageId,
       headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     });
@@ -420,10 +419,10 @@ export async function runOutreach(now = new Date(), budgetMs = BUDGET_MS) {
   const missing = missingForPipeline();
   if (missing.length) return { ...result, skipped: `missing ${missing.join(", ")}` };
 
-  await ensureControl();
+  await ensureSeeds();
   const rows = await variantStats();
   result.retired = await retireLosers(now, rows);
-  await proposeIfDue(rows).catch((err) => console.error("outreach variant proposal failed", err));
+  await proposeIfDue(rows, now).catch((err) => console.error("outreach variant proposal failed", err));
 
   let live = settings.mode === "live" && canGoLive();
   if (settings.mode === "live" && !live) result.notLive = "Live needs production and a mailbox: writing drafts only";
@@ -496,7 +495,6 @@ export async function sendTest(to: string) {
         to,
         subject: draft ? `[Test] ${draft.subject}` : "[Test] Outreach mailbox",
         text: draft?.body ?? `This is a test from ${box.from}.`,
-        html: draft?.html,
         messageId: `<test-${randomUUID()}@${box.address.split("@")[1]}>`,
       });
       await saveMailboxState(box.address, { sendError: null, sendErrorAt: null });

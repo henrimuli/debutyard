@@ -17,6 +17,8 @@ import {
   scoreEmail,
   sectionLooksRecent,
   sendsDue,
+  IGNORED_AFTER,
+  looksIgnored,
   dailyTarget,
   MAILBOX_DAILY_CAP,
   parseMailboxes,
@@ -325,6 +327,21 @@ describe("mailboxes", () => {
     expect(dailyTarget(500, 10)).toBe(150);
     // Dry runs can write drafts before any mailbox exists.
     expect(dailyTarget(5, 0)).toBe(5);
+  });
+});
+
+describe("looksIgnored", () => {
+  const quiet = { clicked: false, replied: false };
+  const batch = Array.from({ length: IGNORED_AFTER }, () => quiet);
+
+  it("speaks up after a whole batch with no response", () => {
+    expect(looksIgnored(batch)).toBe(true);
+  });
+
+  it("stays quiet with too few sends, or any click or reply", () => {
+    expect(looksIgnored(batch.slice(1))).toBe(false);
+    expect(looksIgnored([...batch.slice(1), { clicked: true, replied: false }])).toBe(false);
+    expect(looksIgnored([...batch.slice(1), { clicked: false, replied: true }])).toBe(false);
   });
 });
 

@@ -77,6 +77,16 @@ export function asksToStop(ownText: string): boolean {
   );
 }
 
+/** A short no. Emails invite this reply, so it has to work even when the model is down. A question goes to the model. */
+export function declines(ownText: string): boolean {
+  const t = ownText.trim();
+  return (
+    t.length <= 200 &&
+    !t.includes("?") &&
+    /\b(not interested|no thanks|no thank you|not relevant|not for us|not useful|no need|leave me alone)\b/i.test(t)
+  );
+}
+
 export const asksIfSpam = (ownText: string) =>
   /\b(this is spam|reported? (you|this|as spam)|spam(ming)? (me|us))\b/i.test(ownText);
 

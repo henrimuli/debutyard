@@ -1,8 +1,11 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, ilike, or, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, sum } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { mailboxes } from "./mailbox";
-import { looksLikeScanner } from "./rules";
+import { site } from "@/config/site";
+import { footerLine } from "./draft";
+import { IGNORED_AFTER, looksIgnored, looksLikeScanner } from "./rules";
+import { repeatedPhrases } from "./variety";
 import { suppress } from "./suppressions";
 
 /** What the admin pages read, and the few things recipients and staff can change. */
@@ -114,6 +117,31 @@ export async function mailboxRows() {
     state: states.find((s) => s.address === box.address) ?? null,
     totals: totals.find((t) => t.address === box.address) ?? { sent: 0, bounced: 0, replied: 0 },
   }));
+}
+
+/** Whether the latest sends, given two days to get a response, have all gone unanswered. */
+export async function sendsLookIgnored(now = new Date()) {
+  const e = outreachEmails;
+  const rows = await db()
+    .select({ clickedAt: e.firstClickAt, repliedAt: e.repliedAt })
+    .from(e)
+    .where(and(eq(e.status, "sent"), lt(e.sentAt, new Date(now.getTime() - 2 * 86_400_000))))
+    .orderBy(desc(e.sentAt))
+    .limit(IGNORED_AFTER);
+  return looksIgnored(rows.map((r) => ({ clicked: Boolean(r.clickedAt), replied: Boolean(r.repliedAt) })));
+}
+
+/** Wording that keeps turning up across the newest emails. */
+export async function recentRepeats() {
+  const rows = await db()
+    .select({ body: outreachEmails.body })
+    .from(outreachEmails)
+    .orderBy(desc(outreachEmails.createdAt))
+    .limit(100);
+  return repeatedPhrases(
+    rows.map((r) => r.body),
+    { except: footerLine(site.postalAddress) },
+  );
 }
 
 export const EMAIL_FILTERS = ["all", "draft", "sent", "clicked", "replied", "bounced", "failed"] as const;

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { closingIsValid, fillDraft, renderOutreachEmail, type DraftContext } from "./draft";
+import {
+  closingIsValid,
+  fillDraft,
+  FIXED_COPY,
+  fixedVariations,
+  renderOutreachEmail,
+  spamWordIn,
+  type DraftContext,
+} from "./draft";
+import { allSpins } from "./variety";
 
 const ctx: DraftContext = {
   business: "Acme",
@@ -77,49 +86,114 @@ describe("fillDraft", () => {
 });
 
 describe("renderOutreachEmail", () => {
-  const email = renderOutreachEmail({
-    business: "Acme & Co",
-    subject: "A subject",
-    paragraphs: ["First paragraph.", "Second paragraph."],
-    closing: "{link:Here's how it works} if you'd like a look.",
-    linkUrl: "https://debutyard.com/s/tok",
-    unsubscribeUrl: "https://debutyard.com/u/tok",
-    postalAddress: "A501 ShawHill Plaza, Moi Drive, Nairobi",
+  const render = (seed: string) =>
+    renderOutreachEmail({
+      business: "Acme & Co $1",
+      subject: "A subject",
+      paragraphs: ["First paragraph.", "Second paragraph."],
+      closing: "{{Here's how it works|This is how it works}} if you'd like a look.",
+      linkUrl: "https://debutyard.com/s/tok",
+      postalAddress: "A501 ShawHill Plaza, Moi Drive, Nairobi",
+      seed,
+    });
+  const email = render("tok");
+
+  it("comes out the same every time for the same email", () => {
+    expect(render("tok").text).toBe(email.text);
   });
 
-  it("opens and signs off the same way every time", () => {
+  it("differs between emails", () => {
+    const texts = new Set(Array.from({ length: 50 }, (_, i) => render(`tok-${i}`).text));
+    expect(texts.size).toBeGreaterThan(40);
+  });
+
+  it("includes Henry's own opening among the options", () => {
+    const all = Array.from({ length: 2000 }, (_, i) => render(`t${i}`).text);
     expect(
-      email.text.startsWith(
-        "Hey team,\n\nCongrats on the launch, I came across Acme & Co and wanted to reach out directly.",
+      all.some((t) =>
+        t.startsWith(
+          "Hey team,\n\nCongrats on the launch, I came across Acme & Co $1 and wanted to reach out directly.",
+        ),
       ),
     ).toBe(true);
-    expect(email.text).toContain("Henry\nFounder, DebutYard");
   });
 
-  it("carries the link, the address and the unsubscribe in both parts", () => {
-    for (const part of [email.text, email.html]) {
-      expect(part).toContain("https://debutyard.com/s/tok");
-      expect(part).toContain("https://debutyard.com/u/tok");
-      expect(part).toContain("A501 ShawHill Plaza, Moi Drive, Nairobi");
+  it("always carries the business, link, signature and address, with nothing left to fill", () => {
+    for (let i = 0; i < 200; i++) {
+      const { text } = render(`tok-${i}`);
+      expect(text).toContain("Acme & Co $1");
+      expect(text).toMatch(/if you'd like a look\.\nhttps:\/\/debutyard\.com\/s\/tok/);
+      expect(text).toContain("Henry\nFounder, DebutYard");
+      expect(text).toContain("A501 ShawHill Plaza, Moi Drive, Nairobi");
+      expect(text).not.toMatch(/[{}]/);
     }
-    expect(email.text).not.toContain("{link:");
-    expect(email.html).not.toContain("{link:");
   });
 
-  it("is plain: no images, tables or buttons, and escapes names", () => {
-    expect(email.html).not.toMatch(/<img|<table|<button/i);
-    expect(email.html).toContain("Acme &amp; Co");
+  it("has an opt-out but no unsubscribe link, and is plain text", () => {
+    expect(email.text).not.toMatch(/unsubscribe|\/u\//i);
+    expect(email.text).not.toMatch(/<[a-z]/i);
+    expect(email).not.toHaveProperty("html");
   });
 
-  it("never carries a price", () => {
-    expect(email.text).not.toMatch(/\$\d/);
+  it("refuses a closing it can't fill, or broken spintax", () => {
+    const base = {
+      business: "A",
+      subject: "s",
+      paragraphs: ["x"],
+      linkUrl: "u",
+      postalAddress: "p",
+      seed: "s",
+    };
+    expect(() => renderOutreachEmail({ ...base, closing: "{link:Take a look}" })).toThrow();
+    expect(() => renderOutreachEmail({ ...base, closing: "{{broken" })).toThrow();
+  });
+});
+
+describe("fixed wording", () => {
+  it("has thousands of combinations before the closing", () => {
+    expect(fixedVariations()).toBeGreaterThan(1000);
+  });
+
+  it("never says anything a filter dislikes, in any wording", () => {
+    for (const template of Object.values(FIXED_COPY)) {
+      for (const wording of allSpins(template)) {
+        expect(spamWordIn(wording)).toBeNull();
+        expect(wording).not.toMatch(/[$€£]|pricing|https?:/i);
+      }
+    }
+  });
+});
+
+describe("spam words", () => {
+  it("rejects a draft using one", () => {
+    const r = fillDraft(
+      { ...good, paragraphs: [good.paragraphs[0]!, `${good.paragraphs[1]} It's a great opportunity.`] },
+      ctx,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.problems.join()).toContain("opportunity");
+  });
+
+  it("doesn't catch innocent words inside longer ones", () => {
+    expect(spamWordIn("We learn from early adopters and cashew farmers.")).toBeNull();
   });
 });
 
 describe("closingIsValid", () => {
-  it("needs a link and no prices", () => {
-    expect(closingIsValid("{link:Take a look} when you can.")).toBe(true);
-    expect(closingIsValid("Take a look when you can.")).toBe(false);
-    expect(closingIsValid("{link:See our pricing} here.")).toBe(false);
+  it("accepts a sentence, spun or not", () => {
+    expect(closingIsValid("Take a look when you can.")).toBe(true);
+    expect(closingIsValid("{{Take a look|Have a read}} when you can.")).toBe(true);
+  });
+
+  it("checks every wording", () => {
+    expect(closingIsValid("{{Take a look|See our pricing}} when you can.")).toBe(false);
+    expect(closingIsValid("{{Take a look|Click here}} when you can.")).toBe(false);
+  });
+
+  it("refuses broken spintax, placeholders and links", () => {
+    expect(closingIsValid("{{Take a look")).toBe(false);
+    expect(closingIsValid("{link:Take a look} when you can.")).toBe(false);
+    expect(closingIsValid("See debutyard.com when you can.")).toBe(false);
+    expect(closingIsValid("")).toBe(false);
   });
 });

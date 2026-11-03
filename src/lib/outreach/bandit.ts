@@ -20,6 +20,11 @@ const RETIRE_BELOW = 0.05;
 const UNHAPPY_MIN_SENDS = 30;
 const UNHAPPY_RATE = 0.05;
 
+/** Filters catch up with wording, so new copy goes in about this often whatever the results say. */
+export const REFRESH_DAYS = 14;
+/** More than this at once and low volume can't tell them apart. */
+export const MAX_TESTING = 4;
+
 type Rng = () => number;
 
 function normal(rng: Rng): number {
@@ -85,4 +90,15 @@ export function retirements(stats: VariantStats[], rng: Rng = Math.random): Arra
     return out.filter((r) => r.id !== keep.id);
   }
   return out;
+}
+
+/** Days since a new version last went into testing. */
+export function copyAgeDays(approved: Array<Date | null>, now: Date): number | null {
+  const times = approved.flatMap((d) => (d ? [d.getTime()] : []));
+  return times.length ? Math.floor((now.getTime() - Math.max(...times)) / 86_400_000) : null;
+}
+
+/** Whether to ask the agent for fresh copy. One proposal waits at a time, and it never starts without approval. */
+export function refreshDue(s: { testing: number; waiting: boolean; ageDays: number | null }): boolean {
+  return !s.waiting && s.testing > 0 && s.testing < MAX_TESTING && s.ageDays !== null && s.ageDays >= REFRESH_DAYS;
 }

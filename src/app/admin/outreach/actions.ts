@@ -9,7 +9,7 @@ import { canGoLive, sendTest } from "@/lib/outreach/pipeline";
 import { blockDomain, discardDraft } from "@/lib/outreach/queries";
 import { registrableDomain } from "@/lib/outreach/rules";
 import { getSettings, updateSettings } from "@/lib/outreach/settings";
-import { ensureControl, proposeVariant, setVariantStatus } from "@/lib/outreach/variants";
+import { ensureSeeds, proposeVariant, setVariantStatus } from "@/lib/outreach/variants";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -44,7 +44,7 @@ export async function saveSettingsAction(input: { mode: string; dailyLimit: stri
     if (s.mode === "live" && !canGoLive()) {
       throw new Error("Live needs the production site and a working OUTREACH_MAILBOXES list.");
     }
-    await ensureControl();
+    await ensureSeeds();
     const { pausedReason } = await getSettings();
     // Choosing a mode again is what clears a pause, and the sends behind it stop counting.
     await updateSettings({ ...s, pausedReason: null, ...(pausedReason ? { healthFrom: new Date() } : {}) });
@@ -76,7 +76,7 @@ export async function blockDomainAction(raw: string) {
 
 export async function proposeVariantAction() {
   return run(async () => {
-    await ensureControl();
+    await ensureSeeds();
     const v = await proposeVariant();
     return `"${v.name}" is waiting for your approval.`;
   });

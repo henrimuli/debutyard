@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { chooseVariant, probabilityBest, retirements, type VariantStats } from "./bandit";
+import {
+  chooseVariant,
+  copyAgeDays,
+  MAX_TESTING,
+  probabilityBest,
+  refreshDue,
+  retirements,
+  type VariantStats,
+} from "./bandit";
 
 /** A repeatable random source. */
 function seeded(seed = 42) {
@@ -62,5 +70,29 @@ describe("retirements", () => {
     expect(retirements([v("only", 500, 0, 100)], seeded())).toEqual([]);
     const out = retirements([v("a", 100, 1, 50), v("b", 100, 1, 50)], seeded());
     expect(out).toHaveLength(1);
+  });
+});
+
+describe("copy refresh", () => {
+  const now = new Date("2026-12-01T12:00:00Z");
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000);
+
+  it("measures from the newest version", () => {
+    expect(copyAgeDays([daysAgo(30), daysAgo(3), null], now)).toBe(3);
+    expect(copyAgeDays([null], now)).toBeNull();
+  });
+
+  it("is due after two weeks", () => {
+    expect(refreshDue({ testing: 2, waiting: false, ageDays: 14 })).toBe(true);
+    expect(refreshDue({ testing: 2, waiting: false, ageDays: 13 })).toBe(false);
+  });
+
+  it("waits for a decision on the last proposal", () => {
+    expect(refreshDue({ testing: 2, waiting: true, ageDays: 30 })).toBe(false);
+  });
+
+  it("doesn't pile on when plenty are running or nothing has started", () => {
+    expect(refreshDue({ testing: MAX_TESTING, waiting: false, ageDays: 30 })).toBe(false);
+    expect(refreshDue({ testing: 0, waiting: false, ageDays: null })).toBe(false);
   });
 });

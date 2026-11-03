@@ -15,7 +15,6 @@ export type OutgoingMail = {
   to: string;
   subject: string;
   text: string;
-  html?: string;
   messageId: string;
   inReplyTo?: string;
   references?: string;
@@ -97,7 +96,6 @@ const smtpSend: Mailbox["send"] = async (box, mail) => {
         to: mail.to,
         subject: mail.subject,
         text: mail.text,
-        html: mail.html,
         messageId: mail.messageId,
         inReplyTo: mail.inReplyTo,
         references: mail.references,

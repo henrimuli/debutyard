@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy policy" updated="November 2, 2026">
+    <LegalPage title="Privacy policy" updated="November 3, 2026">
       <p>
         This policy explains what {site.legalName} ({site.country}) collects when you use {site.name}, why, and your
         choices. We follow Kenya&apos;s Data Protection Act, 2019, and aim to meet the GDPR standard for visitors from
@@ -34,8 +34,8 @@ export default function PrivacyPage() {
         <li>To meet legal, tax and accounting obligations.</li>
         <li>
           To write once to businesses that have just launched about our submission service, using the contact address
-          they publish on their own website and public information about their site. Every such email has an unsubscribe
-          link, and we keep a record of addresses that opt out so we never contact them again.
+          they publish on their own website and public information about their site. You can opt out of any such email
+          by replying to it, and we keep a record of addresses that opt out so we never contact them again.
         </li>
       </ul>
 

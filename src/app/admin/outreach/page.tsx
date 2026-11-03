@@ -3,8 +3,8 @@ import { Badge, Card } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { canSend, mailboxProblems } from "@/lib/outreach/mailbox";
 import { canGoLive, missingForPipeline, sentToday, sentTodayByMailbox } from "@/lib/outreach/pipeline";
-import { dailyActivity, funnel, mailboxRows, sourceRows } from "@/lib/outreach/queries";
-import { dailyTarget, MAILBOX_DAILY_CAP } from "@/lib/outreach/rules";
+import { dailyActivity, funnel, mailboxRows, sendsLookIgnored, sourceRows } from "@/lib/outreach/queries";
+import { dailyTarget, IGNORED_AFTER, MAILBOX_DAILY_CAP } from "@/lib/outreach/rules";
 import { getSettings } from "@/lib/outreach/settings";
 import { formatUsd } from "@/lib/payments/skus";
 import { sendTestAction } from "./actions";
@@ -34,7 +34,7 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 export default async function OutreachOverviewPage() {
   await requireStaff("/admin/outreach");
   const now = new Date();
-  const [settings, f, days, sources, today, boxes, byBox] = await Promise.all([
+  const [settings, f, days, sources, today, boxes, byBox, ignored] = await Promise.all([
     getSettings(),
     funnel(),
     dailyActivity(now),
@@ -42,6 +42,7 @@ export default async function OutreachOverviewPage() {
     sentToday(now),
     mailboxRows(),
     sentTodayByMailbox(now),
+    sendsLookIgnored(now),
   ]);
   const problems = mailboxProblems();
   const m = f.emails;
@@ -68,6 +69,12 @@ export default async function OutreachOverviewPage() {
         {settings.pausedReason && (
           <p role="alert" className="mt-3 rounded-md bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
             Sending stopped itself because of {settings.pausedReason}. Choose Live again when you&apos;re ready.
+          </p>
+        )}
+        {ignored && (
+          <p role="status" className="mt-3 rounded-md bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            The latest {IGNORED_AFTER} emails got no clicks or replies, so they may be landing in spam. Send a test to
+            your own Gmail and Outlook to see, and consider new wording under Experiments.
           </p>
         )}
         <div className="mt-4">
