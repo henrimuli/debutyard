@@ -1,7 +1,6 @@
 import type { Route } from "next";
 import { cacheLife } from "next/cache";
 import Link from "next/link";
-import { Suspense } from "react";
 import { Logo } from "@/components/logo";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { freeTools } from "@/components/tools/tool-list";
@@ -45,7 +44,8 @@ const legal: FooterLink[] = [
 /** Our own badge block, fetched like any maker's server would. If the fetch fails the footer goes without it. */
 async function badgeBlockHtml() {
   "use cache";
-  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
+  // Not a shorter life: that sends the block after the page, hidden until a script moves it, and directories miss it.
+  cacheLife("minutes");
   try {
     const res = await fetch(BADGE_BLOCK_URL, { signal: AbortSignal.timeout(3000) });
     return res.ok ? await res.text() : "";
@@ -93,9 +93,7 @@ export function SiteFooter() {
           ))}
         </div>
       </Container>
-      <Suspense>
-        <BadgeBlock />
-      </Suspense>
+      <BadgeBlock />
       <Container className="flex flex-col gap-3 border-t border-border/70 py-6 text-xs text-muted-foreground sm:flex-row sm:items-end sm:justify-between">
         <p>
           © {site.legalName} ·{" "}

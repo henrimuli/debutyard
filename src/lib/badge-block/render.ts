@@ -4,8 +4,10 @@ const BLOCK_ID = "debutyard-badges";
 /** From this many badges the block is a moving strip rather than a row. */
 export const MOVING_AT = 6;
 /** Every badge fits this slot, whatever size its directory made it, and keeps its own shape. */
-const BADGE_WIDTH = 200;
-const BADGE_HEIGHT = 54;
+const BADGE_WIDTH = 160;
+const BADGE_HEIGHT = 44;
+/** The moving strip stays this wide on any page, so its badges fade out well before the page edges. */
+const MOVING_WIDTH = 800;
 
 const STYLE = `#${BLOCK_ID}{width:100%;margin:48px 0;padding:0 16px;box-sizing:border-box}
 #${BLOCK_ID} .debutyard-group{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
@@ -15,7 +17,7 @@ const STYLE = `#${BLOCK_ID}{width:100%;margin:48px 0;padding:0 16px;box-sizing:b
 
 const movingStyle = (
   seconds: number,
-) => `#${BLOCK_ID}.debutyard-moving{overflow:hidden;padding:0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+) => `#${BLOCK_ID}.debutyard-moving{max-width:${MOVING_WIDTH}px;margin:48px auto;overflow:hidden;padding:0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
 #${BLOCK_ID} .debutyard-track{display:flex;width:max-content;animation:debutyard-strip ${seconds}s linear infinite}
 #${BLOCK_ID} .debutyard-track:hover,#${BLOCK_ID} .debutyard-track:focus-within{animation-play-state:paused}
 #${BLOCK_ID}.debutyard-moving .debutyard-group{flex-wrap:nowrap;padding-right:12px}
