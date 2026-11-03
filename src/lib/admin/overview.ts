@@ -153,10 +153,10 @@ export async function cronStatus(now = new Date()): Promise<CronStatus[]> {
     .from(cronRuns)
     .orderBy(cronRuns.job, desc(cronRuns.startedAt));
   const byJob = new Map(latest.map((r) => [r.job, r]));
-  return ["daily", "hourly"].flatMap((job) => {
+  return ["daily", "hourly", "outreach"].flatMap((job) => {
     const r = byJob.get(job);
-    // The hourly job is optional (Vercel Pro only); only show it once it has run.
-    if (!r && job === "hourly") return [];
+    // The hourly jobs are optional (Vercel Pro only); only show them once they have run.
+    if (!r && job !== "daily") return [];
     return [
       {
         job,

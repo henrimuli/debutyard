@@ -11,6 +11,11 @@
  * sandbox plans count as existing and nothing is created.
  *
  *   pnpm payments:sync-plans --recreate
+ *
+ * --prod runs against production: provider credentials come from the *_PROD vars and the
+ * database from the *_MASTER vars, with no fallback to the unsuffixed ones. Owner only.
+ *
+ *   pnpm payments:sync-plans --prod
  */
 import { config } from "dotenv";
 config({ path: [".env.local", ".env"], quiet: true });
@@ -24,21 +29,31 @@ import { SKUS, type RecurringSku } from "../src/lib/payments/skus";
 import type { PaymentProvider } from "../src/lib/payments/types";
 
 const recreate = process.argv.includes("--recreate");
+const prod = process.argv.includes("--prod");
+const providerEnv = (name: string) => process.env[prod ? `${name}_PROD` : name];
 
 async function main() {
-  const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL;
-  if (!url) throw new Error("Set DATABASE_URL or DIRECT_DATABASE_URL");
+  const url = prod
+    ? (process.env.DIRECT_DATABASE_URL_MASTER ?? process.env.DATABASE_URL_MASTER)
+    : (process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL);
+  if (!url)
+    throw new Error(
+      prod ? "Set DATABASE_URL_MASTER or DIRECT_DATABASE_URL_MASTER" : "Set DATABASE_URL or DIRECT_DATABASE_URL",
+    );
   const client = postgres(url, { prepare: false, max: 1 });
   const db = drizzle(client, { schema, casing: "snake_case" });
 
   const providers: PaymentProvider[] = [];
-  if (process.env.PAYSTACK_SECRET_KEY) providers.push(new PaystackProvider(process.env.PAYSTACK_SECRET_KEY));
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
+  const paystackSecretKey = providerEnv("PAYSTACK_SECRET_KEY");
+  if (paystackSecretKey) providers.push(new PaystackProvider(paystackSecretKey));
+  const paypalClientId = providerEnv("PAYPAL_CLIENT_ID");
+  const paypalClientSecret = providerEnv("PAYPAL_CLIENT_SECRET");
+  if (paypalClientId && paypalClientSecret) {
     providers.push(
       new PaypalProvider({
-        clientId: process.env.PAYPAL_CLIENT_ID,
-        clientSecret: process.env.PAYPAL_CLIENT_SECRET,
-        environment: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox",
+        clientId: paypalClientId,
+        clientSecret: paypalClientSecret,
+        environment: providerEnv("PAYPAL_ENV") === "live" ? "live" : "sandbox",
       }),
     );
   }

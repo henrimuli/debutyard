@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy policy" updated="November 2, 2026">
+    <LegalPage title="Privacy policy" updated="November 3, 2026">
       <p>
         This policy explains what {site.legalName} ({site.country}) collects when you use {site.name}, why, and your
         choices. We follow Kenya&apos;s Data Protection Act, 2019, and aim to meet the GDPR standard for visitors from
@@ -32,14 +32,20 @@ export default function PrivacyPage() {
         <li>To keep rankings fair by detecting fake accounts and applause manipulation.</li>
         <li>To send service emails (sign-in links, receipts, launch updates) and, if you opt in, our newsletter.</li>
         <li>To meet legal, tax and accounting obligations.</li>
+        <li>
+          To write once to businesses that have just launched about our submission service, using the contact address
+          they publish on their own website and public information about their site. You can opt out of any such email
+          by replying to it, and we keep a record of addresses that opt out so we never contact them again.
+        </li>
       </ul>
 
       <h2>Who we share it with</h2>
       <p>
         Service providers that run parts of {site.name} for us: hosting (Vercel), database (Supabase), file storage and
-        bot protection (Cloudflare), email (Resend), payments (Paystack, PayPal) and fetching public web pages our own
-        checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give us with
-        the directories we submit to. We don&apos;t sell personal data.
+        bot protection (Cloudflare), email (Resend, and Maildoso for outreach email), payments (Paystack, PayPal),
+        search and authority data (DataForSEO), writing and classification (Google Gemini) and fetching public web pages
+        our own checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give
+        us with the directories we submit to. We don&apos;t sell personal data.
       </p>
 
       <h2>Badge block</h2>

@@ -9,3 +9,4 @@ export * from "./metrics";
 export * from "./affiliates";
 export * from "./admin";
 export * from "./support";
+export * from "./outreach";
