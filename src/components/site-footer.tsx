@@ -1,5 +1,7 @@
 import type { Route } from "next";
+import { cacheLife } from "next/cache";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Logo } from "@/components/logo";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { freeTools } from "@/components/tools/tool-list";
@@ -32,11 +34,30 @@ const columns: Array<{ heading: string; links: FooterLink[] }> = [
   },
 ];
 
+const BADGE_BLOCK_URL = "https://preview.debutyard.com/badges/20d1825e49d74c3ca7c6c0e67b9e2e4f.html";
+
 const legal: FooterLink[] = [
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/refund-policy", label: "Refund policy" },
 ];
+
+/** Our own badge block, fetched like any maker's server would. If the fetch fails the footer goes without it. */
+async function badgeBlockHtml() {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
+  try {
+    const res = await fetch(BADGE_BLOCK_URL, { signal: AbortSignal.timeout(3000) });
+    return res.ok ? await res.text() : "";
+  } catch {
+    return "";
+  }
+}
+
+async function BadgeBlock() {
+  const html = await badgeBlockHtml();
+  return html ? <Container dangerouslySetInnerHTML={{ __html: html }} /> : null;
+}
 
 export function SiteFooter() {
   const groups = [
@@ -72,6 +93,9 @@ export function SiteFooter() {
           ))}
         </div>
       </Container>
+      <Suspense>
+        <BadgeBlock />
+      </Suspense>
       <Container className="flex flex-col gap-3 border-t border-border/70 py-6 text-xs text-muted-foreground sm:flex-row sm:items-end sm:justify-between">
         <p>
           © {site.legalName} ·{" "}
@@ -79,18 +103,6 @@ export function SiteFooter() {
             {site.supportEmail}
           </a>
         </p>
-        <div className="flex sm:flex-1 sm:justify-center">
-          <a href="https://verifieddr.com/website/debutyard-com" target="_blank" rel="noopener">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://verifieddr.com/badge/debutyard-com-dark.svg?style=minimal"
-              alt="Verified DR - Verified Domain Rating for debutyard.com"
-              width={200}
-              height={24}
-              className="block"
-            />
-          </a>
-        </div>
         <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2">
           {legal.map((l) => (
             <Link key={l.href} href={l.href} className="hover:text-foreground">
