@@ -100,6 +100,8 @@ const schema = z.object({
   /** Reads replies, with each mailbox's own login. */
   OUTREACH_IMAP_HOST: optional,
   OUTREACH_IMAP_PORT: z.coerce.number().int().positive().default(993),
+  /** Comma-separated text that marks warm-up mail, which stays out of the outreach inbox. */
+  OUTREACH_WARMUP_TAGS: optional,
 
   /** Set by Vercel. Outreach only sends when this is "production". */
   VERCEL_ENV: optional,

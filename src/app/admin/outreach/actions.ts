@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser, isStaff } from "@/lib/auth";
 import { env } from "@/env";
-import { sendReply, setThreadStatus } from "@/lib/outreach/inbox";
+import { markThreadUnread, sendReply, setThreadStatus } from "@/lib/outreach/inbox";
 import { canGoLive, sendTest } from "@/lib/outreach/pipeline";
 import { blockDomain, discardDraft } from "@/lib/outreach/queries";
 import { registrableDomain } from "@/lib/outreach/rules";
@@ -93,6 +93,10 @@ export async function replyAction(threadId: string, body: string): Promise<Actio
     const text = z.string().trim().min(1, "Write a message.").max(20_000).parse(body);
     await sendReply(uuid.parse(threadId), text, user.id);
   });
+}
+
+export async function threadUnreadAction(id: string) {
+  return run(() => markThreadUnread(uuid.parse(id)));
 }
 
 export async function threadStatusAction(id: string, status: "open" | "done") {

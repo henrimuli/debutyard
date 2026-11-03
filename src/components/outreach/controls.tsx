@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { replyAction, saveSettingsAction, type ActionResult } from "@/app/admin/outreach/actions";
+import { Icon } from "@/components/app-shell/icons";
+import { ToolButton } from "@/components/support/thread-parts";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { Select } from "@/components/ui/select";
@@ -176,35 +178,102 @@ export function SettingsForm({
   );
 }
 
+/** Back to the list, then done and mark unread, as in the support inbox. */
+export function InboxToolbar({
+  backHref,
+  done,
+  setStatus,
+  markUnread,
+}: {
+  backHref: string;
+  done: boolean;
+  setStatus: () => Promise<ActionResult>;
+  markUnread: () => Promise<ActionResult>;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const act = (fn: () => Promise<ActionResult>) =>
+    start(async () => {
+      const r = await fn();
+      if (!r.ok) return setError(r.error ?? "Something went wrong.");
+      router.push(backHref);
+    });
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
+      <Link
+        href={backHref}
+        title="Back"
+        aria-label="Back"
+        className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Icon name="back" className="size-[18px]" />
+      </Link>
+      <span className="mx-1 h-5 w-px bg-border" />
+      <ToolButton
+        icon={done ? "inbox" : "check"}
+        label={done ? "Move to inbox" : "Done"}
+        disabled={pending}
+        onClick={() => act(setStatus)}
+      />
+      <ToolButton icon="mail" label="Mark as unread" disabled={pending} onClick={() => act(markUnread)} />
+      {error && <p className="w-full px-2 pb-1 text-sm text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** A Reply button under the conversation, opening an inline box. Plain text, like everything else here. */
 export function ReplyBox({ threadId, disabled }: { threadId: string; disabled?: boolean }) {
+  const [opened, setOpened] = useState(false);
   const [body, setBody] = useState("");
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
+  if (!opened) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" className="rounded-full" disabled={disabled} onClick={() => setOpened(true)}>
+          <Icon name="reply" />
+          Reply
+        </Button>
+        {disabled && <p className="text-sm text-muted-foreground">Set up the outreach mailbox to reply from here.</p>}
+        <Feedback result={result} />
+      </div>
+    );
+  }
   return (
     <form
-      className="mt-4 flex flex-col gap-2"
+      className="rounded-xl border border-border bg-card shadow-sm"
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
           const r = await replyAction(threadId, body);
           setResult(r);
-          if (r.ok) setBody("");
+          if (r.ok) {
+            setBody("");
+            setOpened(false);
+          }
         });
       }}
     >
-      <Label htmlFor="outreach-reply">Reply</Label>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm text-muted-foreground">
+        <Icon name="reply" />
+        Reply
+      </div>
       <textarea
-        id="outreach-reply"
+        aria-label="Reply"
         rows={6}
+        autoFocus
         value={body}
-        disabled={disabled}
         onChange={(e) => setBody(e.target.value)}
-        className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
-        placeholder={disabled ? "Set up the outreach mailbox to reply from here." : "Write your reply…"}
+        className="w-full resize-y bg-transparent px-3 py-2 text-sm outline-none"
+        placeholder="Write your reply…"
       />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" size="sm" disabled={pending || disabled || !body.trim()}>
-          {pending ? "Sending…" : "Send reply"}
+      <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2">
+        <Button type="submit" size="sm" disabled={pending || !body.trim()}>
+          {pending ? "Sending…" : "Send"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setOpened(false)}>
+          Discard
         </Button>
         <Feedback result={result} />
       </div>

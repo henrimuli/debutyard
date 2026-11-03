@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { env } from "@/env";
 import { geminiConfigured, geminiJson, user } from "@/lib/ai/gemini";
@@ -12,6 +12,7 @@ import {
   asksIfSpam,
   asksToStop,
   declines,
+  isWarmup,
   readFailure,
   bouncedAddress,
   isAutoReply,
@@ -72,6 +73,12 @@ async function classify(mail: InboundMail, own: string): Promise<ReplyClass> {
     return "other";
   }
 }
+
+const warmupTags = () =>
+  (env().OUTREACH_WARMUP_TAGS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 
 async function matchEmail(mail: InboundMail) {
   const refs = referenced(mail.inReplyTo, mail.references);
@@ -143,6 +150,8 @@ export async function receiveMail(mail: InboundMail, now = new Date(), receivedB
   }
 
   const email = await matchEmail(mail);
+  // Checked before the model so warm-up volume costs nothing. Anything that answers a real email still gets filed.
+  if (!email && isWarmup(mail, warmupTags())) return null;
   const ownText = splitQuoted(mail.text).own || mail.text;
   const kind = await classify(mail, ownText);
   const human = kind !== "auto_reply";
@@ -279,17 +288,32 @@ export type ThreadFilter = (typeof THREAD_FILTERS)[number];
 
 const PAGE = 40;
 
-export async function listThreads(filter: ThreadFilter, page = 0) {
+export async function listThreads(filter: ThreadFilter, page = 0, q = "") {
+  const search = q.trim();
   return db()
     .select({
       thread: outreachThreads,
       domain: outreachProspects.domain,
       business: outreachProspects.name,
+      messageCount: sql<number>`(select count(*)::int from ${outreachMessages} where ${outreachMessages.threadId} = ${outreachThreads.id})`,
     })
     .from(outreachThreads)
     .leftJoin(outreachEmails, eq(outreachEmails.id, outreachThreads.emailId))
     .leftJoin(outreachProspects, eq(outreachProspects.id, outreachEmails.prospectId))
-    .where(filter === "all" ? undefined : eq(outreachThreads.status, filter))
+    .where(
+      and(
+        filter === "all" ? undefined : eq(outreachThreads.status, filter),
+        search
+          ? or(
+              ilike(outreachThreads.subject, `%${search}%`),
+              ilike(outreachThreads.contactEmail, `%${search}%`),
+              ilike(outreachThreads.contactName, `%${search}%`),
+              ilike(outreachProspects.name, `%${search}%`),
+              sql`exists (select 1 from ${outreachMessages} where ${outreachMessages.threadId} = ${outreachThreads.id} and ${outreachMessages.text} ilike ${`%${search}%`})`,
+            )
+          : undefined,
+      ),
+    )
     .orderBy(desc(outreachThreads.lastMessageAt))
     .limit(PAGE)
     .offset(page * PAGE);
@@ -314,6 +338,10 @@ export async function getThread(id: string) {
 
 export async function markThreadRead(id: string) {
   await db().update(outreachThreads).set({ unread: false }).where(eq(outreachThreads.id, id));
+}
+
+export async function markThreadUnread(id: string) {
+  await db().update(outreachThreads).set({ unread: true }).where(eq(outreachThreads.id, id));
 }
 
 export async function setThreadStatus(id: string, status: "open" | "done") {

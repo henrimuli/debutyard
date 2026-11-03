@@ -31,6 +31,17 @@ export const suppressionFor = (c: ReplyClass): string | null =>
 
 export type InboundHeaders = Record<string, string>;
 
+/** Sent once when a mailbox joins the warm-up network. */
+const WARMUP_SUBJECT = /^(re:\s*)?trulyinbox mailbox verification\b/i;
+
+/**
+ * Warm-up mail from other mailboxes in the network. Each one carries a marker in
+ * its text, set as OUTREACH_WARMUP_TAGS. The warm-up service deals with these
+ * itself, so we only have to leave them alone.
+ */
+export const isWarmup = (mail: { subject: string; text: string }, tags: string[]) =>
+  WARMUP_SUBJECT.test(mail.subject.trim()) || tags.some((tag) => mail.text.includes(tag));
+
 /**
  * Why a mailbox couldn't be read, for the dashboard. The IMAP library says only
  * "Command failed" whatever the server answered, and keeps the answer on the side.

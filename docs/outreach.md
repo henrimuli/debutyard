@@ -38,6 +38,12 @@ Based on [Maildoso's guide](https://blog.maildoso.ai/guides/deliverability-guide
 
 Maildoso's custom tracking domain is on by default and may rewrite links as they're sent. Check where the link in a test email points. If it's rewritten, compare with the setting off (Settings, General).
 
+## Warm-up mail
+
+Warm-up services send mail between their members, and it arrives in the outreach mailbox like anything else. It's skipped before the model sees it, so it costs nothing and never reaches the inbox or the numbers. It stays in the mailbox itself, where the warm-up service opens and answers it.
+
+Set `OUTREACH_WARMUP_TAGS` to the text that marks it, comma separated if there are several. TrulyInbox puts one number in the phone line of each email's signature, with a different country code in front (`Phone: +61 2 20998800`), so the tag is that number. Check it with a mailbox of your own: if a new mailbox's warm-up mail has a different number, add it. Mail that answers one of our emails is always kept, whatever it contains.
+
 ## Going live
 
 1. Buy a separate sending domain (see below) and create a mailbox on it in Maildoso. Turn on warm-up and leave it running for at least 14 days before the first campaign.

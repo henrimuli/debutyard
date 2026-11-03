@@ -268,6 +268,30 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
     expect(await inbox.outreachUnread()).toBeGreaterThan(0);
   });
 
+  it("leaves warm-up mail out of the inbox", async () => {
+    const before = await inbox.listThreads("all");
+    const filed = await inbox.receiveMail(
+      mail({
+        from: "someone@warmup-network.example",
+        messageId: "<warmup-check@them>",
+        subject: "TrulyInbox mailbox verification 295ecd9f",
+        text: "Automated mailbox verification.",
+      }),
+    );
+    expect(filed).toBeNull();
+    expect(await inbox.listThreads("all")).toHaveLength(before.length);
+  });
+
+  it("finds a conversation by search", async () => {
+    await inbox.receiveMail(
+      mail({ from: "findme@elsewhere-two.com", messageId: "<search@them>", subject: "A findable subject", text: "Hi" }),
+    );
+    const found = await inbox.listThreads("all", 0, "findable");
+    expect(found.map((r) => r.thread.contactEmail)).toEqual(["findme@elsewhere-two.com"]);
+    expect(found[0]!.messageCount).toBe(1);
+    expect(await inbox.listThreads("all", 0, "no-such-words")).toEqual([]);
+  });
+
   it("marks a hard bounce and blocks the address", async () => {
     const { email } = await draft();
     await pipeline.sendDraft(email.id);
