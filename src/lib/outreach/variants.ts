@@ -53,13 +53,21 @@ export const SEEDS = [
 
 /** Makes sure there's something to send with. New starting versions wait for approval like any other. */
 export async function ensureSeeds(now = new Date()) {
-  const existing = await db().select({ name: outreachVariants.name }).from(outreachVariants);
-  const names = new Set(existing.map((r) => r.name));
-  const missing = SEEDS.filter((s) => !names.has(s.name));
-  if (missing.length === 0) return;
-  await db()
-    .insert(outreachVariants)
-    .values(missing.map((s) => ({ ...s, source: "seed", approvedAt: s.status === "testing" ? now : null })));
+  const missing = async (q: Pick<ReturnType<typeof db>, "select">) => {
+    const existing = await q.select({ name: outreachVariants.name }).from(outreachVariants);
+    const names = new Set(existing.map((r) => r.name));
+    return SEEDS.filter((s) => !names.has(s.name));
+  };
+  if ((await missing(db())).length === 0) return;
+  await db().transaction(async (tx) => {
+    // Pages and the hourly run all call this, so two can get here at once: only the first adds them.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('outreach:seeds'))`);
+    const seeds = await missing(tx);
+    if (seeds.length === 0) return;
+    await tx
+      .insert(outreachVariants)
+      .values(seeds.map((s) => ({ ...s, source: "seed", approvedAt: s.status === "testing" ? now : null })));
+  });
 }
 
 /** Results per version, from what's actually been sent. */

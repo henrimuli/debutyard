@@ -73,7 +73,8 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
         return { uidValidity: "1", lastUid: since.lastUid + mails.length, mails };
       },
     });
-    await variants.ensureSeeds();
+    // All at once, as pages and the hourly run can: the first test checks only one lot was added.
+    await Promise.all([variants.ensureSeeds(), variants.ensureSeeds(), variants.ensureSeeds()]);
   });
 
   beforeEach(async () => {
