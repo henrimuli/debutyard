@@ -5,6 +5,8 @@ import {
   parseDataForSeoSerp,
   parseDataForSeoTop,
   parseSerpApi,
+  searchOrError,
+  SerpError,
   serpQuery,
 } from "./serp";
 
@@ -43,5 +45,62 @@ describe("index check", () => {
     const [url] = fetchImpl.mock.calls[0] as unknown as [string];
     expect(new URL(url).searchParams.get("q")).toBe("site:dir.test/p/acme");
     expect(new URL(url).searchParams.get("api_key")).toBe("KEY");
+  });
+});
+
+describe("searchOrError", () => {
+  const rows = [{ position: 1 }];
+  const engineError = () => {
+    try {
+      return parseDataForSeoTop({ tasks: [{ status_code: 40101, status_message: "Internal SE Server Error." }] });
+    } catch (err) {
+      return err as SerpError;
+    }
+  };
+
+  it("doesn't try again after a success", async () => {
+    const search = vi.fn().mockResolvedValue(rows);
+    expect(await searchOrError(search, "k", 0)).toEqual({ rows });
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("tries a search engine error once more", async () => {
+    const search = vi.fn().mockRejectedValueOnce(engineError()).mockResolvedValue(rows);
+    expect(await searchOrError(search, "k", 0)).toEqual({ rows });
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
+  it("hands back the error when it fails twice", async () => {
+    const search = vi.fn().mockRejectedValue(engineError());
+    const r = await searchOrError(search, "k", 0);
+    expect(r).toHaveProperty("error");
+    expect("error" in r && r.error.message).toContain("(40101)");
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a timeout as something that can pass", async () => {
+    const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+    const search = vi.fn().mockRejectedValueOnce(timeout).mockResolvedValue(rows);
+    expect(await searchOrError(search, "k", 0)).toEqual({ rows });
+  });
+
+  it("throws straight away when trying again can't help", async () => {
+    const search = vi.fn().mockRejectedValue(new SerpError("DataForSEO SERP task failed (40200): Payment Required."));
+    await expect(searchOrError(search, "k", 0)).rejects.toThrow("40200");
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks only passing failures as such", () => {
+    const fails = (status_code: number) => {
+      try {
+        parseDataForSeoTop({ tasks: [{ status_code }] });
+      } catch (err) {
+        return (err as SerpError).transient;
+      }
+    };
+    expect(fails(40101)).toBe(true);
+    expect(fails(50401)).toBe(true);
+    expect(fails(40200)).toBe(false);
+    expect(fails(40501)).toBe(false);
   });
 });

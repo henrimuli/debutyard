@@ -3,7 +3,7 @@ import { env } from "@/env";
 import { schema } from "@/db";
 import { geminiJson, user } from "@/lib/ai/gemini";
 import { readProductSite } from "@/lib/blog/ai/catalog";
-import { createSerpSearch, type SerpResult } from "@/lib/links/serp";
+import { createSerpSearch, searchOrError, type SerpResult } from "@/lib/links/serp";
 import { drProvider } from "@/lib/metrics/service";
 import type { DrReading } from "@/lib/metrics/providers";
 import { directoryDomains } from "./discover";
@@ -114,8 +114,15 @@ export async function researchProspect(p: Prospect, maxAuthority: number): Promi
   const directoriesKnown = await directoryDomains();
   const results: KeywordResults[] = [];
   const allowed = new Map<string, string>();
+  let searchFailed: Error | null = null;
   for (const keyword of keywords) {
-    const rows = await search(keyword);
+    const found = await searchOrError(search, keyword);
+    if ("error" in found) {
+      console.error("outreach search failed", p.domain, keyword, found.error);
+      searchFailed = found.error;
+      continue;
+    }
+    const rows = found.rows;
     const serp = rows.flatMap((r) => {
       const domain = registrableDomain(r.url);
       return domain ? [{ position: r.position, domain, url: r.url.slice(0, 500), title: r.title.slice(0, 200) }] : [];
@@ -156,15 +163,22 @@ export async function researchProspect(p: Prospect, maxAuthority: number): Promi
     results.push({ keyword, serp, competitors: names });
   }
 
+  // Thrown rather than rejected: the search that failed might have been the one to find them, so this gets another go.
   const domains = [...new Set([p.domain, ...allowed.keys()])];
-  if (domains.length === 1) return { ok: false, reason: "no_competitors" };
+  if (domains.length === 1) {
+    if (searchFailed) throw searchFailed;
+    return { ok: false, reason: "no_competitors" };
+  }
   const scores = await readings(domains);
   const own = scores.get(p.domain)?.dr ?? null;
   if (own === null) return { ok: false, reason: "no_score", detail: `no Authority Score for ${p.domain}` };
   if (own > maxAuthority) return { ok: false, reason: "too_strong", detail: `Authority Score ${own}` };
 
   const pick = pickKeyword(results, p.domain, own, (d) => scores.get(d)?.dr ?? null);
-  if (!pick.ok) return { ok: false, reason: pick.reason };
+  if (!pick.ok) {
+    if (searchFailed) throw searchFailed;
+    return { ok: false, reason: pick.reason };
+  }
 
   return {
     ok: true,
