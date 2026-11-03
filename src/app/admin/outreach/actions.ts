@@ -6,7 +6,7 @@ import { getCurrentUser, isStaff } from "@/lib/auth";
 import { env } from "@/env";
 import { markThreadUnread, sendReply, setThreadStatus } from "@/lib/outreach/inbox";
 import { canGoLive, sendTest } from "@/lib/outreach/pipeline";
-import { blockDomain, discardDraft } from "@/lib/outreach/queries";
+import { blockDomain, discardDraft, retryProspect } from "@/lib/outreach/queries";
 import { registrableDomain } from "@/lib/outreach/rules";
 import { getSettings, updateSettings } from "@/lib/outreach/settings";
 import { ensureSeeds, proposeVariant, setVariantStatus } from "@/lib/outreach/variants";
@@ -92,6 +92,13 @@ export async function replyAction(threadId: string, body: string): Promise<Actio
   return run(async () => {
     const text = z.string().trim().min(1, "Write a message.").max(20_000).parse(body);
     await sendReply(uuid.parse(threadId), text, user.id);
+  });
+}
+
+export async function retryProspectAction(id: string) {
+  return run(async () => {
+    await retryProspect(uuid.parse(id));
+    return "Back in the queue.";
   });
 }
 

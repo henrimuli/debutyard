@@ -187,8 +187,8 @@ const TITLE_SIGNAL =
 const LINK_LABEL_SIGNAL =
   /\b(submit|add|list|post|launch)\s+(your|a|an|my)?\s*(tool|product|startup|saas|app|site|website|listing|project|business)\b|\bget (listed|featured)\b/i;
 const LINK_PATH_SIGNAL =
-  /^\/(submit|submit-[a-z-]+|add-(tool|product|startup|listing|your-[a-z]+)|list-your-[a-z-]+|launch-your-[a-z-]+)\/?$/i;
-/** More other sites than a product links to. Social links don't count. */
+  /^\/(submit|submit-(your-)?(tool|product|startup|saas|app|site|website|listing|project|business)s?|add-(tool|product|startup|listing|your-[a-z]+)|list-your-[a-z-]+|launch-your-[a-z-]+)\/?$/i;
+/** More other sites than a product links to. Social links don't count, nor does the footer, where directories ask makers to put their badges. */
 const MANY_OUTBOUND = 20;
 
 /**
@@ -212,17 +212,15 @@ export function directorySignals(input: { url: string; html: string; title?: str
     const hit = text && TITLE_SIGNAL.exec(text)?.[0];
     if (hit) reasons.push(`${what} says "${hit}"`);
   }
-  const links = pageLinks(input.html, input.url);
-  const outbound = new Set<string>();
-  for (const l of links) {
-    const other = registrableDomain(l.url);
-    const u = new URL(l.url);
-    if (other !== domain) {
-      if (other && !isPlatformHost(u.hostname)) outbound.add(other);
-      continue;
-    }
+  for (const l of pageLinks(input.html, input.url)) {
+    if (registrableDomain(l.url) !== domain) continue;
     if (LINK_LABEL_SIGNAL.test(l.label)) reasons.push(`link "${l.label.slice(0, 60)}"`);
-    else if (LINK_PATH_SIGNAL.test(u.pathname)) reasons.push(`link to ${u.pathname}`);
+    else if (LINK_PATH_SIGNAL.test(new URL(l.url).pathname)) reasons.push(`link to ${new URL(l.url).pathname}`);
+  }
+  const outbound = new Set<string>();
+  for (const l of pageLinks(input.html.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "), input.url)) {
+    const other = registrableDomain(l.url);
+    if (other && other !== domain && !isPlatformHost(new URL(l.url).hostname)) outbound.add(other);
   }
   if (outbound.size >= MANY_OUTBOUND) reasons.push(`links out to ${outbound.size} other sites`);
   return [...new Set(reasons)];

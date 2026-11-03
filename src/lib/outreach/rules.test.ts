@@ -159,6 +159,29 @@ describe("never a directory", () => {
     expect(directorySignals({ ...product, html }).join()).toContain("25 other sites");
   });
 
+  it("doesn't count badges in the footer as outbound", () => {
+    const badges = Array.from({ length: 133 }, (_, i) => `<a href="https://site${i}.com"><img src="b.png"></a>`).join(
+      "",
+    );
+    expect(directorySignals({ ...product, html: `<main>A product</main><footer>${badges}</footer>` })).toEqual([]);
+  });
+
+  it("still rejects a page full of outbound links with a footer of its own", () => {
+    const listings = Array.from({ length: 25 }, (_, i) => `<a href="https://site${i}.com">S</a>`).join("");
+    const html = `<main>${listings}</main><footer><a href="https://x.com/a">X</a></footer>`;
+    expect(directorySignals({ ...product, html }).join()).toContain("25 other sites");
+  });
+
+  it("still rejects a submit link in the footer", () => {
+    const html = `<footer><a href="https://acme.com/submit-tool">Tools</a></footer>`;
+    expect(directorySignals({ ...product, url: "https://acme.com", html }).join()).toContain("/submit-tool");
+  });
+
+  it("doesn't mistake submitting something else for listing a product", () => {
+    const html = `<a href="https://acme.com/submit-a-prompt">Submit a prompt</a><a href="https://acme.com/submit-feedback">Feedback</a>`;
+    expect(directorySignals({ ...product, url: "https://acme.com", html })).toEqual([]);
+  });
+
   it("doesn't count social links as outbound", () => {
     const html = `<a href="https://x.com/a">X</a><a href="https://github.com/a">G</a>`;
     expect(directorySignals({ ...product, html })).toEqual([]);

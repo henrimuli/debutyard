@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSerpProvider, normalizeForSerp, parseDataForSeoSerp, parseSerpApi, serpQuery } from "./serp";
+import {
+  createSerpProvider,
+  normalizeForSerp,
+  parseDataForSeoSerp,
+  parseDataForSeoTop,
+  parseSerpApi,
+  serpQuery,
+} from "./serp";
 
 const page = "https://www.dir.test/p/acme/";
 
@@ -22,6 +29,12 @@ describe("index check", () => {
     expect(parseDataForSeoSerp(body([{ type: "organic", url: "http://dir.test/p/acme" }]), page)).toBe(true);
     expect(parseDataForSeoSerp(body([{ type: "paid", url: "https://dir.test/p/acme" }]), page)).toBe(false);
     expect(() => parseDataForSeoSerp({ tasks: [{ status_code: 40101 }] }, page)).toThrow();
+    expect(() => parseDataForSeoTop({ tasks: [{ status_code: 40200, status_message: "Payment Required." }] })).toThrow(
+      "DataForSEO SERP task failed (40200): Payment Required.",
+    );
+    expect(() => parseDataForSeoTop({ status_code: 50000, status_message: "Internal Error.", tasks: [] })).toThrow(
+      "(50000): Internal Error.",
+    );
   });
 
   it("sends the site: query", async () => {

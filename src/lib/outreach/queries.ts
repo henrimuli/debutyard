@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, sql, sum } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { mailboxes } from "./mailbox";
 import { site } from "@/config/site";
@@ -207,6 +207,24 @@ export const PROSPECT_FILTERS = [
   "failed",
 ] as const;
 export type ProspectFilter = (typeof PROSPECT_FILTERS)[number];
+
+/**
+ * Gives a rejected or failed business another go. One that already has research
+ * goes straight back to writing, so it isn't paid for twice. The block list and
+ * the one-email-per-address rule still apply when it comes round again.
+ */
+export async function retryProspect(id: string) {
+  const p = outreachProspects;
+  await db()
+    .update(p)
+    .set({
+      status: sql`case when ${p.research} is null then 'discovered' else 'researched' end::outreach_prospect_status`,
+      reason: null,
+      reasonDetail: null,
+      attempts: 0,
+    })
+    .where(and(eq(p.id, id), inArray(p.status, ["rejected", "failed"])));
+}
 
 export async function listProspects(filter: ProspectFilter, q: string, page = 0) {
   const p = outreachProspects;

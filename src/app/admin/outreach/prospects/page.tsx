@@ -4,7 +4,7 @@ import { Badge, Card, Input } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { listProspects, listSuppressions, PROSPECT_FILTERS, type ProspectFilter } from "@/lib/outreach/queries";
 import { cn } from "@/lib/utils";
-import { blockDomainAction } from "../actions";
+import { blockDomainAction, retryProspectAction } from "../actions";
 
 const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -61,7 +61,7 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
             {rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-4 text-muted-foreground">
-                  No prospects here yet. Turn on a dry run and the next hourly run starts finding them.
+                  No prospects here yet. Turn on a dry run and the next research run starts finding them.
                 </td>
               </tr>
             )}
@@ -87,7 +87,9 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
                 </td>
                 <td className="whitespace-nowrap p-3 text-muted-foreground">{day.format(p.updatedAt)}</td>
                 <td className="p-3">
-                  {p.status !== "rejected" && (
+                  {p.status === "rejected" || p.status === "failed" ? (
+                    <ActionButton action={retryProspectAction.bind(null, p.id)} label="Try again" />
+                  ) : (
                     <ActionButton
                       action={blockDomainAction.bind(null, p.domain)}
                       label="Block"

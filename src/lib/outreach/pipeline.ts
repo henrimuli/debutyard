@@ -21,9 +21,11 @@ import { ensureSeeds, pickVariant, proposeIfDue, retireLosers, variantStats } fr
 import { writeEmail } from "./writer";
 
 /**
- * The hourly worker. Each prospect moves one stage at a time and its state is
- * saved after every stage, so a run that runs out of time just stops, and the
- * next one carries on. Sends last, one at a time, each claimed before it goes.
+ * Three separate jobs, each on its own schedule: reading replies, finding and
+ * researching businesses, and writing and sending. They only meet in the
+ * prospect list. Each prospect moves one stage at a time and its state is saved
+ * after every stage, so a run that runs out of time just stops, and the next one
+ * carries on. Each send is claimed before it goes.
  */
 
 const { directories, orders, outreachEmails, outreachMailboxes, outreachProspects, outreachSources, submissionOrders } =
@@ -44,6 +46,8 @@ const MAX_CRAWLS = 2;
 /** How long to leave a directory before reading it again. */
 const RECRAWL_MS = 6 * 3_600_000;
 const HEALTH_WINDOW = 50;
+/** Days of sending to keep researched and ready. Research costs money and goes stale, so it stops here. */
+const READY_DAYS = 2;
 
 const startOfUtcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
@@ -85,6 +89,8 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
           email: v.email,
           emailSourceUrl: v.emailSourceUrl,
           classification: v.classification,
+          attempts: 0,
+          reasonDetail: null,
         })
         .where(eq(outreachProspects.id, p.id));
       return false;
@@ -97,7 +103,7 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
       }
       await db()
         .update(outreachProspects)
-        .set({ status: "researched", research: r.research })
+        .set({ status: "researched", research: r.research, attempts: 0, reasonDetail: null })
         .where(eq(outreachProspects.id, p.id));
       return false;
     }
@@ -111,7 +117,14 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
       }
       const written = await writeEmail(p, variant);
       if (!written.ok) {
-        await reject(p.id, "draft_invalid", written.problems.join("; "));
+        // The research is paid for, so the next run writes it again before giving up.
+        const detail = written.problems.join("; ");
+        if (p.attempts + 1 >= MAX_ATTEMPTS) await reject(p.id, "draft_invalid", detail);
+        else
+          await db()
+            .update(outreachProspects)
+            .set({ attempts: p.attempts + 1, reasonDetail: detail.slice(0, 500) })
+            .where(eq(outreachProspects.id, p.id));
         return false;
       }
       const inserted = await db()
@@ -148,11 +161,11 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
 }
 
 /** The prospect closest to being an email, then the oldest. */
-async function nextProspect(skip: Set<string>): Promise<Prospect | null> {
+async function nextProspect(skip: Set<string>, stages: Array<Prospect["status"]>): Promise<Prospect | null> {
   const rows = await db()
     .select()
     .from(outreachProspects)
-    .where(inArray(outreachProspects.status, ["researched", "qualified", "discovered"]))
+    .where(inArray(outreachProspects.status, stages))
     .orderBy(
       sql`case ${outreachProspects.status} when 'researched' then 0 when 'qualified' then 1 else 2 end`,
       asc(outreachProspects.discoveredAt),
@@ -405,58 +418,49 @@ export async function attributeOrders(now = new Date()) {
   return tied;
 }
 
-export async function runOutreach(now = new Date(), budgetMs = BUDGET_MS) {
+/** Hourly, whatever the mode: replies, bounces and opt-outs must never wait. */
+export async function readReplies(now = new Date()) {
+  return {
+    inbox: await pollMailbox(now).catch((err) => ({ error: err instanceof Error ? err.message : String(err) })),
+    orders: await attributeOrders(now),
+  };
+}
+
+async function researchedWaiting() {
+  const [row] = await db()
+    .select({ n: count() })
+    .from(outreachProspects)
+    .where(eq(outreachProspects.status, "researched"));
+  return row?.n ?? 0;
+}
+
+/** Finds and researches businesses until a couple of days' sending is ready, then stops. Sends nothing. */
+export async function runResearch(now = new Date(), budgetMs = BUDGET_MS) {
   const started = Date.now();
   const left = () => budgetMs - (Date.now() - started);
-  const result: Record<string, unknown> = {};
-
   const settings = await getSettings();
-  result.mode = settings.mode;
-  result.inbox = await pollMailbox(now).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
-  result.orders = await attributeOrders(now);
-  if (settings.mode === "off") return result;
-
+  if (settings.mode === "off") return { mode: settings.mode };
   const missing = missingForPipeline();
-  if (missing.length) return { ...result, skipped: `missing ${missing.join(", ")}` };
+  if (missing.length) return { mode: settings.mode, skipped: `missing ${missing.join(", ")}` };
 
-  await ensureSeeds();
-  const rows = await variantStats();
-  result.retired = await retireLosers(now, rows);
-  await proposeIfDue(rows, now).catch((err) => console.error("outreach variant proposal failed", err));
-
-  let live = settings.mode === "live" && canGoLive();
-  if (settings.mode === "live" && !live) result.notLive = "Live needs production and a mailbox: writing drafts only";
-  if (live) {
-    const problem = await checkHealth(now, settings.healthFrom);
-    if (problem) {
-      result.paused = problem;
-      live = false;
-    }
-    result.expired = await expireDrafts(now);
-  }
-
-  // Enough drafts for a day's sending, and no more: each one costs money and goes stale.
+  const goal = READY_DAYS * dailyTarget(settings.dailyLimit, mailboxes().length);
+  let ready = (await researchedWaiting()) + (await draftsWaiting(now, settings.mode === "live"));
   let crawls = 0;
+  let stages = 0;
   const skip = new Set<string>();
   const crawled = new Set<string>();
-  let drafted = 0;
-  let waiting = await draftsWaiting(now, live);
-  let stages = 0;
-  const target = dailyTarget(settings.dailyLimit, mailboxes().length);
-  while (waiting < target && left() > STAGE_MS) {
-    const p = await nextProspect(skip);
+  while (ready < goal && left() > STAGE_MS) {
+    const p = await nextProspect(skip, ["qualified", "discovered"]);
     if (p) {
       // One stage a turn per prospect, so a failing one can't hold up the run.
       stages++;
-      if (await advance(p, settings.maxAuthority, now)) {
-        drafted++;
-        waiting++;
-      }
+      await advance(p, settings.maxAuthority, now);
       const [after] = await db()
-        .select({ status: outreachProspects.status, attempts: outreachProspects.attempts })
+        .select({ status: outreachProspects.status })
         .from(outreachProspects)
         .where(eq(outreachProspects.id, p.id));
-      if (after && after.status === p.status) skip.add(p.id);
+      if (after?.status === "researched") ready++;
+      else if (after?.status === p.status) skip.add(p.id);
       continue;
     }
     if (crawls >= MAX_CRAWLS) break;
@@ -476,7 +480,49 @@ export async function runOutreach(now = new Date(), budgetMs = BUDGET_MS) {
         });
     });
   }
-  Object.assign(result, { crawls, stages, drafted, waiting });
+  return { mode: settings.mode, goal, ready, crawls, stages };
+}
+
+/** Writes emails for whoever is researched and sends what's due. Doesn't care when research last ran. */
+export async function runSending(now = new Date(), budgetMs = BUDGET_MS) {
+  const started = Date.now();
+  const left = () => budgetMs - (Date.now() - started);
+  const settings = await getSettings();
+  const result: Record<string, unknown> = { mode: settings.mode };
+  if (settings.mode === "off") return result;
+  if (!geminiConfigured()) return { ...result, skipped: "missing GEMINI_API_KEY" };
+
+  await ensureSeeds();
+  const rows = await variantStats();
+  result.retired = await retireLosers(now, rows);
+  await proposeIfDue(rows, now).catch((err) => console.error("outreach variant proposal failed", err));
+
+  let live = settings.mode === "live" && canGoLive();
+  if (settings.mode === "live" && !live) result.notLive = "Live needs production and a mailbox: writing drafts only";
+  if (live) {
+    const problem = await checkHealth(now, settings.healthFrom);
+    if (problem) {
+      result.paused = problem;
+      live = false;
+    }
+    result.expired = await expireDrafts(now);
+  }
+
+  // Enough drafts for a day's sending, and no more: each one costs money and goes stale.
+  const skip = new Set<string>();
+  let drafted = 0;
+  let waiting = await draftsWaiting(now, live);
+  const target = dailyTarget(settings.dailyLimit, mailboxes().length);
+  while (waiting < target && left() > STAGE_MS) {
+    const p = await nextProspect(skip, ["researched"]);
+    if (!p) break;
+    skip.add(p.id);
+    if (await advance(p, settings.maxAuthority, now)) {
+      drafted++;
+      waiting++;
+    }
+  }
+  Object.assign(result, { drafted, waiting });
 
   if (live) result.send = await sendWhatsDue(now, settings.dailyLimit);
   return result;

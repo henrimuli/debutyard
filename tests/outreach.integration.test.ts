@@ -145,9 +145,47 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
 
   it("does nothing but read the mailbox while off", async () => {
     await draft();
-    const r = await pipeline.runOutreach();
-    expect(r.mode).toBe("off");
+    expect((await pipeline.runResearch()).mode).toBe("off");
+    expect((await pipeline.runSending()).mode).toBe("off");
+    expect(await pipeline.readReplies()).toHaveProperty("inbox");
     expect(sent).toEqual([]);
+  });
+
+  it("gives a rejected business another go, keeping paid research", async () => {
+    const [fresh] = await dbmod
+      .db()
+      .insert(dbmod.schema.outreachProspects)
+      .values({
+        domain: "retry-fresh.example",
+        name: "Fresh",
+        websiteUrl: "https://retry-fresh.example",
+        sourceUrl: "https://directory.example",
+        launchEvidence: "Listed today",
+        status: "rejected",
+        reason: "directory_signal",
+        attempts: 2,
+      })
+      .returning();
+    await queries.retryProspect(fresh!.id);
+    const [after] = await dbmod
+      .db()
+      .select()
+      .from(dbmod.schema.outreachProspects)
+      .where(eq(dbmod.schema.outreachProspects.id, fresh!.id));
+    expect(after).toMatchObject({ status: "discovered", reason: null, attempts: 0 });
+
+    await dbmod
+      .db()
+      .update(dbmod.schema.outreachProspects)
+      .set({ status: "drafted" })
+      .where(eq(dbmod.schema.outreachProspects.id, fresh!.id));
+    await queries.retryProspect(fresh!.id);
+    const [kept] = await dbmod
+      .db()
+      .select()
+      .from(dbmod.schema.outreachProspects)
+      .where(eq(dbmod.schema.outreachProspects.id, fresh!.id));
+    expect(kept?.status).toBe("drafted");
   });
 
   it("won't send when not in production, even in live mode", async () => {

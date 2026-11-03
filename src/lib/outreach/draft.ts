@@ -48,7 +48,7 @@ const OVERCLAIMS =
  * because a draft that hits one gets rewritten, and that costs a model call.
  */
 const SPAM_WORDS =
-  /\b(act now|apply now|buy now|call now|click (here|below)|order now|sign up now|best price|lowest price|bargain|cash|credit card|make money|earn(ing)?|extra income|exclusive|expires?|hurry|instant(ly)?|incredible|amazing|miracle|winner|congratulations|promise[ds]?|promotion(al)?|opportunity|no obligation|no cost|risk[- ]free|double your|boost your|increase your|dear friend|once in a lifetime|spam|unsubscribe)\b/i;
+  /\b(act now|apply now|buy now|call now|click (here|below)|order now|sign up now|best price|lowest price|bargain|cash|credit card|make money|extra income|exclusive|expires?|hurry|instant(ly)?|incredible|amazing|miracle|winner|congratulations|promise[ds]?|promotion(al)?|opportunity|no obligation|no cost|risk[- ]free|double your|boost your|increase your|dear friend|once in a lifetime|spam|unsubscribe)\b/i;
 
 export const spamWordIn = (text: string) => SPAM_WORDS.exec(text)?.[0] ?? null;
 

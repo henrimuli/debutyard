@@ -31,6 +31,19 @@ const includes = (links: unknown[], url: string) => {
   return links.some((l) => typeof l === "string" && normalizeForSerp(l) === want);
 };
 
+/** What DataForSEO said, for whoever reads the error. It reports most failures with a normal HTTP 200. */
+function taskFailure(body: unknown) {
+  const b = body as {
+    status_code?: number;
+    status_message?: string;
+    tasks?: Array<{ status_code?: number; status_message?: string }>;
+  };
+  const task = b.tasks?.[0];
+  const code = task?.status_code ?? b.status_code;
+  const message = task?.status_message ?? b.status_message;
+  return `DataForSEO SERP task failed${code ? ` (${code})` : ""}${message ? `: ${message}` : ""}`;
+}
+
 export function parseSerpApi(body: unknown, url: string): boolean {
   const b = body as { error?: string; organic_results?: Array<{ link?: string }> };
   if (b.error && !/hasn't returned any results/i.test(b.error)) throw new SerpError(`SerpApi: ${b.error}`);
@@ -46,7 +59,7 @@ export function parseDataForSeoSerp(body: unknown, url: string): boolean {
       tasks?: Array<{ status_code?: number; result?: Array<{ items?: Array<{ type?: string; url?: string }> }> }>;
     }
   ).tasks?.[0];
-  if (!task || (task.status_code && task.status_code >= 40000)) throw new SerpError("DataForSEO SERP task failed");
+  if (!task || (task.status_code && task.status_code >= 40000)) throw new SerpError(taskFailure(body));
   const items = task.result?.[0]?.items ?? [];
   return includes(
     items.filter((i) => i.type === "organic").map((i) => i.url),
@@ -84,7 +97,7 @@ export function parseDataForSeoTop(body: unknown): SerpResult[] {
       }>;
     }
   ).tasks?.[0];
-  if (!task || (task.status_code && task.status_code >= 40000)) throw new SerpError("DataForSEO SERP task failed");
+  if (!task || (task.status_code && task.status_code >= 40000)) throw new SerpError(taskFailure(body));
   return (task.result?.[0]?.items ?? []).flatMap((r, i) =>
     r.type === "organic" && r.url
       ? [{ position: r.rank_group ?? i + 1, url: r.url, title: r.title ?? "", description: r.description ?? "" }]

@@ -22,7 +22,8 @@ const WRITER_SYSTEM = `You write a short cold email in the voice of Henry, the f
 
 The greeting, the "congrats on the launch" opening, the closing line with the link, the sign-off and the opt-out line are added for you. Write only the subject and the two or three paragraphs in between.
 
-Every fact goes in through a placeholder, written exactly as listed. Never write a name, keyword, score or any other number yourself.
+Every fact goes in through a placeholder, written exactly as listed, braces included. Never write a name, keyword, score or any other number yourself.
+The paragraphs themselves must contain {keyword}, {competitor1}, {competitor1_score} and {business_score}. Using one in the subject doesn't count, and "that search" doesn't stand in for {keyword}.
 - {business}: the business
 - {keyword}: the search phrase
 - {competitor1}, {competitor1_score}, and {competitor2}, {competitor2_score} when given: competitors at the top of that search and their Authority Scores
@@ -119,7 +120,7 @@ export async function writeEmail(
       system: WRITER_SYSTEM,
       contents: [
         user(
-          `${brief}\n\nResearch:\n${facts}${problems.length ? `\n\nYour last draft was rejected for: ${problems.join("; ")}. Fix these.` : ""}`,
+          `${brief}\n\nResearch:\n${facts}${problems.length ? `\n\nYour last draft was rejected for: ${problems.join("; ")}. Fix these, and write the facts as placeholders with their braces, in the paragraphs.` : ""}`,
         ),
       ],
       schema: WRITER_SCHEMA,
