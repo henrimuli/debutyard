@@ -63,6 +63,12 @@ export function setupChecklist(e: Env): SetupItem[] {
       required: false,
       hint: "WORKER_URL, WORKER_SECRET",
     },
+    {
+      label: "Cold outreach mailboxes",
+      ok: has("OUTREACH_MAILBOXES", "OUTREACH_SMTP_HOST", "OUTREACH_IMAP_HOST"),
+      required: false,
+      hint: "OUTREACH_MAILBOXES, OUTREACH_SMTP_HOST, OUTREACH_IMAP_HOST",
+    },
     { label: "Blocked-site fetches", ok: has("FIRECRAWL_API_KEY"), required: false, hint: "FIRECRAWL_API_KEY" },
     {
       label: "Social sign-in",

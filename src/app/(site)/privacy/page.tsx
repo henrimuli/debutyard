@@ -32,14 +32,20 @@ export default function PrivacyPage() {
         <li>To keep rankings fair by detecting fake accounts and applause manipulation.</li>
         <li>To send service emails (sign-in links, receipts, launch updates) and, if you opt in, our newsletter.</li>
         <li>To meet legal, tax and accounting obligations.</li>
+        <li>
+          To write once to businesses that have just launched about our submission service, using the contact address
+          they publish on their own website and public information about their site. Every such email has an unsubscribe
+          link, and we keep a record of addresses that opt out so we never contact them again.
+        </li>
       </ul>
 
       <h2>Who we share it with</h2>
       <p>
         Service providers that run parts of {site.name} for us: hosting (Vercel), database (Supabase), file storage and
-        bot protection (Cloudflare), email (Resend), payments (Paystack, PayPal) and fetching public web pages our own
-        checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give us with
-        the directories we submit to. We don&apos;t sell personal data.
+        bot protection (Cloudflare), email (Resend, and Maildoso for outreach email), payments (Paystack, PayPal),
+        search and authority data (DataForSEO), writing and classification (Google Gemini) and fetching public web pages
+        our own checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give
+        us with the directories we submit to. We don&apos;t sell personal data.
       </p>
 
       <h2>Badge block</h2>

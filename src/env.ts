@@ -88,6 +88,22 @@ const schema = z.object({
   /** Resend webhook signing secret (whsec_…) for newsletter open/click tracking. Unset disables the webhook. */
   RESEND_WEBHOOK_SECRET: optional,
 
+  // Cold outreach mailboxes (Maildoso, or any SMTP and IMAP host). Never Resend: its policy bans cold email.
+  /**
+   * JSON list, one entry per mailbox: [{"from":"Henry <henry@hello.debutyard.com>","pass":"..."}].
+   * Optional per entry: "user" (defaults to the address), "smtpHost", "imapHost".
+   * Read as text so a typo here shows up on /admin/outreach instead of taking the site down.
+   */
+  OUTREACH_MAILBOXES: optional,
+  OUTREACH_SMTP_HOST: optional,
+  OUTREACH_SMTP_PORT: z.coerce.number().int().positive().default(465),
+  /** Reads replies, with each mailbox's own login. */
+  OUTREACH_IMAP_HOST: optional,
+  OUTREACH_IMAP_PORT: z.coerce.number().int().positive().default(993),
+
+  /** Set by Vercel. Outreach only sends when this is "production". */
+  VERCEL_ENV: optional,
+
   // Vercel Cron sends this as a bearer token.
   CRON_SECRET: optional,
 });

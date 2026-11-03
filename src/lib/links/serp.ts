@@ -54,6 +54,64 @@ export function parseDataForSeoSerp(body: unknown, url: string): boolean {
   );
 }
 
+export type SerpResult = { position: number; url: string; title: string; description: string };
+
+export function parseSerpApiTop(body: unknown): SerpResult[] {
+  const b = body as {
+    error?: string;
+    organic_results?: Array<{ position?: number; link?: string; title?: string; snippet?: string }>;
+  };
+  if (b.error && !/hasn't returned any results/i.test(b.error)) throw new SerpError(`SerpApi: ${b.error}`);
+  return (b.organic_results ?? []).flatMap((r, i) =>
+    r.link ? [{ position: r.position ?? i + 1, url: r.link, title: r.title ?? "", description: r.snippet ?? "" }] : [],
+  );
+}
+
+export function parseDataForSeoTop(body: unknown): SerpResult[] {
+  const task = (
+    body as {
+      tasks?: Array<{
+        status_code?: number;
+        result?: Array<{
+          items?: Array<{
+            type?: string;
+            rank_group?: number;
+            url?: string;
+            title?: string;
+            description?: string;
+          }>;
+        }>;
+      }>;
+    }
+  ).tasks?.[0];
+  if (!task || (task.status_code && task.status_code >= 40000)) throw new SerpError("DataForSEO SERP task failed");
+  return (task.result?.[0]?.items ?? []).flatMap((r, i) =>
+    r.type === "organic" && r.url
+      ? [{ position: r.rank_group ?? i + 1, url: r.url, title: r.title ?? "", description: r.description ?? "" }]
+      : [],
+  );
+}
+
+/** Who ranks for a search right now, for cold outreach: top organic results, United States, English. */
+export function createSerpSearch(id: SerpProviderId, apiKey: string, fetchImpl: typeof fetch = fetch) {
+  return async (keyword: string): Promise<SerpResult[]> => {
+    if (id === "serpapi") {
+      const q = new URLSearchParams({ engine: "google", q: keyword, num: "10", api_key: apiKey });
+      const res = await fetchImpl(`https://serpapi.com/search.json?${q}`, { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new SerpError(`SerpApi returned HTTP ${res.status}`);
+      return parseSerpApiTop(await res.json());
+    }
+    const res = await fetchImpl("https://api.dataforseo.com/v3/serp/google/organic/live/regular", {
+      method: "POST",
+      headers: { Authorization: `Basic ${Buffer.from(apiKey).toString("base64")}`, "Content-Type": "application/json" },
+      body: JSON.stringify([{ keyword, location_code: 2840, language_code: "en", depth: 10 }]),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) throw new SerpError(`DataForSEO returned HTTP ${res.status}`);
+    return parseDataForSeoTop(await res.json());
+  };
+}
+
 export function createSerpProvider(id: SerpProviderId, apiKey: string, fetchImpl: typeof fetch = fetch): SerpProvider {
   const timeout = () => AbortSignal.timeout(20_000);
   const ok = async (res: Response, name: string) => {

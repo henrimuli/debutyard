@@ -8,5 +8,7 @@ export const site = {
   /** Legal entity shown in the policies. Update once the business is registered. */
   legalName: "DebutYard SaaS Solutions",
   country: "Kenya",
+  /** Required in cold email, shown in its footer. */
+  postalAddress: "A501 ShawHill Plaza, Moi Drive, Nairobi",
   social: { x: "https://x.com/hmhenree" },
 } as const;

@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // Mail libraries that open raw sockets and read their own files at run time.
+  serverExternalPackages: ["nodemailer", "imapflow", "mailparser"],
   partialPrefetching: true,
   // forbidden(): admin pages show an "admins only" page (403) to signed-in non-staff.
   experimental: { authInterrupts: true },
