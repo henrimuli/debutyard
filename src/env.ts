@@ -90,13 +90,13 @@ const schema = z.object({
 
   // Cold outreach mailboxes (Maildoso, or any SMTP and IMAP host). Never Resend: its policy bans cold email.
   /**
-   * JSON list, one entry per mailbox: [{"from":"Henry <henry@hello.debutyard.com>","pass":"..."}].
+   * JSON list, one entry per mailbox: [{"from":"Henry <henry@trydebutyard.com>","pass":"..."}].
    * Optional per entry: "user" (defaults to the address), "smtpHost", "imapHost".
    * Read as text so a typo here shows up on /admin/outreach instead of taking the site down.
    */
   OUTREACH_MAILBOXES: optional,
   OUTREACH_SMTP_HOST: optional,
-  OUTREACH_SMTP_PORT: z.coerce.number().int().positive().default(465),
+  OUTREACH_SMTP_PORT: z.coerce.number().int().positive().default(587),
   /** Reads replies, with each mailbox's own login. */
   OUTREACH_IMAP_HOST: optional,
   OUTREACH_IMAP_PORT: z.coerce.number().int().positive().default(993),

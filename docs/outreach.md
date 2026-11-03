@@ -25,11 +25,22 @@ Rejected prospects stay in the table with the reason, so the same site is never 
 
 ## Going live
 
-1. Create a mailbox in Maildoso, on a sending domain that doesn't touch `submit.debutyard.com`'s mail records, which order inboxes depend on.
-2. Set `OUTREACH_MAILBOXES` (see below), `OUTREACH_SMTP_HOST`, `OUTREACH_SMTP_PORT`, `OUTREACH_IMAP_HOST` and `OUTREACH_IMAP_PORT` on Vercel. DataForSEO uses the existing `DR_API_KEY`.
+1. Buy a separate sending domain (see below) and create a mailbox on it in Maildoso. Turn on warm-up and leave it running for at least 14 days before the first campaign.
+2. Set `OUTREACH_MAILBOXES` (see below), `OUTREACH_SMTP_HOST`, `OUTREACH_SMTP_PORT`, `OUTREACH_IMAP_HOST` and `OUTREACH_IMAP_PORT` on Vercel. DataForSEO uses the existing `DR_API_KEY`. Maildoso's are `smtp.maildoso.com` on 587 and `imap.apollo.maildoso.com` on 993, but check them and the login format against its mailbox CSV export.
 3. Set the mode to **Dry run**. Each hourly run writes up to the daily limit of drafts. Read them under **Emails**, and block anything that shouldn't be there.
 4. Use **Send a test from each mailbox** to check the logins and how the email lands.
 5. Set the mode to **Live** at 5 a day. Drafts under three days old go first, so discard any you don't want. Raise the limit slowly.
+
+## Sending domain
+
+Cold email goes from its own domain, such as `trydebutyard.com`, never from `debutyard.com`. Maildoso takes over a connected domain's nameservers and allows no records of your own, which would take down the site and the `submit.debutyard.com` order inboxes.
+
+- **Name:** a clear variation on the brand, not a misspelling, which can look like impersonation.
+- **Registrar:** buy it through Maildoso, which sets it up automatically. A domain registered with Cloudflare can't be connected.
+- **Redirect:** set the domain's redirect to `https://debutyard.com` in Maildoso, so anyone checking it finds the site. Visitors may see a short verification first.
+- **Mailboxes per domain:** Maildoso recommends 4 to 8, so ten mailboxes need two domains. The list can mix domains.
+
+The separation isn't complete: each email still names and links to `debutyard.com`, so poor targeting can still hurt it.
 
 ## Mailboxes
 
@@ -37,8 +48,8 @@ Rejected prospects stay in the table with the reason, so the same site is never 
 
 ```json
 [
-  { "from": "Henry from DebutYard <henry@hello.debutyard.com>", "pass": "..." },
-  { "from": "Henry from DebutYard <henry.m@hello.debutyard.com>", "pass": "..." }
+  { "from": "Henry from DebutYard <henry@trydebutyard.com>", "pass": "..." },
+  { "from": "Henry from DebutYard <henry.m@trydebutyard.com>", "pass": "..." }
 ]
 ```
 
@@ -48,13 +59,13 @@ To add a mailbox, add an entry and redeploy, since Vercel only applies environme
 
 Keep a retired mailbox in the list until replies to it have stopped: only listed mailboxes are read. A reply in a conversation whose mailbox has gone comes from the first one in the list.
 
-A new mailbox is treated the same as an old one, so warm it up in Maildoso before adding it.
+A new mailbox is treated the same as an old one, so give it its 14 days of warm-up in Maildoso before adding it.
 
 150 a day also needs 150 drafts a day. The pipeline reads up to 10 listings per directory per crawl, each directory every 6 hours, and most get rejected, so sending more usually means starring more directories. The **Pipeline** card shows where prospects run out.
 
 ## Replies
 
-The job reads every mailbox over IMAP and files replies under **Inbox**, matched to the email they answer by message ID, then address, then domain. Gemini sorts them (interested, question, not interested, unsubscribe, complaint, auto-reply). Unsubscribes, complaints, refusals and hard bounces go on the permanent block list. Positive replies email `ADMIN_EMAIL`. Attachments aren't kept. Answers go out from the mailbox the conversation is with.
+The job reads every mailbox over IMAP and files replies under **Inbox**, matched to the email they answer by message ID, then address, then domain. Gemini sorts them (interested, question, not interested, unsubscribe, complaint, auto-reply). Unsubscribes, complaints, refusals and hard bounces go on the permanent block list. Positive replies email `ADMIN_EMAIL`. Attachments aren't kept. Maildoso's warm-up filter only covers its own Master Inbox, so check that warm-up mail doesn't land in the mailboxes' IMAP inboxes before relying on **Inbox**. Answers go out from the mailbox the conversation is with.
 
 ## Versions
 

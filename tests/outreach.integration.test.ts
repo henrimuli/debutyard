@@ -14,7 +14,7 @@ const mail = (over: Partial<InboundMail>): InboundMail => ({
   messageId: `<${Math.random()}@them>`,
   from: "founder@acme.com",
   fromName: "Ada",
-  to: "henry@hello.debutyard.com",
+  to: "henry@trydebutyard.com",
   subject: "Re: who's ranking",
   text: "Tell me more, this sounds useful for us and we'd like the details.",
   inReplyTo: null,
@@ -45,7 +45,7 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
     process.env.OUTREACH_SMTP_HOST = "smtp.test";
     process.env.OUTREACH_IMAP_HOST = "imap.test";
     process.env.OUTREACH_MAILBOXES = JSON.stringify([
-      { from: "Henry from DebutYard <henry@hello.debutyard.com>", pass: "x" },
+      { from: "Henry from DebutYard <henry@trydebutyard.com>", pass: "x" },
       { from: "Henry from DebutYard <henry@other.debutyard.test>", pass: "x" },
     ]);
     (await import("@/env")).resetEnvForTests();
@@ -124,7 +124,7 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
         body: "Hey team,",
         html: "<p>Hey team,</p>",
         token: `tok-${domain}`,
-        messageId: `<${domain}@hello.debutyard.com>`,
+        messageId: `<${domain}@trydebutyard.com>`,
       })
       .returning();
     return { prospect: prospect!, email: email! };
@@ -311,9 +311,9 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
     await pipeline.sendDraft(b.email.id);
     await pipeline.sendDraft(c.email.id);
     expect(sent.map((m) => m.box)).toEqual([
-      "henry@hello.debutyard.com",
+      "henry@trydebutyard.com",
       "henry@other.debutyard.test",
-      "henry@hello.debutyard.com",
+      "henry@trydebutyard.com",
     ]);
     expect((await queries.getEmail(b.email.id))?.email.fromAddress).toBe("henry@other.debutyard.test");
   });
@@ -339,7 +339,7 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
   });
 
   it("hands a draft to the next mailbox when one can't send, without using up the prospect", async () => {
-    down.add("henry@hello.debutyard.com");
+    down.add("henry@trydebutyard.com");
     const { email } = await draft();
     expect(await pipeline.sendDraft(email.id)).toBe("sent");
     expect(sent.map((m) => m.box)).toEqual(["henry@other.debutyard.test"]);
@@ -347,12 +347,12 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
       .db()
       .select()
       .from(dbmod.schema.outreachMailboxes)
-      .where(eq(dbmod.schema.outreachMailboxes.address, "henry@hello.debutyard.com"));
+      .where(eq(dbmod.schema.outreachMailboxes.address, "henry@trydebutyard.com"));
     expect(box?.sendError).toBe("Invalid login");
   });
 
   it("keeps the draft when every mailbox is down, and clears the error once one recovers", async () => {
-    down = new Set(["henry@hello.debutyard.com", "henry@other.debutyard.test"]);
+    down = new Set(["henry@trydebutyard.com", "henry@other.debutyard.test"]);
     const { email } = await draft();
     expect(await pipeline.sendDraft(email.id)).toBe("no_mailbox");
     const row = await queries.getEmail(email.id);
@@ -381,14 +381,14 @@ describe.skipIf(!TEST_DB)("cold outreach (Postgres)", () => {
         subject: "Re: Hello",
       }),
     ];
-    down.add("henry@hello.debutyard.com");
+    down.add("henry@trydebutyard.com");
     expect(await inbox.pollMailbox()).toMatchObject({ mailboxes: 2, filed: 1, failed: 1 });
     inboxes = {};
     down = new Set();
     reads = [];
     await inbox.pollMailbox();
     expect(reads.find((r) => r.box === "henry@other.debutyard.test")?.lastUid).toBeGreaterThan(0);
-    expect(reads.find((r) => r.box === "henry@hello.debutyard.com")).toBeDefined();
+    expect(reads.find((r) => r.box === "henry@trydebutyard.com")).toBeDefined();
   });
 
   it("answers from the mailbox the conversation is with", async () => {

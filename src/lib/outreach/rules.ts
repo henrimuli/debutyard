@@ -362,7 +362,7 @@ export function dailyTarget(limit: number, mailboxCount: number): number {
 export type MailboxAccount = {
   /** Bare and lowercased. */
   address: string;
-  /** The whole From header, e.g. "Henry from DebutYard <henry@hello.debutyard.com>". */
+  /** The whole From header, e.g. "Henry from DebutYard <henry@trydebutyard.com>". */
   from: string;
   user: string;
   pass: string;

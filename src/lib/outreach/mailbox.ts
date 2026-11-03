@@ -79,6 +79,8 @@ const smtpSend: Mailbox["send"] = async (box, mail) => {
     host: box.smtpHost,
     port,
     secure: port === 465,
+    // On any other port (Maildoso uses 587) refuse to log in or send unless STARTTLS works.
+    requireTLS: port !== 465,
     auth: { user: box.user, pass: box.pass },
     connectionTimeout: 20_000,
     socketTimeout: 30_000,
