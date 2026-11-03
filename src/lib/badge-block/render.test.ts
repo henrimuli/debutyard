@@ -22,7 +22,7 @@ describe("blockHtml", () => {
   it("gives every badge the same slot, over any size set on the badge itself", () => {
     const html = blockHtml(key, [badge, '<a href="https://b.example"><img src="b.png" width="400" height="120"></a>']);
     expect(html.split('<div class="debutyard-badge">')).toHaveLength(3);
-    expect(html).toContain("width:200px;height:54px");
+    expect(html).toContain("width:160px;height:44px");
     expect(html).toContain("width:100%!important;height:100%!important");
     expect(html).toContain("object-fit:contain");
   });

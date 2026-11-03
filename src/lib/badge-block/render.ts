@@ -4,8 +4,8 @@ const BLOCK_ID = "debutyard-badges";
 /** From this many badges the block is a moving strip rather than a row. */
 export const MOVING_AT = 6;
 /** Every badge fits this slot, whatever size its directory made it, and keeps its own shape. */
-const BADGE_WIDTH = 200;
-const BADGE_HEIGHT = 54;
+const BADGE_WIDTH = 160;
+const BADGE_HEIGHT = 44;
 
 const STYLE = `#${BLOCK_ID}{width:100%;margin:48px 0;padding:0 16px;box-sizing:border-box}
 #${BLOCK_ID} .debutyard-group{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
