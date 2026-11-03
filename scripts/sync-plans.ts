@@ -36,7 +36,10 @@ async function main() {
   const url = prod
     ? (process.env.DIRECT_DATABASE_URL_MASTER ?? process.env.DATABASE_URL_MASTER)
     : (process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL);
-  if (!url) throw new Error(prod ? "Set DATABASE_URL_MASTER or DIRECT_DATABASE_URL_MASTER" : "Set DATABASE_URL or DIRECT_DATABASE_URL");
+  if (!url)
+    throw new Error(
+      prod ? "Set DATABASE_URL_MASTER or DIRECT_DATABASE_URL_MASTER" : "Set DATABASE_URL or DIRECT_DATABASE_URL",
+    );
   const client = postgres(url, { prepare: false, max: 1 });
   const db = drizzle(client, { schema, casing: "snake_case" });
 
