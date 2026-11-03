@@ -4,12 +4,20 @@ Finds businesses that just launched on our starred directories, researches who r
 
 ## How a business becomes an email
 
-An hourly job (`/api/cron/outreach`, Supabase Cron at :35) moves each prospect one stage at a time and saves after every stage, so a run that runs out of time just stops and the next carries on.
+Three jobs on Supabase Cron, which only meet in the prospect list. Each prospect moves one stage at a time and is saved after every stage, so a run that runs out of time just stops and the next carries on.
+
+| Job | When | What it does |
+| --- | --- | --- |
+| `/api/cron/outreach` | Hourly at :35, in every mode | Reads replies, bounces and opt-outs, and ties orders to emails |
+| `/api/cron/outreach-research` | Every 3 hours at :15 | Discovers, qualifies and researches until two days of sending are ready, then stops |
+| `/api/cron/outreach-send` | Hourly at :05 | Manages versions, writes emails for researched businesses, and sends what's due |
+
+Sending doesn't depend on when research last ran: anything already researched can go out. The last two do nothing while outreach is off.
 
 1. **Discover** (`discover.ts`): reads a starred directory's front page, plus its recent launches page if it links one. Gemini picks recent launches from links that are really on the page, and code checks the link and section heading are there. A dated listing older than 14 days is dropped.
-2. **Qualify** (`qualify.ts`): rejects known directories, existing makers, buyers and subscribers, then anything with a directory signal in its domain, title, heading or links. Finds a public address on the homepage, then contact, about, privacy and terms. Checks the domain takes mail. Gemini must call it a `product` at 80% confidence or more.
+2. **Qualify** (`qualify.ts`): rejects known directories, existing makers, buyers and subscribers, then anything with a directory signal in its domain, title, heading or links. Outbound links only count outside the `<footer>`, because makers put directory badges there. Finds a public address on the homepage, then contact, about, privacy and terms. Checks the domain takes mail. Gemini must call it a `product` at 80% confidence or more.
 3. **Research** (`research.ts`, `pick.ts`): Gemini suggests up to three searches. DataForSEO says who ranks and each site's Authority Score. It needs a competitor in the top 3, the business outside the top 5, and a gap of at least 15. Otherwise no email.
-4. **Write** (`writer.ts`, `draft.ts`): Gemini writes the subject and paragraphs with placeholders for every fact, and code fills them in. Numbers, prices, links, overclaims, spam words and hand-written names reject the draft. Code adds the greeting, closing, link, sign-off, opt-out line and address.
+4. **Write** (`writer.ts`, `draft.ts`): Gemini writes the subject and paragraphs with placeholders for every fact, and code fills them in. Numbers, prices, links, overclaims, spam words and hand-written names reject the draft, and a business gets three runs before it is rejected for that. Code adds the greeting, closing, link, sign-off, opt-out line and address.
 5. **Send** (`pipeline.ts`): spreads the daily limit across 13:00–21:00 UTC, from the least used mailbox each time. Each draft is claimed before sending and never retried once sending has started, so a crash can't cause a repeat.
 
 Rejected prospects stay in the table with the reason, so the same site is never checked or paid for twice.
