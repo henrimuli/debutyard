@@ -40,8 +40,8 @@ export type SerpResult = { position: number; url: string; title: string; descrip
 
 /**
  * Google can hide the destination behind /goto or /url. The worker swaps those
- * for the real pages, so one that reaches us is a link it couldn't resolve. Reading
- * those as results would make Google the top "competitor" for every search.
+ * for the real page or the result's site, so one that reaches us had neither.
+ * Reading those as results would make Google the top "competitor" for every search.
  */
 function isWrappedLink(raw: string) {
   try {
@@ -104,7 +104,7 @@ export async function searchOrError<T>(
 }
 
 /** OpenSERP drives a real browser and has its own retry, and the worker then resolves links, so it gets longer than a normal API call. */
-const SEARCH_TIMEOUT_MS = 50_000;
+const SEARCH_TIMEOUT_MS = 55_000;
 
 /** What OpenSERP or the worker said went wrong, for whoever reads the error. */
 async function failureReason(res: Response) {
