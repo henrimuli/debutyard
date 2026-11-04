@@ -105,9 +105,24 @@ describe("unwrapLinks", () => {
     ["malformed", "not a domain"],
     ["a path in disguise", "evil.test/x?y"],
     ["Google itself", "www.google.com"],
-  ])("keeps the link wrapped when the domain is %s", async (_name, domain) => {
-    const out = await run({ results: [{ url: GOTO, domain }] }, answering(new Response(null, { status: 429 })));
-    expect(urls(out)).toEqual([GOTO]);
+  ])("leaves the result out when the domain is %s", async (_name, domain) => {
+    const results = [
+      { rank: 1, url: "https://a.test/page", domain: "a.test" },
+      { rank: 2, url: GOTO, domain },
+      { rank: 3, url: "https://b.test/page", domain: "b.test" },
+    ];
+    const out = await run({ results }, answering(new Response(null, { status: 429 })));
+    expect(out).toEqual({ results: [results[0], results[2]] });
+  });
+
+  it("keeps a result with no domain when its lookup works", async () => {
+    const out = await run({ results: [{ url: GOTO, domain: "" }] }, answering(redirect("https://a.test/post/")));
+    expect(urls(out)).toEqual(["https://a.test/post/"]);
+  });
+
+  it("returns an empty list when nothing is usable, which the app reads as a failed search", async () => {
+    const out = await run({ results: [{ url: GOTO }] }, answering(new Response(null, { status: 429 })));
+    expect(urls(out)).toEqual([]);
   });
 
   it("keeps a Google page that really is the result", async () => {
