@@ -3,7 +3,8 @@
  * link. Each one redirects to the real page, so we ask where it goes and never
  * load the page itself. Google limits rapid lookups, so they go one at a time
  * and stop at the first that doesn't give an answer. Outreach only needs the
- * site, so a link we couldn't look up falls back to the result's own domain.
+ * site, so a link we couldn't look up falls back to the result's own domain,
+ * and a result with neither is left out.
  */
 
 const GAP_MS = 1_000;
@@ -56,8 +57,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * OpenSERP's response with wrapped result links swapped for the real pages, or
- * else the result's site. A link with neither stays wrapped, so the app sees a
- * failed search rather than a Google URL posing as a competitor.
+ * else the result's site. A result with neither is left out, so one bad link
+ * doesn't cost the search and Google can't pose as a competitor. The rest keep
+ * their ranks, and if none are left the app treats it as a failed search.
  */
 export async function unwrapLinks(body, { fetchImpl = fetch, gapMs = GAP_MS, budgetMs = BUDGET_MS } = {}) {
   if (!Array.isArray(body?.results)) return body;
@@ -77,7 +79,8 @@ export async function unwrapLinks(body, { fetchImpl = fetch, gapMs = GAP_MS, bud
       url = await lookUp(link, fetchImpl);
       limited = !url;
     }
-    results.push({ ...result, url: url ?? fromDomain(result.domain) ?? result.url });
+    url ??= fromDomain(result.domain);
+    if (url) results.push({ ...result, url });
   }
   return { ...body, results };
 }

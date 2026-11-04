@@ -40,8 +40,8 @@ export type SerpResult = { position: number; url: string; title: string; descrip
 
 /**
  * Google can hide the destination behind /goto or /url. The worker swaps those
- * for the real page or the result's site, so one that reaches us had neither.
- * Reading those as results would make Google the top "competitor" for every search.
+ * for the real page or the result's site, or leaves the result out, so none should
+ * reach us. Reading one as a result would make Google a "competitor", so check anyway.
  */
 function isWrappedLink(raw: string) {
   try {
