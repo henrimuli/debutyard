@@ -6,6 +6,9 @@
 /** Runs are three hours apart, so this many in a row is most of a day, too long to be a passing block. */
 export const PROXY_AFTER_RUNS = 3;
 
+/** Our services failing rather than Google refusing, so a proxy wouldn't help. */
+const serviceTrouble = (error: string) => /HTTP 5\d\d|reach the worker/.test(error);
+
 export type ResearchRun = { startedAt: Date; results: unknown };
 
 export type SearchDownStreak = {
@@ -37,7 +40,7 @@ export function searchDownStreak(newestFirst: ResearchRun[]): SearchDownStreak |
       };
       streak.runs++;
       streak.since = run.startedAt;
-      streak.needsProxy = streak.runs >= PROXY_AFTER_RUNS;
+      streak.needsProxy = streak.runs >= PROXY_AFTER_RUNS && !serviceTrouble(streak.error);
     }
     // Worked earlier in the same run, then failed: the block starts here.
     if (research?.searched) break;

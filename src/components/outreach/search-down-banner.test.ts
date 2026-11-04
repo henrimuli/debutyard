@@ -30,4 +30,12 @@ describe("SearchDownBanner", () => {
     expect(out).toContain("4 runs in a row");
     expect(out).toContain("proxies.global");
   });
+
+  it("points at our own services when a proxy wouldn't help", () => {
+    const out = html(streak({ runs: 3, needsProxy: false, error: "OpenSERP returned HTTP 502: Permission denied" }));
+    expect(out).toContain('role="alert"');
+    expect(out).toContain("keeps failing");
+    expect(out).toContain("Permission denied");
+    expect(out).not.toContain("proxies.global");
+  });
 });

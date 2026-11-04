@@ -40,12 +40,12 @@ Railway's labels change from time to time, so go by what each step is for if you
 
    You want real sites under `results[].url`, with no `google.com/goto` links.
 
-| Response from step 8     | What it means                                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `404`                    | The worker hasn't deployed the latest code.                                                        |
-| `503`, no `OPENSERP_URL` | The variable from step 7 isn't set, or the worker wasn't deployed after setting it.                |
-| `502`                    | The worker can't reach OpenSERP. Check the address and port, and that OpenSERP's deployment is up. |
-| `403` or `429`           | It's all connected, and Google is refusing. See below.                                             |
+| Response from step 8     | What it means                                                                                                                                                                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `404`                    | The worker hasn't deployed the latest code.                                                                                                                                                                                                          |
+| `503`, no `OPENSERP_URL` | The variable from step 7 isn't set, or the worker wasn't deployed after setting it.                                                                                                                                                                  |
+| `502`                    | The worker can't reach OpenSERP, or OpenSERP couldn't run the search. Read the `message`: a browser error means OpenSERP's Chrome won't start, so check its logs and that it has deployed the latest `master`. Otherwise check the address and port. |
+| `403` or `429`           | It's all connected, and Google is refusing. See below.                                                                                                                                                                                               |
 
 OpenSERP listens on IPv4 only. Railway environments created after October 16, 2025 resolve private names to IPv4 too. An older environment resolves them to IPv6 only and `/search` will return 502, so use a newer environment.
 
@@ -53,6 +53,6 @@ OpenSERP listens on IPv4 only. Railway environments created after October 16, 20
 
 Datacenter addresses get challenged. The worker passes on OpenSERP's 403, 429 and 5xx, and the app treats those, hidden links and empty results as "try again later". A business isn't rejected or marked down over them. The research run stops there and tries again on its next schedule.
 
-A banner at the top of the outreach pages in the admin dashboard says when this happens. After three failed runs in a row it turns red and asks for a proxy. It goes away after the next run whose searches work.
+A banner at the top of the outreach pages in the admin dashboard says when this happens. After three failed runs in a row it turns red. It asks for a proxy when Google is refusing, and points you at the Railway services when the error is an HTTP 5xx or the worker can't be reached. It goes away after the next run whose searches work.
 
 To add a proxy, set a US residential one in `config.yaml` under `proxies.global`, then redeploy this service. Don't add another engine as a fallback: our emails say who ranks on Google.

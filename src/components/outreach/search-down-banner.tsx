@@ -1,4 +1,4 @@
-import type { SearchDownStreak } from "@/lib/outreach/search-health";
+import { PROXY_AFTER_RUNS, type SearchDownStreak } from "@/lib/outreach/search-health";
 
 const when = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
@@ -17,12 +17,28 @@ export function SearchDownBanner({ streak }: { streak: SearchDownStreak }) {
         <p className="font-semibold text-red-700 dark:text-red-300">
           Outreach research needs a proxy: Google searches failed {runs} runs in a row
         </p>
-        <p className="mt-1 text-red-700 dark:text-red-300">
+        <p className="mt-1 break-words text-red-700 dark:text-red-300">
           Failing since {when.format(since)} UTC. Latest, {when.format(lastAt)} UTC: {error}.
         </p>
         <p className="mt-2">
           Set a US residential proxy under <code>proxies.global</code> in <code>workers/openserp/config.yaml</code> and
-          redeploy. If the error is HTTP 503 or the worker can&apos;t be reached, check the Railway services first. No
+          redeploy. No business loses an attempt in the meantime.
+        </p>
+      </div>
+    );
+  }
+  if (runs >= PROXY_AFTER_RUNS) {
+    return (
+      <div role="alert" className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm">
+        <p className="font-semibold text-red-700 dark:text-red-300">
+          Outreach research keeps failing: Google searches failed {runs} runs in a row
+        </p>
+        <p className="mt-1 break-words text-red-700 dark:text-red-300">
+          Failing since {when.format(since)} UTC. Latest, {when.format(lastAt)} UTC: {error}.
+        </p>
+        <p className="mt-2">
+          This looks like OpenSERP or the worker failing, not Google refusing, so a proxy probably won&apos;t help.
+          Check both services&apos; logs on Railway, and run the test in <code>workers/openserp/README.md</code>. No
           business loses an attempt in the meantime.
         </p>
       </div>
