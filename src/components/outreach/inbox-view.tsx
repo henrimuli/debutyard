@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { threadStatusAction, threadUnreadAction } from "@/app/admin/outreach/actions";
 import { Icon, type IconName } from "@/components/app-shell/icons";
-import { InboxToolbar, ReplyBox } from "@/components/outreach/controls";
+import { InboxToolbar, LiveSearch, ReplyBox } from "@/components/outreach/controls";
 import { longTime, MessageText, shortTime } from "@/components/support/message-parts";
 import { Badge } from "@/components/ui/primitives";
 import { snippetFrom } from "@/lib/support/rules";
@@ -96,16 +96,15 @@ export function ThreadList({
   const more = rows.length === 40;
   return (
     <div>
-      <form action="/admin/outreach/inbox" className="flex items-center gap-2 border-b border-border px-3 py-2">
-        {p.filter !== "open" && <input type="hidden" name="filter" value={p.filter} />}
-        <input
-          name="q"
-          defaultValue={p.q}
-          placeholder={`Search ${label?.toLowerCase() ?? "replies"}`}
-          aria-label="Search replies"
-          className="h-11 w-full rounded-full bg-muted px-4 text-base outline-none sm:h-10 sm:text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        />
-      </form>
+      <LiveSearch
+        action="/admin/outreach/inbox"
+        value={p.q}
+        filter={p.filter !== "open" ? p.filter : undefined}
+        placeholder={`Search ${label?.toLowerCase() ?? "replies"}`}
+        label="Search replies"
+        className="flex items-center gap-2 border-b border-border px-3 py-2"
+        inputClassName="h-11 w-full rounded-full bg-muted px-4 text-base outline-none sm:h-10 sm:text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring border-0"
+      />
       <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
         <span>
           {label}

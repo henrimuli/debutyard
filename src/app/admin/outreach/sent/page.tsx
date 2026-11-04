@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { z } from "zod";
-import { ActionButton } from "@/components/outreach/controls";
-import { Badge, Card, Input } from "@/components/ui/primitives";
+import { ActionButton, LiveSearch } from "@/components/outreach/controls";
+import { ListPager } from "@/components/outreach/list-pager";
+import { Badge, Card } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { EMAIL_FILTERS, getEmail, listEmails, type EmailFilter } from "@/lib/outreach/queries";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ const TONE = {
   discarded: "default",
 } as const;
 
-type Row = Awaited<ReturnType<typeof listEmails>>[number];
+type Row = Awaited<ReturnType<typeof listEmails>>["rows"][number];
 
 const outcome = (e: Row["email"]) =>
   e.orderId
@@ -45,9 +46,11 @@ export default async function OutreachEmailsPage(props: PageProps<"/admin/outrea
     ? (one(sp.filter) as EmailFilter)
     : "all";
   const q = one(sp.q).slice(0, 200);
-  const page = Math.max(0, Number.parseInt(one(sp.page), 10) || 0);
   const id = z.string().uuid().safeParse(one(sp.e)).success ? one(sp.e) : null;
-  const [rows, open] = await Promise.all([listEmails(filter, q, page), id ? getEmail(id) : null]);
+  const [{ rows, page, pageCount }, open] = await Promise.all([
+    listEmails(filter, q, Math.max(0, Number.parseInt(one(sp.page), 10) || 0)),
+    id ? getEmail(id) : null,
+  ]);
   const href = (patch: Record<string, string | number | null>) => {
     const s = new URLSearchParams();
     const all = { filter, q, page, e: id, ...patch };
@@ -70,15 +73,23 @@ export default async function OutreachEmailsPage(props: PageProps<"/admin/outrea
             {f}
           </Link>
         ))}
-        <form action="/admin/outreach/sent" className="ml-auto w-full sm:w-64">
-          {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
-          <Input name="q" defaultValue={q} placeholder="Search address or business" aria-label="Search emails" />
-        </form>
+        <LiveSearch
+          action="/admin/outreach/sent"
+          value={q}
+          filter={filter !== "all" ? filter : undefined}
+          placeholder="Search address or business"
+          label="Search emails"
+          className="ml-auto w-full sm:w-64"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <Card className="divide-y divide-border self-start">
-          {rows.length === 0 && <p className="p-4 text-sm text-muted-foreground">No emails here yet.</p>}
+          {rows.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">
+              {q ? "No emails match that search." : "No emails here yet."}
+            </p>
+          )}
           {rows.map(({ email: e, prospect: p, variant }) => (
             <Link
               key={e.id}
@@ -99,12 +110,7 @@ export default async function OutreachEmailsPage(props: PageProps<"/admin/outrea
               </p>
             </Link>
           ))}
-          {(page > 0 || rows.length === 40) && (
-            <div className="flex justify-between p-3 text-sm">
-              {page > 0 ? <Link href={href({ page: page - 1, e: null })}>Newer</Link> : <span />}
-              {rows.length === 40 && <Link href={href({ page: page + 1, e: null })}>Older</Link>}
-            </div>
-          )}
+          <ListPager page={page} pageCount={pageCount} href={(n) => href({ page: n, e: null })} />
         </Card>
 
         {open ? (
