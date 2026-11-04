@@ -33,7 +33,10 @@ export async function uniqueSlug(base: string, isTaken: (slug: string) => Promis
   return `${root}-${randomSuffix()}`;
 }
 
-/** Normalises a URL's hostname for duplicate detection: lowercase, no "www.". */
+/** Normalises a URL's hostname for duplicate detection: lowercase, no "www.", no trailing dot. */
 export function domainOf(url: string): string {
-  return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  return new URL(url).hostname
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .replace(/\.$/, "");
 }

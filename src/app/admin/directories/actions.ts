@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser, isStaff } from "@/lib/auth";
-import { saveDirectory, setDirectoryStarred, type DirectoryInput } from "@/lib/directories/service";
+import { DirectoryError, saveDirectory, setDirectoryStarred, type DirectoryInput } from "@/lib/directories/service";
 
 async function staffOnly() {
   const user = await getCurrentUser();
@@ -35,7 +35,7 @@ export async function saveDirectoryAction(
       const i = err.issues[0];
       return { ok: false, error: `${i?.path.join(".")}: ${i?.message}` };
     }
-    if (err instanceof Error && /unique/i.test(err.message)) return { ok: false, error: "That slug is taken." };
+    if (err instanceof DirectoryError) return { ok: false, error: err.message };
     throw err;
   }
 }

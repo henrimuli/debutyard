@@ -1,11 +1,12 @@
 import "server-only";
-import { and, count, eq, gt, inArray, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, count, eq, gt, inArray, like, ne, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db, schema } from "@/db";
 import { limit } from "@/lib/billing/entitlements";
 import { formatLimit, PLANS } from "@/lib/billing/plans";
 import { domainOf, slugify, uniqueSlug } from "@/lib/slug";
 import { upcomingWeekKeys, weekBounds, weekKeyFor } from "@/lib/weeks";
+import { duplicateMessage, findDuplicate, siteRoot } from "./duplicates";
 import { tierRank, type ProductInput, type Tier } from "./input";
 import { paidWeek } from "./schedule";
 
@@ -70,17 +71,40 @@ export async function assertHasScreenshot(p: Pick<Product, "id" | "status">) {
   if (!shot) throw new ProductError("Add at least one screenshot to the listing before submitting it.");
 }
 
-/** Another live or upcoming listing for the same site blocks a new one (relaunches come later). */
-async function assertNotDuplicate(domain: string, exceptId?: string) {
-  const existing = await db().query.products.findFirst({
+/** Listings under the same registrable domain, for findDuplicate to compare. */
+function listingsUnderSite(websiteUrl: string, exceptId?: string) {
+  const root = siteRoot(websiteUrl);
+  return db().query.products.findMany({
     where: and(
-      eq(products.domain, domain),
-      notInArray(products.status, ["draft", "rejected", "archived"]),
+      or(eq(products.domain, root), like(products.domain, `%.${root}`)),
       exceptId ? ne(products.id, exceptId) : undefined,
     ),
-    columns: { slug: true },
+    columns: { slug: true, status: true, launchWeekKey: true, websiteUrl: true, createdBy: true },
   });
-  if (existing) throw new ProductError(`${domain} is already listed on DebutYard.`);
+}
+
+/** See findDuplicate for what counts. */
+async function assertNotDuplicate(
+  websiteUrl: string,
+  ownerId: string,
+  { exceptId, isNew = false }: { exceptId?: string; isNew?: boolean },
+) {
+  const duplicate = findDuplicate({ websiteUrl, ownerId, isNew }, await listingsUnderSite(websiteUrl, exceptId));
+  if (duplicate) throw new ProductError(duplicateMessage(websiteUrl, duplicate, ownerId));
+}
+
+/**
+ * Stops a draft going into review, or being paid for, when its site was listed
+ * after the draft was saved. Listings already in review or approved hold their place.
+ */
+export async function assertCanEnterReview(p: Pick<Product, "id" | "status" | "websiteUrl" | "createdBy">) {
+  if (p.status !== "draft" && p.status !== "rejected") return;
+  await assertNotDuplicate(p.websiteUrl, p.createdBy, { exceptId: p.id });
+}
+
+/** The listing in review or approved that holds this site, for the readiness check. */
+export async function listingHoldingSite(websiteUrl: string, userId?: string | null) {
+  return findDuplicate({ websiteUrl, ownerId: userId ?? "", isNew: false }, await listingsUnderSite(websiteUrl));
 }
 
 /** Creates or updates a draft (or a pending listing, before review). */
@@ -110,7 +134,7 @@ export async function listingLimitReached(
 
 export async function saveProduct(userId: string, input: ProductInput, productId?: string): Promise<Product> {
   const domain = domainOf(input.websiteUrl);
-  await assertNotDuplicate(domain, productId);
+  await assertNotDuplicate(input.websiteUrl, userId, { exceptId: productId, isNew: !productId });
 
   const fields = {
     name: input.name,
@@ -187,6 +211,7 @@ export async function submitForReview(
 ): Promise<Product> {
   const p = await getOwned(productId, userId);
   if (p.status !== "draft" && p.status !== "rejected") return p;
+  await assertCanEnterReview(p);
   await assertHasScreenshot(p);
   if (p.tier === "free" && !opts.override && (await activeFreeCount(userId, p.id)) >= MAX_ACTIVE_FREE) {
     throw new ProductError(
@@ -241,6 +266,7 @@ export async function approveProduct(productId: string): Promise<Product> {
   const p = await db().query.products.findFirst({ where: eq(products.id, productId) });
   if (!p) throw new ProductError("Product not found.");
   if (p.status !== "pending") throw new ProductError(`Product is ${p.status}, not pending.`);
+  await assertNotDuplicate(p.websiteUrl, p.createdBy, { exceptId: p.id });
   const week = await weekForProduct(p);
   await ensureWeek(week);
   const [updated] = await db()
@@ -265,6 +291,8 @@ export async function rejectProduct(productId: string, reason: string): Promise<
 /**
  * Applies a paid tier after checkout: never downgrades, records the requested week,
  * sends drafts to review, and moves approved-but-not-started listings to the right week.
+ * The money has been taken by now, so a duplicate isn't refused here: checkout checks first,
+ * and if a site gets listed during payment, approval stops it and rejecting refunds it.
  */
 export async function applyPaidTier(productId: string, tier: Tier, requestedWeekKey: string | null): Promise<Product> {
   const p = await db().query.products.findFirst({ where: eq(products.id, productId) });

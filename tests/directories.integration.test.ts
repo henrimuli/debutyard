@@ -159,6 +159,21 @@ describe.skipIf(!TEST_DB)("directories and submissions (Postgres)", () => {
     expect(ph).toMatchObject({ guided: true, linkTypeClaimed: "nofollow" });
   });
 
+  it("says a directory exists instead of failing on a taken slug, when adding or editing", async () => {
+    const entry = (name: string, slug = "") => ({ name, slug, url: "https://dupe.example" });
+    await directories.saveDirectory(entry("Dupe Hunt"));
+    const other = await directories.saveDirectory(entry("Other Hunt"));
+
+    await expect(directories.saveDirectory(entry("Dupe Hunt"))).rejects.toThrow(
+      new directories.DirectoryError(
+        'Dupe Hunt already exists with the slug "dupe-hunt". Edit that one, or use a different slug if this is another directory.',
+      ),
+    );
+    await expect(directories.saveDirectory(entry("Other Hunt", "dupe-hunt"), other.id)).rejects.toBeInstanceOf(
+      directories.DirectoryError,
+    );
+  });
+
   it("summarises the catalog for the submission-service page", async () => {
     const usable = (await directories.listDirectories()).filter((d) => !d.guided);
     const stats = await directories.catalogStats();

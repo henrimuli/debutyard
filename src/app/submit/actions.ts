@@ -19,6 +19,7 @@ import {
   bookableWeeks,
   listingLimitReached,
   ProductError,
+  assertCanEnterReview,
   saveProduct,
   submitForReview,
 } from "@/lib/products/service";
@@ -202,6 +203,7 @@ export async function startTierCheckoutAction(args: {
   if (tierRank(args.tier) <= tierRank(product.tier))
     return { ok: false, error: `This listing already has ${TIERS[product.tier].label}.` };
   try {
+    await assertCanEnterReview(product);
     await assertHasScreenshot(product);
   } catch (err) {
     if (err instanceof ProductError) return { ok: false, error: err.message };

@@ -177,6 +177,46 @@ describe.skipIf(!TEST_DB)("launch board (Postgres)", () => {
     await expect(products.saveProduct(other, input("www.acme.app", "Acme 2"))).rejects.toThrow(/already listed/);
   });
 
+  it("blocks a listing for a site that's already here, wherever it gets in", async () => {
+    const first = await makeUser();
+    const second = await makeUser();
+    const held = await products.saveProduct(first, input("held.app", "Held"));
+    // A draft doesn't hold the site, so both can start one.
+    const rival = await products.saveProduct(second, input("www.held.app", "Held too"));
+    await expect(products.saveProduct(first, input("held.app", "Held again"))).rejects.toThrow(
+      /already have a listing/,
+    );
+
+    await badgeFound(held.id);
+    await badgeFound(rival.id);
+    expect((await products.submitForReview(held.id, first)).status).toBe("pending");
+    await expect(products.submitForReview(rival.id, second)).rejects.toThrow(/already listed/);
+    await expect(products.saveProduct(await makeUser(), input("app.held.app", "Held app"))).rejects.toThrow(
+      /already listed/,
+    );
+
+    // The maker's own listing can still be edited, and goes on being approved.
+    await products.saveProduct(first, input("held.app", "Held, renamed"), held.id);
+    expect((await products.approveProduct(held.id)).status).toBe("approved");
+    // One that got into review anyway can't be approved beside it.
+    await dbmod
+      .db()
+      .update(dbmod.schema.products)
+      .set({ status: "pending" })
+      .where(eq(dbmod.schema.products.id, rival.id));
+    await expect(products.approveProduct(rival.id)).rejects.toThrow(/already listed/);
+  });
+
+  it("doesn't let products on a shared host block each other", async () => {
+    const shared = (url: string, name: string) => ({ ...input("shared.io", name), websiteUrl: url });
+    await products.saveProduct(await makeUser(), shared("https://github.com/one/tool", "Tool one"));
+    await products.saveProduct(await makeUser(), shared("https://github.com/two/tool", "Tool two"));
+    const live = await products.saveProduct(await makeUser(), shared("https://one.vercel.app/", "Vercel one"));
+    await badgeFound(live.id);
+    await products.submitForReview(live.id, live.createdBy);
+    await products.saveProduct(await makeUser(), shared("https://two.vercel.app/", "Vercel two"));
+  });
+
   it("needs a screenshot before a draft goes into review", async () => {
     const u = await makeUser();
     // API drafts leave screenshots out.
