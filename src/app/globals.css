@@ -372,7 +372,7 @@ body {
   }
 }
 
-/* Authority Score ring: the band grows from empty to the score. */
+/* Domain Rating ring: the band grows from empty to the score. */
 @keyframes score-grow {
   from {
     stroke-dashoffset: 100;

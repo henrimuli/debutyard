@@ -1,70 +1,49 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  BULK_MAX,
   chartPoints,
-  createDrProvider,
+  createAhrefsProvider,
   drChange,
+  DR_ATTRIBUTION,
+  DrProviderError,
+  DrRateLimitError,
   parseAhrefs,
-  parseDataForSeo,
-  parseDataForSeoBulk,
-  parseOpenPageRank,
 } from "./providers";
 
-describe("provider responses", () => {
-  it("reads DataForSEO rank and referring domains", () => {
-    expect(parseDataForSeo({ tasks: [{ result: [{ rank: 31, referring_domains: 120 }] }] })).toEqual({
-      dr: 31,
-      referringDomains: 120,
-    });
-    expect(() => parseDataForSeo({ tasks: [{ result: null }] })).toThrow();
-  });
-
-  it("reads DataForSEO bulk ranks by target", () => {
-    const out = parseDataForSeoBulk({
-      tasks: [
-        { result: [{ items: [{ target: "Uneed.best", rank: 54 }, { target: "x.io", rank: 0 }, { target: "y.io" }] }] },
-      ],
-    });
-    expect([...out]).toEqual([
-      ["uneed.best", { dr: 54, referringDomains: null }],
-      ["x.io", { dr: 0, referringDomains: null }],
-    ]);
-    expect(() => parseDataForSeoBulk({ tasks: [{ result: null }] })).toThrow();
-  });
-
-  it("asks DataForSEO for every domain in one bulk_ranks request", async () => {
-    const fetchImpl = vi.fn(
-      async () => new Response(JSON.stringify({ tasks: [{ result: [{ items: [{ target: "a.io", rank: 12 }] }] }] })),
-    );
-    const p = createDrProvider("dataforseo", "login:pw", fetchImpl as unknown as typeof fetch);
-    expect((await p.fetchBulk!(["a.io", "b.io"])).get("a.io")).toEqual({ dr: 12, referringDomains: null });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://api.dataforseo.com/v3/backlinks/bulk_ranks/live");
-    expect(JSON.parse(init.body as string)).toEqual([{ targets: ["a.io", "b.io"], rank_scale: "one_hundred" }]);
-    await expect(p.fetchBulk!(Array.from({ length: BULK_MAX + 1 }, (_, i) => `${i}.io`))).rejects.toThrow();
-  });
-
-  it("reads Ahrefs domain rating", () => {
-    expect(parseAhrefs({ domain_rating: { domain_rating: 42.5, ahrefs_rank: 1 } })).toEqual({
+describe("Ahrefs Domain Rating", () => {
+  it("reads the score and clamps it to 0-100", () => {
+    expect(parseAhrefs({ domain_rating: { domain_rating: 42.5, license: "https://ahrefs.com/" } })).toEqual({
       dr: 42.5,
-      referringDomains: null,
     });
-    expect(() => parseAhrefs({})).toThrow();
+    expect(parseAhrefs({ domain_rating: { domain_rating: 0 } })).toEqual({ dr: 0 });
+    expect(parseAhrefs({ domain_rating: { domain_rating: 140 } })).toEqual({ dr: 100 });
+    expect(() => parseAhrefs({})).toThrow(DrProviderError);
   });
 
-  it("scales Open PageRank's 0-10 to 0-100", () => {
-    expect(parseOpenPageRank({ response: [{ status_code: 200, page_rank_decimal: "3.45" }] }).dr).toBe(34.5);
-    expect(() => parseOpenPageRank({ response: [{ status_code: 404, page_rank_decimal: 0 }] })).toThrow();
-  });
-
-  it("sends the right request", async () => {
-    const fetchImpl = vi.fn(async () => Response.json({ response: [{ status_code: 200, page_rank_decimal: 2 }] }));
-    const p = createDrProvider("openpagerank", "KEY", fetchImpl as unknown as typeof fetch);
-    expect(await p.fetchDr("acme.io")).toEqual({ dr: 20, referringDomains: null });
+  it("asks the free endpoint with the key and a pinned version", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ domain_rating: { domain_rating: 20 } }));
+    const p = createAhrefsProvider("KEY", fetchImpl as unknown as typeof fetch);
+    expect(await p.fetchDr("acme.io")).toEqual({ dr: 20 });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain("domains%5B0%5D=acme.io");
-    expect((init.headers as Record<string, string>)["API-OPR"]).toBe("KEY");
+    const u = new URL(url);
+    expect(`${u.origin}${u.pathname}`).toBe("https://api.ahrefs.com/v3/public/domain-rating-free");
+    expect(u.searchParams.get("target")).toBe("acme.io");
+    expect(u.searchParams.get("version")).toBe("dr3");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer KEY");
+  });
+
+  it("tells being throttled apart from other failures", async () => {
+    const status = (n: number) =>
+      createAhrefsProvider("KEY", (async () => new Response("{}", { status: n })) as unknown as typeof fetch).fetchDr(
+        "a.io",
+      );
+    await expect(status(429)).rejects.toThrow(DrRateLimitError);
+    const other = await status(403).catch((err) => err);
+    expect(other).toBeInstanceOf(DrProviderError);
+    expect(other).not.toBeInstanceOf(DrRateLimitError);
+  });
+
+  it("carries the credit the licence asks for", () => {
+    expect(DR_ATTRIBUTION).toMatchObject({ text: "Domain Rating by Ahrefs", url: "https://ahrefs.com/" });
   });
 });
 

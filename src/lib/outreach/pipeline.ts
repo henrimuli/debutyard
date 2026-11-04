@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { SearchDownError } from "@/lib/links/serp";
 import { env } from "@/env";
 import { site } from "@/config/site";
 import { geminiConfigured } from "@/lib/ai/gemini";
@@ -55,8 +56,8 @@ const startOfUtcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now
 export function missingForPipeline(): string[] {
   const missing: string[] = [];
   if (!geminiConfigured()) missing.push("GEMINI_API_KEY");
-  if (!drEnabled()) missing.push("DR_API_KEY");
-  if (!serpSearch()) missing.push("a DataForSEO login in DR_API_KEY, or SERP_PROVIDER and SERP_API_KEY");
+  if (!drEnabled()) missing.push("AHREFS_API_KEY");
+  if (!serpSearch()) missing.push("WORKER_URL and WORKER_SECRET");
   return missing;
 }
 
@@ -145,6 +146,8 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
       await reject(p.id, "unreachable", "not a public address");
       return false;
     }
+    // Not this business's fault, so it costs no attempt. The run stops rather than wearing out the rest.
+    if (err instanceof SearchDownError) throw err;
     const message = err instanceof Error ? err.message : String(err);
     console.error("outreach step failed", p.domain, p.status, err);
     const attempts = p.attempts + 1;
@@ -454,7 +457,13 @@ export async function runResearch(now = new Date(), budgetMs = BUDGET_MS) {
     if (p) {
       // One stage a turn per prospect, so a failing one can't hold up the run.
       stages++;
-      await advance(p, settings.maxAuthority, now);
+      try {
+        await advance(p, settings.maxAuthority, now);
+      } catch (err) {
+        if (!(err instanceof SearchDownError)) throw err;
+        console.error("outreach research stopped", p.domain, err);
+        return { mode: settings.mode, goal, ready, crawls, stages, searchDown: err.message };
+      }
       const [after] = await db()
         .select({ status: outreachProspects.status })
         .from(outreachProspects)

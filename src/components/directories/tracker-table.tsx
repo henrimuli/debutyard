@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { recheckAction, updateTrackerAction } from "@/app/dashboard/tracker/actions";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { Button } from "@/components/ui/button";
 import { Badge, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -79,7 +79,7 @@ function Row({ productId, initial }: { productId: string; initial: TrackerRow })
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <AuthorityScore score={d.dr} />
+          <DomainRating score={d.dr} />
           <a
             href={d.submitUrl ?? d.url}
             target="_blank"
@@ -219,7 +219,8 @@ export function TrackerTable({ productId, rows }: { productId: string; rows: Tra
           </button>
         ))}
       </div>
-      <ul className="mt-4 divide-y divide-border">
+      <DrAttribution className="mt-4 block" />
+      <ul className="mt-2 divide-y divide-border">
         {shown.map((r) => (
           <Row key={r.directory.id} productId={productId} initial={r} />
         ))}

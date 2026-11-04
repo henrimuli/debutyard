@@ -44,7 +44,6 @@ async function Links() {
   const active = rows.filter((r) => r.link.active);
   const n = (v: string) => active.filter((r) => r.link.lastVerdict === v).length;
   const attention = active.filter((r) => r.link.lastVerdict && r.link.lastVerdict !== "dofollow").length;
-  const indexChecked = active.filter((r) => r.link.indexed !== null);
   // Only plans with more links than they have now. Unlimited has none left to offer.
   const upgrades = PLAN_CARDS.map((card) => ({ card, links: planForSku(card.monthly)!.limits.links })).filter(
     (u) => u.links > usage.limit,
@@ -60,9 +59,6 @@ async function Links() {
           ["Dofollow", n("dofollow")],
           ["Need attention", attention],
           ["Your added links", `${usage.used} / ${formatLimit(usage.limit)}`],
-          ...(indexChecked.length
-            ? [["Indexed by Google", `${indexChecked.filter((r) => r.link.indexed).length} / ${indexChecked.length}`]]
-            : []),
         ].map(([label, value]) => (
           <Card key={label} className="p-4">
             <p className="text-xs text-muted-foreground">{label}</p>
@@ -118,7 +114,6 @@ async function Links() {
             statusCode: l.lastStatusCode,
             checkedAt: l.lastCheckedAt,
             nextCheckAt: l.active ? l.nextCheckAt : null,
-            indexed: l.indexed,
           }))}
         />
       </Card>

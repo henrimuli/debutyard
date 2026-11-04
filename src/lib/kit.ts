@@ -34,7 +34,7 @@ export const KIT_ITEMS: { slug: KitItemSlug; title: string; blurb: string }[] = 
     slug: "directory-atlas",
     title: "Directory Atlas",
     blurb:
-      "Every launch directory we track, tiered by what to submit first, with authority, price and link type. CSV included.",
+      "Every launch directory we track, tiered by what to submit first, with Domain Rating, price and link type. CSV included.",
   },
   {
     slug: "launch-playbook",

@@ -14,6 +14,7 @@ import { effectiveLinkType } from "@/lib/directories/service";
 import { verifySubmission } from "@/lib/directories/verify";
 import { awaitsScreenshot, rowIsDone } from "@/lib/submissions/progress";
 import { monitorEnd, trackSubmission } from "@/lib/links/service";
+import { DR_ATTRIBUTION_PLAIN } from "@/lib/metrics/providers";
 import { baselineSnapshot } from "@/lib/metrics/service";
 import { fetchPage } from "@/lib/fetch-page";
 import { formatUsd } from "@/lib/payments/skus";
@@ -790,7 +791,7 @@ export function ordersCsv(rows: Awaited<ReturnType<typeof orderRows>>): string {
   const header = [
     "directory",
     "directory_url",
-    "dr",
+    DR_ATTRIBUTION_PLAIN,
     "status",
     "submitted_at",
     "live_at",

@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { CouponCard } from "@/components/kit/coupon-card";
 import { GuideBody } from "@/components/kit/guide-body";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { Container } from "@/components/ui/primitives";
 import { KIT_ITEMS, KIT_NAME, KIT_PATH } from "@/lib/kit";
 import { atlasTiers } from "@/lib/kit-atlas";
@@ -60,8 +60,8 @@ async function Atlas() {
     <article>
       <h1 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">Directory Atlas</h1>
       <p className="mt-5 text-lg leading-relaxed">
-        All {dirs.length} directories we track, in the order we&apos;d submit to them. Authority is measured monthly,
-        and &ldquo;Followed&rdquo; means our own checks saw a followed link on live listings, not just the
+        All {dirs.length} directories we track, in the order we&apos;d submit to them. Domain Rating is measured
+        monthly, and &ldquo;Followed&rdquo; means our own checks saw a followed link on live listings, not just the
         directory&apos;s claim.
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
@@ -84,10 +84,11 @@ async function Atlas() {
             {i + 1}. {t.title}
           </h2>
           <p className="mt-2 text-muted-foreground">{t.advice}</p>
-          <ul className="mt-5 divide-y divide-border rounded-lg border border-border bg-card">
+          <DrAttribution className="mt-3 block" />
+          <ul className="mt-2 divide-y divide-border rounded-lg border border-border bg-card">
             {t.items.map((d) => (
               <li key={d.slug} className="flex items-center gap-4 px-4 py-3">
-                <AuthorityScore score={d.dr} size="sm" />
+                <DomainRating score={d.dr} size="sm" />
                 <div className="min-w-0 flex-1">
                   <a
                     href={d.submitUrl || d.url}

@@ -30,10 +30,9 @@ vi.mock("@/lib/net", async (importOriginal) => {
 
 const drCalls: string[] = [];
 const fakeDr: DrProvider = {
-  id: "openpagerank",
   async fetchDr(domain) {
     drCalls.push(domain);
-    return { dr: 42, referringDomains: 310 };
+    return { dr: 42 };
   },
 };
 
@@ -112,8 +111,8 @@ describe.skipIf(!TEST_DB)("free tools (Postgres)", () => {
     expect(await tools.checkDr("https://www.acme.io/x", web("1.1.1.1"))).toMatchObject({
       domain: "acme.io",
       dr: 42,
-      referringDomains: 310,
-      provider: "openpagerank",
+      provider: "ahrefs",
+      attribution: { text: "Domain Rating by Ahrefs", url: "https://ahrefs.com/" },
     });
     await tools.checkDr("acme.io", web("1.1.1.1"));
     expect(drCalls).toEqual(["acme.io"]);

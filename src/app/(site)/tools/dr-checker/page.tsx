@@ -6,8 +6,8 @@ import { drEnabled } from "@/lib/metrics/service";
 import { turnstileSiteKey } from "@/lib/turnstile";
 
 export const metadata: Metadata = {
-  title: "Authority Score checker",
-  description: "Free Authority Score checker: see any site's authority from 0 to 100, and its referring domains.",
+  title: "Domain Rating checker",
+  description: "Free Domain Rating checker: see any site's Domain Rating from 0 to 100.",
   alternates: { canonical: "/tools/dr-checker" },
 };
 
@@ -16,10 +16,10 @@ export default function DrCheckerPage() {
   if (!drEnabled()) notFound();
   return (
     <Container className="max-w-3xl py-12">
-      <Heading>What&apos;s my Authority Score?</Heading>
+      <Heading>What&apos;s my Domain Rating?</Heading>
       <p className="mt-3 text-muted-foreground">
-        Enter a domain to see its Authority Score from 0 to 100. Higher means more, and stronger, sites link to it.
-        Free, no account needed.
+        Enter a domain to see its Domain Rating from 0 to 100. Higher means more, and stronger, sites link to it. Free,
+        no account needed.
       </p>
       <div className="mt-8">
         <DrChecker turnstileSiteKey={turnstileSiteKey()} />

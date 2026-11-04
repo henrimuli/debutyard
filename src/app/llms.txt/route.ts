@@ -28,7 +28,7 @@ export async function GET() {
     `- [Launch readiness check](${base}/tools/launch-readiness): free pre-launch audit of any product URL`,
     `- [Dofollow checker](${base}/tools/dofollow-checker): does a page link to a site, and is the link followed`,
     ...(drEnabled()
-      ? [`- [Authority Score checker](${base}/tools/dr-checker): any domain's Authority Score, 0-100`]
+      ? [`- [Domain Rating checker](${base}/tools/dr-checker): any domain's Domain Rating by Ahrefs, 0-100`]
       : []),
     "",
     "## For agents",

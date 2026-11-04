@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { DirectoryBadges } from "@/components/directories/directory-badges";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Container, Heading } from "@/components/ui/primitives";
 import { listDirectories, NICHE_LABELS, NICHES, PRICINGS, type DirectoryFilters } from "@/lib/directories/service";
@@ -110,7 +110,10 @@ async function List({ searchParams }: Pick<PageProps<"/directories">, "searchPar
           />
         </form>
       </div>
-      <p className="text-sm text-muted-foreground">{items.length} directories</p>
+      <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm text-muted-foreground">
+        {items.length} directories
+        <DrAttribution />
+      </p>
       {items.length === 0 ? (
         <Card className="text-center text-muted-foreground">Nothing matches those filters.</Card>
       ) : (
@@ -123,7 +126,7 @@ async function List({ searchParams }: Pick<PageProps<"/directories">, "searchPar
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-semibold">{d.name}</span>
-                  <AuthorityScore score={d.dr} />
+                  <DomainRating score={d.dr} />
                 </div>
                 <span className="truncate text-xs text-muted-foreground">
                   {new URL(d.url).hostname.replace(/^www\./, "")}

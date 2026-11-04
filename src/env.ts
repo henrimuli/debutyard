@@ -46,14 +46,12 @@ const schema = z.object({
   R2_BUCKET: optional,
   R2_PUBLIC_URL: optional,
 
-  // Authority Score provider for snapshots and the checker (DataForSEO by default). No key hides the features.
-  DR_PROVIDER: z.enum(["dataforseo", "ahrefs", "openpagerank"]).optional().catch(undefined),
-  /** DataForSEO: "login:password". Ahrefs: an API v3 key. Open PageRank: its API key. */
-  DR_API_KEY: optional,
+  // Ahrefs API v3 key for Domain Rating: snapshots and the checker. The endpoint is free. No key hides the features.
+  AHREFS_API_KEY: optional,
   /** Provider lookups the public checker may make per rolling day, across everyone. Default 300. */
   DR_DAILY_PROVIDER_CAP: z.coerce.number().int().positive().optional().catch(undefined),
 
-  // Cloudflare Turnstile (invisible) on the Authority Score checker. Without the secret, production refuses checks.
+  // Cloudflare Turnstile (invisible) on the Domain Rating checker. Without the secret, production refuses checks.
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: optional,
   TURNSTILE_SECRET_KEY: optional,
 
@@ -62,17 +60,13 @@ const schema = z.object({
   /** 32 random bytes, base64. Encrypts directory account passwords. */
   CREDENTIALS_KEY: optional,
 
-  // Screenshot worker (workers/screenshot) for listing evidence. Unset: staff paste evidence URLs by hand.
+  // Worker (workers/screenshot) for listing evidence, and the way to OpenSERP for outreach's Google searches.
+  // Unset: staff paste evidence URLs by hand, and outreach can't research.
   WORKER_URL: optional,
   WORKER_SECRET: optional,
 
   // Firecrawl (firecrawl.dev): the fallback for pages that block or fail our direct fetch. Unset: direct fetches only.
   FIRECRAWL_API_KEY: optional,
-
-  // SERP API for the weekly "is this listing indexed by Google?" check. Unset hides it.
-  SERP_PROVIDER: z.enum(["serpapi", "dataforseo"]).optional().catch(undefined),
-  /** SerpApi: its API key. DataForSEO: "login:password". */
-  SERP_API_KEY: optional,
 
   // Gemini API (billing on). gemini-3.1-pro-preview for the blog writer, gemini-3.1-flash-lite for outreach, Nano Banana 2.1 for images.
   GEMINI_API_KEY: optional,

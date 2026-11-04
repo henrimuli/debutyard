@@ -77,7 +77,7 @@ export function fastTrackSlots(quarter: string, count = MAX_FAST_TRACKS): string
   return Array.from({ length: count }, (_, i) => (i === 0 ? quarter : `${quarter}#${i + 1}`));
 }
 
-/** The bullets on a plan card. `authority` is off where no Authority Score provider is set up, so we don't sell it. */
+/** The bullets on a plan card. `authority` is off where no Domain Rating provider is set up, so we don't sell it. */
 export function planFeatures(limits: Record<Limit, number>, { authority = true } = {}): string[] {
   const paid = limits.fastTracks > 0;
   const plural = (n: number, word: string) => `${formatLimit(n)} ${word}${n === 1 ? "" : "s"}`;
@@ -87,7 +87,7 @@ export function planFeatures(limits: Record<Limit, number>, { authority = true }
     ...(paid ? [`${limits.fastTracks} free Fast Track${limits.fastTracks === 1 ? "" : "s"} each quarter`] : []),
     ...(paid && authority
       ? [
-          `Authority Score tracking and drop alerts for ${isUnlimited(limits.domains) ? "unlimited" : limits.domains} domains`,
+          `Domain Rating tracking and drop alerts for ${isUnlimited(limits.domains) ? "unlimited" : limits.domains} domains`,
         ]
       : []),
     ...(paid ? ["Pro badge on your profile and listings"] : []),

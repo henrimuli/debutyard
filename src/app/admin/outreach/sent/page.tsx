@@ -177,7 +177,7 @@ function Detail({ row }: { row: NonNullable<Awaited<ReturnType<typeof getEmail>>
             <>
               <dt className="text-muted-foreground">What it does</dt>
               <dd>{r.summary}</dd>
-              <dt className="text-muted-foreground">Authority Score</dt>
+              <dt className="text-muted-foreground">Domain Rating</dt>
               <dd>
                 {p.name}: {r.pick.prospectAuthority}
                 {r.pick.competitors.map((c) => `, ${c.name}: ${c.authority}`)}

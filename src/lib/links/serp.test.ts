@@ -1,16 +1,83 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createSerpProvider,
+  createSerpSearch,
   normalizeForSerp,
-  parseDataForSeoSerp,
-  parseDataForSeoTop,
-  parseSerpApi,
+  parseOpenSerp,
+  parseOpenSerpIndexed,
   searchOrError,
   SerpError,
   serpQuery,
 } from "./serp";
 
 const page = "https://www.dir.test/p/acme/";
+const organic = (url: string, rank = 1) => ({ rank, type: "organic", url, title: "T", snippet: "S" });
+const body = (...results: object[]) => ({ meta: { engines_failed: [] }, results });
+const answering = (json: unknown, status = 200) =>
+  vi.fn(async () => Response.json(json, { status })) as unknown as typeof fetch;
+const fails = (fn: () => unknown) => {
+  try {
+    fn();
+  } catch (err) {
+    return err as SerpError;
+  }
+  throw new Error("didn't throw");
+};
+
+describe("OpenSERP results", () => {
+  it("keeps organic results and maps their fields", () => {
+    expect(parseOpenSerp(body({ rank: 1, type: "ad", url: "https://ad.test" }, organic("https://a.test/", 2)))).toEqual(
+      [{ position: 2, url: "https://a.test/", title: "T", description: "S" }],
+    );
+  });
+
+  it("treats a failed engine or a missing list as something that can pass", () => {
+    expect(fails(() => parseOpenSerp({ meta: { engines_failed: ["google"] }, results: [] })).transient).toBe(true);
+    expect(fails(() => parseOpenSerp({ error: "captcha_detected" })).transient).toBe(true);
+  });
+
+  it("refuses links Google has hidden, so Google never reads as a competitor", () => {
+    const hidden = body(organic("https://a.test/"), organic("https://www.google.com/goto?url=CAESWAHr", 2));
+    expect(fails(() => parseOpenSerp(hidden)).transient).toBe(true);
+    expect(fails(() => parseOpenSerp(body(organic("https://www.google.es/url?q=x")))).transient).toBe(true);
+    // A real Google page isn't a hidden link.
+    expect(parseOpenSerp(body(organic("https://support.google.com/goto-help")))).toHaveLength(1);
+  });
+});
+
+describe("outreach search", () => {
+  it("asks the worker with the secret", async () => {
+    const fetchImpl = answering(body(organic("https://a.test/")));
+    const rows = await createSerpSearch("https://worker.test", "SECRET", fetchImpl)("invoicing software");
+    expect(rows).toHaveLength(1);
+    const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe("https://worker.test/search");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer SECRET");
+    expect(JSON.parse(init.body as string)).toEqual({ text: "invoicing software", limit: 10 });
+  });
+
+  it("reads no results as a block, not as no competitors", async () => {
+    const err = await createSerpSearch("https://worker.test", "S", answering(body()))("k").catch((e) => e);
+    expect(err).toBeInstanceOf(SerpError);
+    expect(err.transient).toBe(true);
+  });
+
+  it.each([
+    [429, true],
+    [403, true],
+    [502, true],
+    [504, true],
+    [401, false],
+    [400, false],
+  ])("treats HTTP %i as passing: %s", async (status, transient) => {
+    const err = await createSerpSearch(
+      "https://worker.test",
+      "S",
+      answering({ error: "x" }, status),
+    )("k").catch((e) => e);
+    expect(err.transient).toBe(transient);
+  });
+});
 
 describe("index check", () => {
   it("normalizes URLs like a results page shows them", () => {
@@ -19,32 +86,14 @@ describe("index check", () => {
     expect(serpQuery(page)).toBe("site:dir.test/p/acme");
   });
 
-  it("reads SerpApi results", () => {
-    expect(parseSerpApi({ organic_results: [{ link: "https://dir.test/p/acme" }] }, page)).toBe(true);
-    expect(parseSerpApi({ organic_results: [{ link: "https://dir.test/p/other" }] }, page)).toBe(false);
-    expect(parseSerpApi({ error: "Google hasn't returned any results for this query." }, page)).toBe(false);
-    expect(() => parseSerpApi({ error: "Invalid API key." }, page)).toThrow();
-  });
-
-  it("reads DataForSEO results, organic items only", () => {
-    const body = (items: unknown[]) => ({ tasks: [{ status_code: 20000, result: [{ items }] }] });
-    expect(parseDataForSeoSerp(body([{ type: "organic", url: "http://dir.test/p/acme" }]), page)).toBe(true);
-    expect(parseDataForSeoSerp(body([{ type: "paid", url: "https://dir.test/p/acme" }]), page)).toBe(false);
-    expect(() => parseDataForSeoSerp({ tasks: [{ status_code: 40101 }] }, page)).toThrow();
-    expect(() => parseDataForSeoTop({ tasks: [{ status_code: 40200, status_message: "Payment Required." }] })).toThrow(
-      "DataForSEO SERP task failed (40200): Payment Required.",
-    );
-    expect(() => parseDataForSeoTop({ status_code: 50000, status_message: "Internal Error.", tasks: [] })).toThrow(
-      "(50000): Internal Error.",
-    );
-  });
-
-  it("sends the site: query", async () => {
-    const fetchImpl = vi.fn(async () => Response.json({ organic_results: [] }));
-    await createSerpProvider("serpapi", "KEY", fetchImpl as unknown as typeof fetch).isIndexed(page);
-    const [url] = fetchImpl.mock.calls[0] as unknown as [string];
-    expect(new URL(url).searchParams.get("q")).toBe("site:dir.test/p/acme");
-    expect(new URL(url).searchParams.get("api_key")).toBe("KEY");
+  it("looks for the exact page, and no results is a real no", async () => {
+    expect(parseOpenSerpIndexed(body(organic("https://dir.test/p/acme")), page)).toBe(true);
+    expect(parseOpenSerpIndexed(body(organic("https://dir.test/p/other")), page)).toBe(false);
+    expect(parseOpenSerpIndexed(body(), page)).toBe(false);
+    const fetchImpl = answering(body());
+    expect(await createSerpProvider("https://worker.test", "S", fetchImpl).isIndexed(page)).toBe(false);
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(init.body as string).text).toBe("site:dir.test/p/acme");
   });
 });
 
@@ -52,7 +101,7 @@ describe("searchOrError", () => {
   const rows = [{ position: 1 }];
   const engineError = () => {
     try {
-      return parseDataForSeoTop({ tasks: [{ status_code: 40101, status_message: "Internal SE Server Error." }] });
+      return parseOpenSerp({ meta: { engines_failed: ["google"] } });
     } catch (err) {
       return err as SerpError;
     }
@@ -74,7 +123,7 @@ describe("searchOrError", () => {
     const search = vi.fn().mockRejectedValue(engineError());
     const r = await searchOrError(search, "k", 0);
     expect(r).toHaveProperty("error");
-    expect("error" in r && r.error.message).toContain("(40101)");
+    expect("error" in r && r.error.message).toContain("engine failed");
     expect(search).toHaveBeenCalledTimes(2);
   });
 
@@ -85,22 +134,8 @@ describe("searchOrError", () => {
   });
 
   it("throws straight away when trying again can't help", async () => {
-    const search = vi.fn().mockRejectedValue(new SerpError("DataForSEO SERP task failed (40200): Payment Required."));
-    await expect(searchOrError(search, "k", 0)).rejects.toThrow("40200");
+    const search = vi.fn().mockRejectedValue(new SerpError("OpenSERP returned HTTP 401"));
+    await expect(searchOrError(search, "k", 0)).rejects.toThrow("401");
     expect(search).toHaveBeenCalledTimes(1);
-  });
-
-  it("marks only passing failures as such", () => {
-    const fails = (status_code: number) => {
-      try {
-        parseDataForSeoTop({ tasks: [{ status_code }] });
-      } catch (err) {
-        return (err as SerpError).transient;
-      }
-    };
-    expect(fails(40101)).toBe(true);
-    expect(fails(50401)).toBe(true);
-    expect(fails(40200)).toBe(false);
-    expect(fails(40501)).toBe(false);
   });
 });

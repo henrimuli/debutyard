@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { DirectoryBadges } from "@/components/directories/directory-badges";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Container } from "@/components/ui/primitives";
 import { getDirectory } from "@/lib/directories/service";
@@ -64,8 +64,8 @@ async function Detail({ params }: Pick<PageProps<"/directories/[slug]">, "params
             </a>
           </div>
           <div className="flex shrink-0 flex-col items-center gap-1">
-            <AuthorityScore score={d.dr} size="md" />
-            <span className="text-[11px] text-muted-foreground">Authority Score</span>
+            <DomainRating score={d.dr} size="md" />
+            <DrAttribution className="text-[11px]" />
           </div>
         </div>
         {d.description && <p className="mt-3 text-muted-foreground">{d.description}</p>}

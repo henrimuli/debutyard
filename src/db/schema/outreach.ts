@@ -12,7 +12,7 @@ export const outreachSettings = pgTable("outreach_settings", {
   mode: outreachMode("mode").notNull().default("off"),
   /** Emails per UTC day. Staff raise it slowly from the dashboard. */
   dailyLimit: integer("daily_limit").notNull().default(5),
-  /** Sites above this Authority Score don't need the pitch. */
+  /** Sites above this Domain Rating don't need the pitch. */
   maxAuthority: integer("max_authority").notNull().default(40),
   /** Set when the health check drops the mode to dry run. Cleared by going live again. */
   pausedReason: text("paused_reason"),

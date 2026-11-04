@@ -1,4 +1,4 @@
-# Cloudflare Turnstile for the Authority Score checker
+# Cloudflare Turnstile for the Domain Rating checker
 
 The checker at `/tools/dr-checker` runs an invisible Cloudflare Turnstile check before every lookup, and the server verifies the token with Cloudflare. Visitors never see a puzzle. Without the keys, production refuses every check, so set them up before deploying.
 
@@ -10,7 +10,7 @@ Turnstile is free, and debutyard.com doesn't need to use Cloudflare for DNS.
 2. In the left sidebar, open **Turnstile**. If you don't see it, use the search box at the top and type "Turnstile".
 3. Click **Add widget**.
 4. Fill in the form:
-   - **Widget name:** `DebutYard Authority Score checker`. Only you see this.
+   - **Widget name:** `DebutYard Domain Rating checker`. Only you see this.
    - **Hostnames:** add `debutyard.com` and `www.debutyard.com`. Tokens are only valid on the hostnames listed here.
    - **Widget mode:** choose **Invisible**. Cloudflare requires sites using Invisible mode to link the Turnstile Privacy Addendum from their privacy policy; ours does, under "Bot protection" at `/privacy`.
    - **Pre-clearance:** leave it at **No**.

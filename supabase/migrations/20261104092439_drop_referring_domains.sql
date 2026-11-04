@@ -1,0 +1,1 @@
+ALTER TABLE "domain_metrics" DROP COLUMN "referring_domains";

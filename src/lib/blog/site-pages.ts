@@ -80,8 +80,8 @@ export const SITE_PAGES: SitePage[] = [
   },
   {
     href: "/tools/dr-checker",
-    title: "Authority Score checker",
-    keywords: ["domain rating", "domain authority", "authority score", "check domain rating"],
+    title: "Domain Rating checker",
+    keywords: ["domain rating", "domain rating checker", "check domain rating"],
   },
   {
     href: "/tools/launch-readiness",

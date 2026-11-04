@@ -1,17 +1,16 @@
 /**
- * "Is this listing indexed by Google?" through a SERP API. Each provider's
- * response is parsed by a pure function so the mapping is unit-tested.
+ * Google results from our own OpenSERP (workers/openserp), reached through the
+ * worker's /search. The response is parsed by pure functions so the mapping is
+ * unit-tested. Google blocks and misleads scrapers, so a response only counts
+ * if it plainly looks like real results.
  */
 
-export type SerpProviderId = "serpapi" | "dataforseo";
-
 export interface SerpProvider {
-  readonly id: SerpProviderId;
   isIndexed(url: string): Promise<boolean>;
 }
 
 export class SerpError extends Error {
-  /** The search engine or provider failed this time. Unlike a bad key or an empty balance, trying again can help. */
+  /** The search engine or OpenSERP failed this time. Unlike a bad secret, trying again can help. */
   constructor(
     message: string,
     readonly transient = false,
@@ -19,6 +18,9 @@ export class SerpError extends Error {
     super(message);
   }
 }
+
+/** Searches are failing right now, probably a block. Not the business's fault, and no use trying the next one. */
+export class SearchDownError extends Error {}
 
 /** Compares URLs the way a SERP shows them: no scheme, no www, no trailing slash, case-insensitive host. */
 export function normalizeForSerp(raw: string): string {
@@ -34,87 +36,44 @@ export function normalizeForSerp(raw: string): string {
 /** The query: `site:` the exact listing page. */
 export const serpQuery = (url: string) => `site:${normalizeForSerp(url)}`;
 
-const includes = (links: unknown[], url: string) => {
-  const want = normalizeForSerp(url);
-  return links.some((l) => typeof l === "string" && normalizeForSerp(l) === want);
-};
-
-/** What DataForSEO said, for whoever reads the error. It reports most failures with a normal HTTP 200. */
-function taskFailure(body: unknown) {
-  const b = body as {
-    status_code?: number;
-    status_message?: string;
-    tasks?: Array<{ status_code?: number; status_message?: string }>;
-  };
-  const task = b.tasks?.[0];
-  const code = task?.status_code ?? b.status_code;
-  const message = task?.status_message ?? b.status_message;
-  return new SerpError(
-    `DataForSEO SERP task failed${code ? ` (${code})` : ""}${message ? `: ${message}` : ""}`,
-    // 40101: the search engine returned an error. 5xxxx: DataForSEO's own trouble.
-    code === 40101 || (code !== undefined && code >= 50000),
-  );
-}
-
-export function parseSerpApi(body: unknown, url: string): boolean {
-  const b = body as { error?: string; organic_results?: Array<{ link?: string }> };
-  if (b.error && !/hasn't returned any results/i.test(b.error)) throw new SerpError(`SerpApi: ${b.error}`);
-  return includes(
-    (b.organic_results ?? []).map((r) => r.link),
-    url,
-  );
-}
-
-export function parseDataForSeoSerp(body: unknown, url: string): boolean {
-  const task = (
-    body as {
-      tasks?: Array<{ status_code?: number; result?: Array<{ items?: Array<{ type?: string; url?: string }> }> }>;
-    }
-  ).tasks?.[0];
-  if (!task || (task.status_code && task.status_code >= 40000)) throw taskFailure(body);
-  const items = task.result?.[0]?.items ?? [];
-  return includes(
-    items.filter((i) => i.type === "organic").map((i) => i.url),
-    url,
-  );
-}
-
 export type SerpResult = { position: number; url: string; title: string; description: string };
 
-export function parseSerpApiTop(body: unknown): SerpResult[] {
-  const b = body as {
-    error?: string;
-    organic_results?: Array<{ position?: number; link?: string; title?: string; snippet?: string }>;
-  };
-  if (b.error && !/hasn't returned any results/i.test(b.error)) throw new SerpError(`SerpApi: ${b.error}`);
-  return (b.organic_results ?? []).flatMap((r, i) =>
-    r.link ? [{ position: r.position ?? i + 1, url: r.link, title: r.title ?? "", description: r.snippet ?? "" }] : [],
-  );
+/**
+ * Google hides the destination behind /goto or /url when it suspects a bot, and
+ * OpenSERP passes that along for a while after Google pushes back. Reading those
+ * as results would make Google the top "competitor" for every search.
+ */
+function isWrappedLink(raw: string) {
+  try {
+    const u = new URL(raw);
+    return /(^|\.)google\.[a-z.]+$/i.test(u.hostname) && /^\/(goto|url)\/?$/.test(u.pathname);
+  } catch {
+    return false;
+  }
 }
 
-export function parseDataForSeoTop(body: unknown): SerpResult[] {
-  const task = (
-    body as {
-      tasks?: Array<{
-        status_code?: number;
-        result?: Array<{
-          items?: Array<{
-            type?: string;
-            rank_group?: number;
-            url?: string;
-            title?: string;
-            description?: string;
-          }>;
-        }>;
-      }>;
-    }
-  ).tasks?.[0];
-  if (!task || (task.status_code && task.status_code >= 40000)) throw taskFailure(body);
-  return (task.result?.[0]?.items ?? []).flatMap((r, i) =>
-    r.type === "organic" && r.url
-      ? [{ position: r.rank_group ?? i + 1, url: r.url, title: r.title ?? "", description: r.description ?? "" }]
-      : [],
-  );
+/** The organic results. Throws when OpenSERP says an engine failed, or Google hid the links. */
+export function parseOpenSerp(body: unknown): SerpResult[] {
+  const b = body as {
+    meta?: { engines_failed?: unknown[] };
+    results?: Array<{ rank?: number; type?: string; url?: string; title?: string; snippet?: string }>;
+  };
+  if (b.meta?.engines_failed?.length) throw new SerpError("OpenSERP: the search engine failed", true);
+  if (!Array.isArray(b.results)) throw new SerpError("OpenSERP returned no results list", true);
+  const organic = b.results.filter((r) => r.type === "organic" && r.url);
+  if (organic.some((r) => isWrappedLink(r.url!))) throw new SerpError("OpenSERP: Google hid the result links", true);
+  return organic.map((r, i) => ({
+    position: r.rank ?? i + 1,
+    url: r.url!,
+    title: r.title ?? "",
+    description: r.snippet ?? "",
+  }));
+}
+
+/** Whether the exact page is in the results. No results is a real answer to a `site:` search. */
+export function parseOpenSerpIndexed(body: unknown, url: string): boolean {
+  const want = normalizeForSerp(url);
+  return parseOpenSerp(body).some((r) => normalizeForSerp(r.url) === want);
 }
 
 const isTransient = (err: unknown) =>
@@ -123,7 +82,7 @@ const isTransient = (err: unknown) =>
 /**
  * One search, tried twice if it fails in a way that can pass. Gives the error
  * back rather than throwing it, so a caller with other searches can carry on. A
- * failure that won't pass, like a bad key or an empty balance, still throws.
+ * failure that won't pass, like a bad secret, still throws.
  */
 export async function searchOrError<T>(
   search: (keyword: string) => Promise<T>,
@@ -144,57 +103,40 @@ export async function searchOrError<T>(
   }
 }
 
+/** OpenSERP drives a real browser and has its own retry, so it gets longer than a normal API call. */
+const SEARCH_TIMEOUT_MS = 45_000;
+
+async function askWorker(workerUrl: string, secret: string, text: string, fetchImpl: typeof fetch) {
+  const res = await fetchImpl(new URL("/search", workerUrl), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, limit: 10 }),
+    signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+  });
+  // 403 and 429 are Google or OpenSERP refusing for now. A 401 is our secret, and won't pass.
+  if (!res.ok) {
+    throw new SerpError(
+      `OpenSERP returned HTTP ${res.status}`,
+      res.status >= 500 || res.status === 403 || res.status === 429,
+    );
+  }
+  return res.json();
+}
+
 /** Who ranks for a search right now, for cold outreach: top organic results, United States, English. */
-export function createSerpSearch(id: SerpProviderId, apiKey: string, fetchImpl: typeof fetch = fetch) {
+export function createSerpSearch(workerUrl: string, secret: string, fetchImpl: typeof fetch = fetch) {
   return async (keyword: string): Promise<SerpResult[]> => {
-    if (id === "serpapi") {
-      const q = new URLSearchParams({ engine: "google", q: keyword, num: "10", api_key: apiKey });
-      const res = await fetchImpl(`https://serpapi.com/search.json?${q}`, { signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) throw new SerpError(`SerpApi returned HTTP ${res.status}`, res.status >= 500);
-      return parseSerpApiTop(await res.json());
-    }
-    const res = await fetchImpl("https://api.dataforseo.com/v3/serp/google/organic/live/regular", {
-      method: "POST",
-      headers: { Authorization: `Basic ${Buffer.from(apiKey).toString("base64")}`, "Content-Type": "application/json" },
-      body: JSON.stringify([{ keyword, location_code: 2840, language_code: "en", depth: 10 }]),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) throw new SerpError(`DataForSEO returned HTTP ${res.status}`, res.status >= 500);
-    return parseDataForSeoTop(await res.json());
+    const rows = parseOpenSerp(await askWorker(workerUrl, secret, keyword, fetchImpl));
+    // A real search phrase always has results. None means a block, and mustn't read as "no competitors".
+    if (rows.length === 0) throw new SerpError("OpenSERP returned no results", true);
+    return rows;
   };
 }
 
-export function createSerpProvider(id: SerpProviderId, apiKey: string, fetchImpl: typeof fetch = fetch): SerpProvider {
-  const timeout = () => AbortSignal.timeout(20_000);
-  const ok = async (res: Response, name: string) => {
-    if (!res.ok) throw new SerpError(`${name} returned HTTP ${res.status}`);
-    return res.json();
+export function createSerpProvider(workerUrl: string, secret: string, fetchImpl: typeof fetch = fetch): SerpProvider {
+  return {
+    async isIndexed(url) {
+      return parseOpenSerpIndexed(await askWorker(workerUrl, secret, serpQuery(url), fetchImpl), url);
+    },
   };
-  switch (id) {
-    case "serpapi":
-      return {
-        id,
-        async isIndexed(url) {
-          const q = new URLSearchParams({ engine: "google", q: serpQuery(url), num: "10", api_key: apiKey });
-          const res = await fetchImpl(`https://serpapi.com/search.json?${q}`, { signal: timeout() });
-          return parseSerpApi(await ok(res, "SerpApi"), url);
-        },
-      };
-    case "dataforseo":
-      return {
-        id,
-        async isIndexed(url) {
-          const res = await fetchImpl("https://api.dataforseo.com/v3/serp/google/organic/live/regular", {
-            method: "POST",
-            headers: {
-              Authorization: `Basic ${Buffer.from(apiKey).toString("base64")}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify([{ keyword: serpQuery(url), location_code: 2840, language_code: "en", depth: 10 }]),
-            signal: timeout(),
-          });
-          return parseDataForSeoSerp(await ok(res, "DataForSEO"), url);
-        },
-      };
-  }
 }

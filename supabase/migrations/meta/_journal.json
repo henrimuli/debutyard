@@ -323,6 +323,13 @@
       "when": 1793740361623,
       "tag": "20261103211241_outreach_no_scores",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793784279287,
+      "tag": "20261104092439_drop_referring_domains",
+      "breakpoints": true
     }
   ]
 }

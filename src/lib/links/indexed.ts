@@ -4,9 +4,12 @@ import { db, schema } from "@/db";
 import { env } from "@/env";
 import { createSerpProvider, type SerpProvider } from "./serp";
 
+/** Retired for now, and hidden from every page. Flip this, and put the figures back on the dashboards, to bring it back. */
+const INDEX_CHECK_ON = false;
+
 const { trackedLinks, submissions } = schema;
 
-/** Weekly, because SERP queries cost money. */
+/** Weekly, so we don't ask Google more than we need to. */
 export const INDEX_CHECK_EVERY_DAYS = 7;
 const DAY = 86_400_000;
 
@@ -14,8 +17,8 @@ let override: SerpProvider | null | undefined;
 
 export function serpProvider(): SerpProvider | null {
   if (override !== undefined) return override;
-  const { SERP_PROVIDER, SERP_API_KEY } = env();
-  return SERP_PROVIDER && SERP_API_KEY ? createSerpProvider(SERP_PROVIDER, SERP_API_KEY) : null;
+  const { WORKER_URL, WORKER_SECRET } = env();
+  return INDEX_CHECK_ON && WORKER_URL && WORKER_SECRET ? createSerpProvider(WORKER_URL, WORKER_SECRET) : null;
 }
 
 export const indexCheckEnabled = () => serpProvider() !== null;

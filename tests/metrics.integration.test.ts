@@ -5,7 +5,7 @@
  */
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DrProvider } from "@/lib/metrics/providers";
+import { DrRateLimitError, type DrProvider } from "@/lib/metrics/providers";
 import type { PaymentProvider, VerifiedPayment, WebhookEvent } from "@/lib/payments/types";
 import { resetDatabase } from "./helpers/db";
 
@@ -49,23 +49,12 @@ class FakePayments implements PaymentProvider {
 
 const dr = new Map<string, number>();
 const calls: string[] = [];
-const bulkCalls: string[][] = [];
 const fakeDr: DrProvider = {
-  id: "openpagerank",
   async fetchDr(domain) {
     calls.push(domain);
-    return { dr: dr.get(domain) ?? 10, referringDomains: null };
+    return { dr: dr.get(domain) ?? 10 };
   },
 };
-const fakeBulkDr: DrProvider = {
-  ...fakeDr,
-  id: "dataforseo",
-  async fetchBulk(domains) {
-    bulkCalls.push(domains);
-    return new Map(domains.map((d) => [d, { dr: dr.get(d) ?? 20, referringDomains: null }]));
-  },
-};
-
 describe.skipIf(!TEST_DB)("DR snapshots (Postgres)", () => {
   const pay = new FakePayments();
   let dbmod: typeof import("@/db");
@@ -95,7 +84,6 @@ describe.skipIf(!TEST_DB)("DR snapshots (Postgres)", () => {
   beforeEach(async () => {
     sent.length = 0;
     calls.length = 0;
-    bulkCalls.length = 0;
     dr.clear();
     metrics.setDrProviderForTests(fakeDr);
     await dbmod
@@ -179,7 +167,7 @@ describe.skipIf(!TEST_DB)("DR snapshots (Postgres)", () => {
     sent.length = 0;
     expect(await metrics.snapshotDomains(week)).toMatchObject({ measured: 2, alerts: 1 });
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ to: "pro@x.test", subject: "Authority Score alert: pro.io dropped 6 points" });
+    expect(sent[0]).toMatchObject({ to: "pro@x.test", subject: "Domain Rating alert: pro.io dropped 6 points" });
     expect((await metrics.drHistory("acme.io")).map((p) => p.dr)).toEqual([7, 19]);
 
     // A 4-point drop is not news.
@@ -194,56 +182,95 @@ describe.skipIf(!TEST_DB)("DR snapshots (Postgres)", () => {
   });
 
   it("caches the checker for 7 days with single lookups", async () => {
-    metrics.setDrProviderForTests(fakeBulkDr);
     dr.set("foo.io", 33);
     expect((await metrics.drFor("foo.io"))?.dr).toBe(33);
     expect((await metrics.drFor("foo.io"))?.dr).toBe(33);
     expect(calls).toEqual(["foo.io"]);
     expect((await metrics.drFor("foo.io", new Date(Date.now() + 8 * DAY)))?.dr).toBe(33);
     expect(calls).toHaveLength(2);
-    expect(bulkCalls).toHaveLength(0);
   });
 
-  it("scores all directories in one bulk request, then again only after a month", async () => {
-    metrics.setDrProviderForTests(fakeBulkDr);
+  it("scores directories a batch at a time, then again only after a month", async () => {
+    metrics.setDrProviderForTests(fakeDr);
     const active = await dbmod
       .db()
       .select()
       .from(dbmod.schema.directories)
       .where(eq(dbmod.schema.directories.isActive, true));
     expect(active.length).toBeGreaterThan(10);
+    const host = (u: string) => new URL(u).hostname.replace(/^www\./, "");
+    const domains = new Set(active.map((d) => host(d.url)));
     const [first] = active;
-    dr.set(new URL(first.url).hostname.replace(/^www\./, ""), 61);
+    dr.set(host(first.url), 61);
+    /** Runs until nothing's left, an hour apart, and adds up what they scored. */
+    const runAll = async (from: Date) => {
+      let total = 0;
+      for (let i = 0; i <= Math.ceil(domains.size / 50); i++) {
+        total += await metrics.refreshDirectoryScores(new Date(from.getTime() + i * 3_600_000));
+      }
+      return total;
+    };
 
     const now = new Date();
-    expect(await metrics.refreshDirectoryScores(now)).toBe(active.length);
-    expect(bulkCalls).toHaveLength(1);
-    expect(bulkCalls[0]).toHaveLength(new Set(active.map((d) => new URL(d.url).hostname.replace(/^www\./, ""))).size);
-    expect(calls).toHaveLength(0);
+    expect(await metrics.refreshDirectoryScores(now)).toBeLessThanOrEqual(active.length);
+    expect(calls.length).toBe(Math.min(50, domains.size));
+    await runAll(new Date(now.getTime() + 3_600_000));
+    expect(new Set(calls).size).toBe(domains.size);
     expect(
       (await dbmod.db().query.directories.findFirst({ where: eq(dbmod.schema.directories.id, first.id) }))?.dr,
     ).toBe(61);
 
     // Nothing is due for the rest of the month, so the daily job makes no request.
+    calls.length = 0;
     expect(await metrics.refreshDirectoryScores(new Date(now.getTime() + 29 * DAY))).toBe(0);
-    expect(bulkCalls).toHaveLength(1);
+    expect(calls).toHaveLength(0);
 
-    // A new directory is scored the next day, on its own small bulk request.
+    // A new directory is scored the next day, on its own.
     await dbmod
       .db()
       .update(dbmod.schema.directories)
       .set({ dr: null })
       .where(eq(dbmod.schema.directories.id, first.id));
-    expect(await metrics.refreshDirectoryScores(new Date(now.getTime() + DAY))).toBe(1);
-    expect(bulkCalls[1]).toHaveLength(1);
+    expect(await metrics.refreshDirectoryScores(new Date(now.getTime() + 2 * DAY))).toBe(1);
+    expect(calls).toEqual([host(first.url)]);
 
-    // After 30 days, the whole list is re-measured in one request again.
-    dr.set(new URL(first.url).hostname.replace(/^www\./, ""), 64);
-    expect(await metrics.refreshDirectoryScores(new Date(now.getTime() + 31 * DAY))).toBe(active.length);
-    expect(bulkCalls).toHaveLength(3);
+    // After 30 days, the whole list is measured again.
+    calls.length = 0;
+    dr.set(host(first.url), 64);
+    expect(await runAll(new Date(now.getTime() + 33 * DAY))).toBe(active.length);
+    expect(new Set(calls).size).toBe(domains.size);
     expect(
       (await dbmod.db().query.directories.findFirst({ where: eq(dbmod.schema.directories.id, first.id) }))?.dr,
     ).toBe(64);
+  });
+
+  it("stops a run when Ahrefs says to slow down", async () => {
+    let asked = 0;
+    metrics.setDrProviderForTests({
+      async fetchDr() {
+        asked++;
+        throw new DrRateLimitError("Ahrefs returned HTTP 429");
+      },
+    });
+    expect(await metrics.refreshDirectoryScores()).toBe(0);
+    expect(asked).toBe(1);
+  });
+
+  it("ignores readings from earlier providers, so a new scale can't look like a drop", async () => {
+    metrics.setDrProviderForTests(fakeDr);
+    const domain = "old-scale.io";
+    await dbmod
+      .db()
+      .insert(dbmod.schema.domainMetrics)
+      .values({ domain, dr: 80, provider: "dataforseo", measuredAt: new Date(Date.now() - DAY) });
+    dr.set(domain, 20);
+
+    expect(await metrics.latestDr(domain)).toBeNull();
+    expect(await metrics.drHistory(domain)).toEqual([]);
+    const res = await metrics.snapshot(domain);
+    expect(res?.previous).toBeNull();
+    expect(res?.row).toMatchObject({ dr: 20, provider: "ahrefs" });
+    expect((await metrics.drHistory(domain)).map((p) => p.dr)).toEqual([20]);
   });
 
   it("hides itself without a provider", async () => {

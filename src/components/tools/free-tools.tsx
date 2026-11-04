@@ -4,11 +4,10 @@ import Link from "next/link";
 import { startTransition, useActionState, useState } from "react";
 import { dofollowAction } from "@/app/(site)/tools/dofollow-checker/actions";
 import { drAction } from "@/app/(site)/tools/dr-checker/actions";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { useTurnstile } from "@/components/turnstile";
 import { Button } from "@/components/ui/button";
 import { Card, Input, Label } from "@/components/ui/primitives";
-import { providerLabels, type DrProviderId } from "@/lib/metrics/providers";
 import { cn } from "@/lib/utils";
 
 const VERDICT = {
@@ -106,18 +105,13 @@ export function DrChecker({ turnstileSiteKey }: { turnstileSiteKey: string | nul
       {state && !state.ok && <p className="text-sm text-danger">{state.error}</p>}
       {r && (
         <Card className="flex flex-wrap items-center gap-5 p-6">
-          <AuthorityScore key={`${r.domain}-${r.measuredAt}`} score={r.dr} size="lg" />
+          <DomainRating key={`${r.domain}-${r.measuredAt}`} score={r.dr} size="lg" />
           <div className="min-w-0 space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Authority Score</p>
+            <DrAttribution className="block" />
             <p className="font-display text-xl font-semibold break-all">{r.domain}</p>
-            {r.referringDomains !== null && (
-              <p className="text-sm text-muted-foreground">
-                {r.referringDomains.toLocaleString("en-US")} referring domains
-              </p>
-            )}
             <p className="text-xs text-muted-foreground">
-              Measured {new Date(r.measuredAt).toLocaleDateString("en-GB", { timeZone: "UTC" })} · Source:{" "}
-              {providerLabels[r.provider as DrProviderId] ?? r.provider}. Scores are refreshed at most weekly.
+              Measured {new Date(r.measuredAt).toLocaleDateString("en-GB", { timeZone: "UTC" })}. Scores are refreshed
+              at most weekly.
             </p>
           </div>
         </Card>

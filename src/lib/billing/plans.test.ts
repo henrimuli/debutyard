@@ -46,7 +46,7 @@ describe("plans", () => {
         "100 listings",
         "100 monitored links",
         "1 free Fast Track each quarter",
-        "Authority Score tracking and drop alerts for 100 domains",
+        "Domain Rating tracking and drop alerts for 100 domains",
         "Book sponsor slots 16 weeks ahead",
       ]),
     );
@@ -56,13 +56,13 @@ describe("plans", () => {
         "Unlimited listings",
         "Unlimited monitored links",
         "3 free Fast Tracks each quarter",
-        "Authority Score tracking and drop alerts for unlimited domains",
+        "Domain Rating tracking and drop alerts for unlimited domains",
         "Book sponsor slots 20 weeks ahead",
       ]),
     );
   });
 
-  it("doesn't sell Authority Score tracking where it isn't set up", () => {
-    expect(planFeatures(plan("maker_pro").limits, { authority: false }).join()).not.toContain("Authority Score");
+  it("doesn't sell Domain Rating tracking where it isn't set up", () => {
+    expect(planFeatures(plan("maker_pro").limits, { authority: false }).join()).not.toContain("Domain Ratore");
   });
 });

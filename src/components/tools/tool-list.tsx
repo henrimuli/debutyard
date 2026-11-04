@@ -19,7 +19,7 @@ const ICON = {
   className: "size-5",
 } as const;
 
-/** The free tools, for the header's Free Tools panel and the footer. The Authority Score checker needs a DR provider. */
+/** The free tools, for the header's Free Tools panel and the footer. The Domain Rating checker needs a DR provider. */
 export function freeTools(): FreeTool[] {
   const tools: Array<FreeTool & { dr?: boolean }> = [
     {
@@ -46,8 +46,8 @@ export function freeTools(): FreeTool[] {
     },
     {
       href: "/tools/dr-checker",
-      label: "Authority Score checker",
-      description: "Any site's authority from 0 to 100, plus its referring domains.",
+      label: "Domain Rating checker",
+      description: "Any site's Domain Rating from 0 to 100.",
       dr: true,
       icon: (
         <svg {...ICON}>

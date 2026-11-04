@@ -43,9 +43,9 @@ export default function PrivacyPage() {
       <p>
         Service providers that run parts of {site.name} for us: hosting (Vercel), database (Supabase), file storage and
         bot protection (Cloudflare), email (Resend, and Maildoso for outreach email), payments (Paystack, PayPal),
-        search and authority data (DataForSEO), writing and classification (Google Gemini) and fetching public web pages
-        our own checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give
-        us with the directories we submit to. We don&apos;t sell personal data.
+        Domain Rating data (Ahrefs), writing and classification (Google Gemini) and fetching public web pages our own
+        checks can&apos;t reach (Firecrawl). For the submission service, we share the product details you give us with
+        the directories we submit to. We don&apos;t sell personal data.
       </p>
 
       <h2>Badge block</h2>
@@ -60,10 +60,10 @@ export default function PrivacyPage() {
 
       <h2>Bot protection</h2>
       <p>
-        The Authority Score checker uses Cloudflare Turnstile to tell people from automated traffic. When you run a
-        check, Turnstile collects information about your device and browser, such as your IP address and browser
-        signals, and Cloudflare processes it to decide whether the request is genuine. Cloudflare&apos;s handling of
-        this data is covered by the{" "}
+        The Domain Rating checker uses Cloudflare Turnstile to tell people from automated traffic. When you run a check,
+        Turnstile collects information about your device and browser, such as your IP address and browser signals, and
+        Cloudflare processes it to decide whether the request is genuine. Cloudflare&apos;s handling of this data is
+        covered by the{" "}
         <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noopener noreferrer">
           Cloudflare Turnstile Privacy Addendum
         </a>

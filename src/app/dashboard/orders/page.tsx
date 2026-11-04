@@ -15,7 +15,7 @@ export default function OrdersPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Submission orders"
-        description="Done-for-you directory submissions. We submit by hand, then verify every listing is live, dofollow and indexed."
+        description="Done-for-you directory submissions. We submit by hand, then verify every listing is live and dofollow."
         actions={
           <ButtonLink href="/dashboard/orders/new" variant="outline">
             See packages
