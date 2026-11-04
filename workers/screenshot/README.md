@@ -15,7 +15,7 @@ Playwright doesn't run on Vercel functions, so this is a small container.
 
 1. Create a service from this folder (it has a `Dockerfile`). On Fly: `fly launch --no-deploy` here, then `fly deploy`.
 2. Set `WORKER_SECRET` (`openssl rand -hex 32`) and the R2 settings: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
-3. Set `OPENSERP_URL=http://openserp.railway.internal:7000` once [OpenSERP](../openserp/README.md) is deployed. Without it, `/search` returns 503 and screenshots still work.
+3. Set `OPENSERP_URL=http://openserp.railway.internal:7000` once [OpenSERP](../openserp/README.md) is deployed, using the private address it shows there. Without it, `/search` returns 503 and screenshots still work.
 4. In Vercel, set `WORKER_URL` (the service's https URL) and the same `WORKER_SECRET`.
 
 Without `WORKER_URL`, the app skips screenshots and staff can still paste an evidence URL by hand, and outreach research doesn't run.

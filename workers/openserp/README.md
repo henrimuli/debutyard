@@ -10,21 +10,49 @@ Vercel → worker POST /search (WORKER_SECRET) → openserp.railway.internal:700
 
 ## Deploy on Railway
 
-1. In the screenshot worker's Railway project, create a service from this folder (it has a `Dockerfile`). Name it `openserp`, in a US region, because results depend on where the search comes from.
-2. Don't generate a public domain for it. Check **Settings → Networking** shows only the private `openserp.railway.internal`.
-3. On the screenshot worker, set `OPENSERP_URL=http://openserp.railway.internal:7000` and redeploy it from `workers/screenshot`.
-4. Check it from your machine:
+**Use the same Railway project and environment as the screenshot worker, not a new project.** Railway's private network doesn't reach outside its environment, so a separate project would need a public domain, and this service mustn't have one.
+
+Railway's labels change from time to time, so go by what each step is for if yours look different.
+
+1. **Add the service.** Open the project that holds the screenshot worker, and choose **New**. Pick **GitHub Repo** and this repository if it's offered. If you only see **Empty Service**, use that: it's the same thing with the source connected in step 3.
+2. **Name it.** Open the new service, go to **Settings**, and change its name to `openserp`. A new service gets a random name, which you can't set while creating it.
+3. **Connect the code.** Still in **Settings**:
+   - Under **Service Source**, choose **Connect Repo** and pick this repository, on the `master` branch. Skip this if you started from GitHub Repo.
+   - Set **Root Directory** to `/workers/openserp`, so Railway builds the `Dockerfile` in this folder.
+   - Set the **region** to a US one, because Google's results depend on where the search comes from.
+   - Don't add any variables. The settings are in `config.yaml`.
+4. **Deploy.** Railway collects your changes as staged changes, so nothing runs yet. Choose **Deploy** at the top of the canvas and wait for the deployment to go green.
+5. **Get the private address.** Go to **Settings → Networking**. Look for the private address ending in `.railway.internal`, and copy it. It's based on the service's name, so it should be `openserp.railway.internal`. If it still has the random name, edit it or use it as shown. If you can't see one yet, check that step 4 finished.
+6. **Leave it private.** Don't choose **Generate Domain** on this service. The Networking section should show no public address.
+7. **Point the worker at it.** On the **screenshot worker** service, add this variable using your private address from step 5, with `http://` and port `7000`, then deploy:
+
+   ```
+   OPENSERP_URL=http://openserp.railway.internal:7000
+   ```
+
+   The worker needs the `/search` route, so make sure it has deployed from the latest `master`.
+
+8. **Test it from your machine**, using the worker's public URL and secret:
 
    ```bash
    curl -X POST "$WORKER_URL/search" -H "Authorization: Bearer $WORKER_SECRET" -H "Content-Type: application/json" -d '{"text":"best invoicing software","limit":10}'
    ```
 
-   Look for real sites under `results[].url`, with no `google.com/goto` links.
+   You want real sites under `results[].url`, with no `google.com/goto` links.
+
+| Response from step 8     | What it means                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `404`                    | The worker hasn't deployed the latest code.                                                        |
+| `503`, no `OPENSERP_URL` | The variable from step 7 isn't set, or the worker wasn't deployed after setting it.                |
+| `502`                    | The worker can't reach OpenSERP. Check the address and port, and that OpenSERP's deployment is up. |
+| `403` or `429`           | It's all connected, and Google is refusing. See below.                                             |
 
 OpenSERP listens on IPv4 only. Railway environments created after October 16, 2025 resolve private names to IPv4 too. An older environment resolves them to IPv6 only and `/search` will return 502, so use a newer environment.
 
 ## When Google blocks it
 
-Datacenter addresses get challenged. The worker passes on OpenSERP's 403, 429 and 5xx, and the app treats those, hidden links and empty results as "try again later". A business isn't rejected or marked down over them. The research run stops there and tries again on its next schedule, and the cron's result shows `searchDown`, so look for that in the logs if research goes quiet.
+Datacenter addresses get challenged. The worker passes on OpenSERP's 403, 429 and 5xx, and the app treats those, hidden links and empty results as "try again later". A business isn't rejected or marked down over them. The research run stops there and tries again on its next schedule.
 
-If it's blocked often, set a US residential proxy in `config.yaml` under `proxies.global`. Don't add another engine as a fallback: our emails say who ranks on Google.
+A banner at the top of the outreach pages in the admin dashboard says when this happens. After three failed runs in a row it turns red and asks for a proxy. It goes away after the next run whose searches work.
+
+To add a proxy, set a US residential one in `config.yaml` under `proxies.global`, then redeploy this service. Don't add another engine as a fallback: our emails say who ranks on Google.

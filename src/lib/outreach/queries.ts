@@ -5,6 +5,8 @@ import { mailboxes } from "./mailbox";
 import { site } from "@/config/site";
 import { footerLine } from "./draft";
 import { IGNORED_AFTER, looksIgnored, looksLikeScanner } from "./rules";
+import { getSettings } from "./settings";
+import { searchDownStreak } from "./search-health";
 import { repeatedPhrases } from "./variety";
 import { suppress } from "./suppressions";
 
@@ -307,4 +309,20 @@ export async function unsubscribeByToken(token: string, now = new Date()) {
     .set({ unsubscribedAt: sql`coalesce(${e.unsubscribedAt}, ${now})` })
     .where(eq(e.id, email.id));
   return true;
+}
+
+/** How many past research runs to look through: five days' worth at one every three hours. */
+const SEARCH_HEALTH_RUNS = 40;
+
+/** Whether Google searches have been failing, for the banner on the outreach pages. Null when they haven't, or outreach is off. */
+export async function searchDown() {
+  if ((await getSettings()).mode === "off") return null;
+  const { cronRuns } = schema;
+  const runs = await db()
+    .select({ startedAt: cronRuns.startedAt, results: cronRuns.results })
+    .from(cronRuns)
+    .where(eq(cronRuns.job, "outreach-research"))
+    .orderBy(desc(cronRuns.startedAt))
+    .limit(SEARCH_HEALTH_RUNS);
+  return searchDownStreak(runs);
 }
