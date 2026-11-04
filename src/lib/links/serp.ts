@@ -39,9 +39,9 @@ export const serpQuery = (url: string) => `site:${normalizeForSerp(url)}`;
 export type SerpResult = { position: number; url: string; title: string; description: string };
 
 /**
- * Google hides the destination behind /goto or /url when it suspects a bot, and
- * OpenSERP passes that along for a while after Google pushes back. Reading those
- * as results would make Google the top "competitor" for every search.
+ * Google can hide the destination behind /goto or /url. The worker swaps those
+ * for the real pages, so one that reaches us is a link it couldn't resolve. Reading
+ * those as results would make Google the top "competitor" for every search.
  */
 function isWrappedLink(raw: string) {
   try {
@@ -103,8 +103,8 @@ export async function searchOrError<T>(
   }
 }
 
-/** OpenSERP drives a real browser and has its own retry, so it gets longer than a normal API call. */
-const SEARCH_TIMEOUT_MS = 45_000;
+/** OpenSERP drives a real browser and has its own retry, and the worker then resolves links, so it gets longer than a normal API call. */
+const SEARCH_TIMEOUT_MS = 50_000;
 
 /** What OpenSERP or the worker said went wrong, for whoever reads the error. */
 async function failureReason(res: Response) {
