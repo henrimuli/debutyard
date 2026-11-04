@@ -4,7 +4,8 @@
  * Runs Playwright, so it lives off Vercel (Railway, Fly, any container host).
  *
  * Also the only way in to our private OpenSERP (workers/openserp): POST /search
- * { text, limit } → OpenSERP's Google results, United States, English.
+ * { text, limit } → OpenSERP's Google results, United States, English, with
+ * Google's wrapped links swapped for the real pages.
  */
 import { createServer } from "node:http";
 import { lookup } from "node:dns/promises";
@@ -12,6 +13,7 @@ import { isIP } from "node:net";
 import { timingSafeEqual } from "node:crypto";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { chromium } from "playwright";
+import { unwrapLinks } from "./unwrap-links.mjs";
 
 const env = (k) => {
   const v = process.env[k];
@@ -95,7 +97,8 @@ async function search({ text, limit }) {
   const q = new URLSearchParams({ text, limit: String(limit), lang: "EN", region: "US" });
   // Longer than OpenSERP's own attempts and retry, and shorter than the app's wait for us.
   const res = await fetch(`${base.replace(/\/$/, "")}/google/search?${q}`, { signal: AbortSignal.timeout(40_000) });
-  return { status: res.status, body: await res.json().catch(() => ({ error: "OpenSERP sent no JSON" })) };
+  const body = await res.json().catch(() => ({ error: "OpenSERP sent no JSON" }));
+  return { status: res.status, body: res.ok ? await unwrapLinks(body) : body };
 }
 
 const send = (res, status, body) => {
