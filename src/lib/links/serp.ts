@@ -106,17 +106,28 @@ export async function searchOrError<T>(
 /** OpenSERP drives a real browser and has its own retry, so it gets longer than a normal API call. */
 const SEARCH_TIMEOUT_MS = 45_000;
 
+/** What OpenSERP or the worker said went wrong, for whoever reads the error. */
+async function failureReason(res: Response) {
+  const body = (await res.json().catch(() => null)) as { message?: unknown; error?: unknown } | null;
+  const reason = body?.message ?? body?.error;
+  return typeof reason === "string" && reason.trim() ? `: ${reason.trim().slice(0, 300)}` : "";
+}
+
 async function askWorker(workerUrl: string, secret: string, text: string, fetchImpl: typeof fetch) {
   const res = await fetchImpl(new URL("/search", workerUrl), {
     method: "POST",
     headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
     body: JSON.stringify({ text, limit: 10 }),
     signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+  }).catch((err) => {
+    if (err instanceof Error && err.name === "TimeoutError") throw err;
+    // The worker being down isn't the business's fault, so it mustn't count against one.
+    throw new SerpError(`Couldn't reach the worker: ${err instanceof Error ? err.message : String(err)}`, true);
   });
   // 403 and 429 are Google or OpenSERP refusing for now. A 401 is our secret, and won't pass.
   if (!res.ok) {
     throw new SerpError(
-      `OpenSERP returned HTTP ${res.status}`,
+      `OpenSERP returned HTTP ${res.status}${await failureReason(res)}`,
       res.status >= 500 || res.status === 403 || res.status === 429,
     );
   }

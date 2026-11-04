@@ -79,6 +79,33 @@ describe("outreach search", () => {
   });
 });
 
+describe("outreach search failures", () => {
+  it("passes on what went wrong", async () => {
+    const message = "all 2 attempts failed for google: Permission denied\n";
+    const fetchImpl = answering({ error: "engine_internal", code: 502, message }, 502);
+    await expect(createSerpSearch("https://worker.test", "S", fetchImpl)("k")).rejects.toThrow(
+      "OpenSERP returned HTTP 502: all 2 attempts failed for google: Permission denied",
+    );
+  });
+
+  it("copes with an error that isn't JSON", async () => {
+    const fetchImpl = vi.fn(async () => new Response("Bad gateway", { status: 502 })) as unknown as typeof fetch;
+    await expect(createSerpSearch("https://worker.test", "S", fetchImpl)("k")).rejects.toThrow(
+      /^OpenSERP returned HTTP 502$/,
+    );
+  });
+
+  it("treats the worker being down as something that can pass", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch;
+    const err = await createSerpSearch("https://worker.test", "S", fetchImpl)("k").catch((e) => e);
+    expect(err).toBeInstanceOf(SerpError);
+    expect(err.transient).toBe(true);
+    expect(err.message).toContain("Couldn't reach the worker");
+  });
+});
+
 describe("index check", () => {
   it("normalizes URLs like a results page shows them", () => {
     expect(normalizeForSerp("https://WWW.Dir.test/p/acme/")).toBe("dir.test/p/acme");

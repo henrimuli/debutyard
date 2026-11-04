@@ -31,6 +31,13 @@ describe("searchDownStreak", () => {
     expect(searchDownStreak([down(9), down(6), down(3)])).toMatchObject({ runs: 3, needsProxy: true });
   });
 
+  it("doesn't ask for a proxy when our own services are what's failing", () => {
+    const broken = "OpenSERP returned HTTP 502: all 2 attempts failed for google";
+    expect(searchDownStreak([down(9, broken), down(6), down(3)])).toMatchObject({ runs: 3, needsProxy: false });
+    const unreachable = "Couldn't reach the worker: fetch failed";
+    expect(searchDownStreak([down(9, unreachable), down(6), down(3)])?.needsProxy).toBe(false);
+  });
+
   it("isn't reset by runs that never searched", () => {
     expect(searchDownStreak([quiet(12), down(9), quiet(6), down(3)])).toMatchObject({ runs: 2, lastAt: at(9) });
   });
