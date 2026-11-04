@@ -2,8 +2,9 @@ import "server-only";
 import { env } from "@/env";
 
 /**
- * Gemini API client for the blog writer. One text model and one image model,
- * no fallback chain: when a call fails, the editor shows Google's own error.
+ * Gemini API client. One key, one text model for outreach, one for the blog
+ * writer and one for images, with no fallback chain: when a call fails, the
+ * editor shows Google's own error.
  *
  * - Structured answers use `responseJsonSchema`, so the reply is JSON in the
  *   schema's shape (code still validates every field before the UI sees it).
@@ -11,7 +12,11 @@ import { env } from "@/env";
  *   to their real URLs, so an article only ever links what search returned.
  */
 
+/** Outreach, and any call that doesn't ask for another model. */
 export const TEXT_MODEL = "gemini-3.1-flash-lite";
+export const BLOG_TEXT_MODEL = "gemini-3.1-pro-preview";
+/** Pro's thinking counts against the output limit, and took 1,000 tokens on a short outline. Only what's used is billed. */
+const BLOG_THINKING_TOKENS = 16_384;
 /** Nano Banana 2.1. */
 export const IMAGE_MODEL = "gemini-nano-banana-2.1";
 
@@ -52,6 +57,7 @@ type Candidate = {
 type Response = { candidates?: Candidate[]; error?: { message?: string; status?: string; code?: number } };
 
 export type CallArgs = {
+  textModel?: string;
   system: string;
   contents: Content[];
   maxOutputTokens?: number;
@@ -89,7 +95,7 @@ function body(model: string, a: CallArgs, extra: Record<string, unknown> = {}) {
     contents: a.contents,
     ...(a.search ? { tools: [{ google_search: {} }, { url_context: {} }] } : {}),
     generationConfig: {
-      maxOutputTokens: a.maxOutputTokens ?? 4096,
+      maxOutputTokens: (a.maxOutputTokens ?? 4096) + (model === BLOG_TEXT_MODEL ? BLOG_THINKING_TOKENS : 0),
       ...(a.temperature !== undefined ? { temperature: a.temperature } : {}),
       ...extra,
     },
@@ -137,10 +143,11 @@ function parseJson(text: string): unknown {
 
 /** A structured answer in the shape of `schema` (plain JSON Schema). */
 export async function geminiJson(a: Omit<CallArgs, "search"> & { schema: Record<string, unknown> }): Promise<unknown> {
+  const textModel = a.textModel ?? TEXT_MODEL;
   const res = await post(
-    TEXT_MODEL,
+    textModel,
     "generateContent",
-    body(TEXT_MODEL, a, { responseMimeType: "application/json", responseJsonSchema: a.schema }),
+    body(textModel, a, { responseMimeType: "application/json", responseJsonSchema: a.schema }),
     a.timeoutMs ?? 60_000,
   );
   const json = (await res.json()) as Response;
@@ -151,7 +158,8 @@ export async function geminiJson(a: Omit<CallArgs, "search"> & { schema: Record<
 
 /** Streams the answer's text as it's written. */
 export async function* geminiStream(a: CallArgs): AsyncGenerator<string> {
-  const res = await post(TEXT_MODEL, "streamGenerateContent?alt=sse", body(TEXT_MODEL, a), a.timeoutMs ?? 240_000);
+  const textModel = a.textModel ?? TEXT_MODEL;
+  const res = await post(textModel, "streamGenerateContent?alt=sse", body(textModel, a), a.timeoutMs ?? 240_000);
   if (!res.body) return;
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
@@ -202,15 +210,15 @@ export async function geminiResearch(a: {
   maxOutputTokens?: number;
 }): Promise<Research> {
   const res = await post(
-    TEXT_MODEL,
+    BLOG_TEXT_MODEL,
     "generateContent",
-    body(TEXT_MODEL, {
+    body(BLOG_TEXT_MODEL, {
       system: a.system,
       contents: [user(a.question)],
       search: true,
       maxOutputTokens: a.maxOutputTokens ?? 4096,
     }),
-    90_000,
+    180_000,
   );
   const json = (await res.json()) as Response;
   const cand = json.candidates?.[0];
@@ -283,28 +291,28 @@ export async function geminiImage(prompt: string, aspectRatio: AspectRatio = "16
   return { bytes, mimeType: part.inlineData.mimeType, width: size?.width ?? null, height: size?.height ?? null };
 }
 
-/** A one-word probe of both models, for the diagnostics endpoint. Never returns the key. */
+/** A one-word probe of the blog writer's model, for its diagnostics endpoint. Never returns the key. */
 export async function geminiHealth() {
   const configured = geminiConfigured();
-  if (!configured) return { configured, text: "missing key", models: { text: TEXT_MODEL, image: IMAGE_MODEL } };
+  if (!configured) return { configured, text: "missing key", models: { text: BLOG_TEXT_MODEL, image: IMAGE_MODEL } };
   try {
     const res = await post(
-      TEXT_MODEL,
+      BLOG_TEXT_MODEL,
       "generateContent",
-      body(TEXT_MODEL, { system: "Reply with one word.", contents: [user("Say OK.")], maxOutputTokens: 16 }),
-      20_000,
+      body(BLOG_TEXT_MODEL, { system: "Reply with one word.", contents: [user("Say OK.")], maxOutputTokens: 16 }),
+      60_000,
     );
     const json = (await res.json()) as Response;
     return {
       configured,
       text: answerText(json.candidates?.[0]?.content?.parts) ? "ok" : "empty",
-      models: { text: TEXT_MODEL, image: IMAGE_MODEL },
+      models: { text: BLOG_TEXT_MODEL, image: IMAGE_MODEL },
     };
   } catch (err) {
     return {
       configured,
       text: err instanceof Error ? err.message : "failed",
-      models: { text: TEXT_MODEL, image: IMAGE_MODEL },
+      models: { text: BLOG_TEXT_MODEL, image: IMAGE_MODEL },
     };
   }
 }

@@ -74,7 +74,7 @@ const schema = z.object({
   /** SerpApi: its API key. DataForSEO: "login:password". */
   SERP_API_KEY: optional,
 
-  // Gemini API (billing on). The blog writer agent: gemini-3.1-flash-lite for text, Nano Banana 2.1 for images.
+  // Gemini API (billing on). gemini-3.1-pro-preview for the blog writer, gemini-3.1-flash-lite for outreach, Nano Banana 2.1 for images.
   GEMINI_API_KEY: optional,
 
   // Google Keyword Planner (Google Ads API) for real search volume in the blog writer. All optional;
