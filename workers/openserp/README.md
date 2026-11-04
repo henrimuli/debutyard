@@ -38,7 +38,7 @@ Railway's labels change from time to time, so go by what each step is for if you
    curl -X POST "$WORKER_URL/search" -H "Authorization: Bearer $WORKER_SECRET" -H "Content-Type: application/json" -d '{"text":"best invoicing software","limit":10}'
    ```
 
-   You want real sites under `results[].url`. Google often wraps them in `google.com/goto` links, and the worker swaps those for the real pages. A `goto` link still in the response means the worker couldn't resolve it, which the app treats as a failed search.
+   You want real sites under `results[].url`. Google often wraps them in `google.com/goto` links. The worker swaps those for the real pages, and when Google limits those lookups it uses the result's site instead, like `https://example.com/`. So some front pages are normal. A `goto` link still in the response had no usable domain, which the app treats as a failed search.
 
 | Response from step 8     | What it means                                                                                                                                                                                                                                        |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -3,29 +3,55 @@ import { unwrapLinks } from "../workers/screenshot/unwrap-links.mjs";
 
 const GOTO = "https://www.google.com/goto?url=CAESfw";
 const redirect = (location: string, status = 302) => new Response(null, { status, headers: { location } });
-const fetchReturning = (res: Response) => vi.fn(async () => res) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+const answering = (...responses: Response[]) => {
+  const fn = vi.fn();
+  for (const res of responses) fn.mockResolvedValueOnce(res);
+  return fn as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+};
+const run = (body: unknown, fetchImpl: typeof fetch, over = {}) => unwrapLinks(body, { fetchImpl, gapMs: 0, ...over });
 const urls = (body: unknown) => (body as { results: { url: string }[] }).results.map((r) => r.url);
 
 describe("unwrapLinks", () => {
   it("swaps a wrapped link for the page it redirects to, without following it", async () => {
-    const fetchImpl = fetchReturning(redirect("https://a.test/post/"));
-    const out = await unwrapLinks({ meta: { version: "2.1" }, results: [{ rank: 1, url: GOTO }] }, fetchImpl);
+    const fetchImpl = answering(redirect("https://a.test/post/"));
+    const out = await run({ meta: { version: "2.1" }, results: [{ rank: 1, url: GOTO }] }, fetchImpl);
     expect(out).toEqual({ meta: { version: "2.1" }, results: [{ rank: 1, url: "https://a.test/post/" }] });
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
   });
 
   it("leaves other links alone and doesn't ask about them", async () => {
-    const fetchImpl = fetchReturning(redirect("https://wrong.test/"));
+    const fetchImpl = answering();
     const links = [
       "https://a.test/goto?url=x",
       "https://support.google.com/goto-help",
       "https://google.evil.com/goto?url=x",
       "http://www.google.com/goto?url=x",
     ];
-    const out = await unwrapLinks({ results: links.map((url) => ({ url })) }, fetchImpl);
-    expect(urls(out)).toEqual(links);
+    expect(urls(await run({ results: links.map((url) => ({ url })) }, fetchImpl))).toEqual(links);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("looks links up one at a time", async () => {
+    let running = 0;
+    let most = 0;
+    const fetchImpl = vi.fn(async () => {
+      most = Math.max(most, ++running);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      running--;
+      return redirect("https://a.test/");
+    }) as unknown as typeof fetch;
+    await run({ results: [{ url: GOTO }, { url: GOTO }, { url: GOTO }] }, fetchImpl);
+    expect(most).toBe(1);
+  });
+
+  it("waits between lookups, not before the first", async () => {
+    const fetchImpl = vi.fn(async () => redirect("https://a.test/")) as unknown as typeof fetch;
+    const started = Date.now();
+    await run({ results: [{ url: GOTO }] }, fetchImpl, { gapMs: 200 });
+    expect(Date.now() - started).toBeLessThan(150);
+    await run({ results: [{ url: GOTO }, { url: GOTO }] }, fetchImpl, { gapMs: 200 });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(190);
   });
 
   it.each([
@@ -36,29 +62,61 @@ describe("unwrapLinks", () => {
     ["a consent page", redirect("https://consent.google.com/m?continue=x")],
     ["another wrapped link", redirect("https://www.google.com/url?q=x")],
     ["something that isn't a web page", redirect("mailto:a@b.test")],
-  ])("keeps the link wrapped on %s", async (_name, res) => {
-    expect(urls(await unwrapLinks({ results: [{ url: GOTO }] }, fetchReturning(res)))).toEqual([GOTO]);
+  ])("falls back to the result's domain on %s", async (_name, res) => {
+    const out = await run({ results: [{ url: GOTO, domain: "docs.a.test" }] }, answering(res));
+    expect(urls(out)).toEqual(["https://docs.a.test/"]);
   });
 
-  it("keeps the link wrapped when the request fails, and still resolves the rest", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("timeout"))
-      .mockResolvedValueOnce(redirect("https://b.test/")) as unknown as typeof fetch;
-    const out = await unwrapLinks({ results: [{ url: GOTO }, { url: `${GOTO}2` }] }, fetchImpl);
-    expect(urls(out)).toEqual([GOTO, "https://b.test/"]);
+  it("stops looking up after the first failure, and uses domains for the rest", async () => {
+    const fetchImpl = answering(
+      redirect("https://a.test/post/"),
+      new Response("<html>", { status: 200 }),
+      redirect("https://never.test/"),
+    );
+    const results = [
+      { url: GOTO, domain: "a.test" },
+      { url: GOTO, domain: "b.test" },
+      { url: "https://direct.test/page", domain: "direct.test" },
+      { url: GOTO, domain: "c.test" },
+    ];
+    expect(urls(await run({ results }, fetchImpl))).toEqual([
+      "https://a.test/post/",
+      "https://b.test/",
+      "https://direct.test/page",
+      "https://c.test/",
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back when the request fails", async () => {
+    const fetchImpl = vi.fn().mockRejectedValueOnce(new Error("timeout")) as unknown as typeof fetch;
+    expect(urls(await run({ results: [{ url: GOTO, domain: "a.test" }] }, fetchImpl))).toEqual(["https://a.test/"]);
+  });
+
+  it("stops looking up once the time budget is spent", async () => {
+    const fetchImpl = vi.fn(async () => redirect("https://a.test/")) as unknown as typeof fetch;
+    const out = await run({ results: [{ url: GOTO, domain: "b.test" }] }, fetchImpl, { budgetMs: -1 });
+    expect(urls(out)).toEqual(["https://b.test/"]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["malformed", "not a domain"],
+    ["a path in disguise", "evil.test/x?y"],
+    ["Google itself", "www.google.com"],
+  ])("keeps the link wrapped when the domain is %s", async (_name, domain) => {
+    const out = await run({ results: [{ url: GOTO, domain }] }, answering(new Response(null, { status: 429 })));
+    expect(urls(out)).toEqual([GOTO]);
   });
 
   it("keeps a Google page that really is the result", async () => {
-    const out = await unwrapLinks(
-      { results: [{ url: GOTO }] },
-      fetchReturning(redirect("https://www.google.com/sheets/about/")),
-    );
+    const out = await run({ results: [{ url: GOTO }] }, answering(redirect("https://www.google.com/sheets/about/")));
     expect(urls(out)).toEqual(["https://www.google.com/sheets/about/"]);
   });
 
   it("passes an error body through", async () => {
     const body = { error: "engine_internal", message: "all attempts failed" };
-    expect(await unwrapLinks(body, fetchReturning(redirect("https://a.test/")))).toEqual(body);
+    expect(await run(body, answering())).toEqual(body);
   });
 });

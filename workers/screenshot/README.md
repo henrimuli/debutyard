@@ -9,7 +9,7 @@ Playwright doesn't run on Vercel functions, so this is a small container.
 
 ## API
 
-`POST /screenshot` with `Authorization: Bearer $WORKER_SECRET` and `{ "url": "https://…", "key": "evidence/<id>/<timestamp>.png" }` → `{ "url": "https://<R2_PUBLIC_URL>/<key>" }`. `POST /search` with the same header and `{ "text": "best invoicing software", "limit": 10 }` → OpenSERP's Google results for the United States, in English, with its own status code. Google's `/goto` links are swapped for the pages they redirect to, without loading those pages. `GET /health` for the host's health check. Private and internal addresses are refused, including on redirects and subresources.
+`POST /screenshot` with `Authorization: Bearer $WORKER_SECRET` and `{ "url": "https://…", "key": "evidence/<id>/<timestamp>.png" }` → `{ "url": "https://<R2_PUBLIC_URL>/<key>" }`. `POST /search` with the same header and `{ "text": "best invoicing software", "limit": 10 }` → OpenSERP's Google results for the United States, in English, with its own status code. Google's `/goto` links are swapped for the pages they redirect to, without loading those pages, or for the result's site when Google limits those lookups. `GET /health` for the host's health check. Private and internal addresses are refused, including on redirects and subresources.
 
 ## Deploy (Railway or Fly)
 
