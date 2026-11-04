@@ -93,7 +93,7 @@ export default function DocsPage() {
             ["GET", "/directories?niche=&noBadge=", "Launch directories to submit to"],
             ["POST", "/readiness", "Launch-readiness check for { url }"],
             ["POST", "/tools/dofollow", "Is there a dofollow link to { target } on { pageUrl }?"],
-            ...(drEnabled() ? [["POST", "/tools/dr", "Authority Score for { domain } (token)"]] : []),
+            ...(drEnabled() ? [["POST", "/tools/dr", "Domain Rating by Ahrefs for { domain } (token)"]] : []),
             ["POST", "/submissions", "Create a draft listing (token)"],
             ["GET", "/me/products", "Your listings and stats (token)"],
             ["GET", "/me/links", "Your monitored backlinks and plan usage (token)"],

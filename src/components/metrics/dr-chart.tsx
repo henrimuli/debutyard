@@ -1,4 +1,4 @@
-import { AuthorityScore } from "./authority-score";
+import { DomainRating, DrAttribution } from "./domain-rating";
 import { chartPoints, drChange, type DrPoint } from "@/lib/metrics/providers";
 import { cn } from "@/lib/utils";
 
@@ -6,7 +6,7 @@ const W = 320;
 const H = 80;
 const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
-/** A small SVG line chart of Authority Score over time, with the latest score's ring and "7 → 19 since …". No chart library. */
+/** A small SVG line chart of Domain Rating over time, with the latest score's ring and "7 → 19 since …". No chart library. */
 export function DrChart({
   points,
   since = "intake",
@@ -25,7 +25,7 @@ export function DrChart({
   return (
     <figure className="space-y-2">
       <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-        <AuthorityScore score={change.to} size={compact ? undefined : "md"} />
+        <DomainRating score={change.to} size={compact ? undefined : "md"} />
         <span className={cn("font-display font-bold", compact ? "text-base" : "text-xl")}>
           {change.from} → {change.to}
         </span>
@@ -39,7 +39,7 @@ export function DrChart({
           viewBox={`0 0 ${W} ${H}`}
           className={cn("w-full text-primary", compact ? "h-10" : "h-20 max-w-md")}
           role="img"
-          aria-label={`Authority Score from ${change.from} to ${change.to}`}
+          aria-label={`Domain Rating from ${change.from} to ${change.to}`}
           preserveAspectRatio="none"
         >
           <polyline
@@ -52,7 +52,7 @@ export function DrChart({
           />
           {xy.map(([x, y], i) => (
             <circle key={i} cx={x} cy={y} r="2.5" fill="currentColor">
-              <title>{`${day(sorted[i].at)}: Authority Score ${sorted[i].dr}`}</title>
+              <title>{`${day(sorted[i].at)}: Domain Rating ${sorted[i].dr}`}</title>
             </circle>
           ))}
         </svg>
@@ -65,6 +65,7 @@ export function DrChart({
           <span>{day(sorted[sorted.length - 1].at)}</span>
         </p>
       )}
+      <DrAttribution className="block" />
     </figure>
   );
 }

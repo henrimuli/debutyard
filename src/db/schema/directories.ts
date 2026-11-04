@@ -32,7 +32,7 @@ export const directories = pgTable(
     description: text("description").notNull().default(""),
     niche: directoryNiche("niche").notNull().default("general"),
     pricing: directoryPricing("pricing").notNull().default("free"),
-    /** Authority Score: measured in bulk monthly (see refreshDirectoryScores), or entered by staff in between. */
+    /** Domain Rating: measured monthly (see refreshDirectoryScores), or entered by staff in between. */
     dr: integer("dr"),
     linkTypeClaimed: linkType("link_type_claimed").notNull().default("unknown"),
     /** What our own link checks have seen on live listings. */

@@ -1,3 +1,4 @@
+import { DR_ATTRIBUTION } from "@/lib/metrics/providers";
 import { cn } from "@/lib/utils";
 
 const sizes = {
@@ -8,10 +9,10 @@ const sizes = {
 } as const;
 
 /**
- * Authority Score (0–100) as a number inside a ring whose band fills to the
+ * Domain Rating (0–100) as a number inside a ring whose band fills to the
  * score, growing in on first paint. Null shows an empty ring and a dash.
  */
-export function AuthorityScore({
+export function DomainRating({
   score,
   size = "sm",
   className,
@@ -25,7 +26,7 @@ export function AuthorityScore({
   return (
     <span
       role="img"
-      aria-label={value === null ? "Authority Score not measured yet" : `Authority Score ${value} out of 100`}
+      aria-label={value === null ? "Domain Rating not measured yet" : `Domain Rating ${value} out of 100`}
       className={cn("relative inline-grid shrink-0 place-items-center", s.box, className)}
     >
       <svg viewBox="0 0 36 36" aria-hidden className="absolute inset-0 size-full -rotate-90">
@@ -47,6 +48,22 @@ export function AuthorityScore({
         )}
       </svg>
       <span className={cn("relative font-display font-bold tabular-nums leading-none", s.text)}>{value ?? "–"}</span>
+    </span>
+  );
+}
+
+/**
+ * The credit Ahrefs' licence asks for next to any Domain Rating we show, with
+ * "Ahrefs" as a working link. Goes beside the score, or above a list of them.
+ * Not inside another link: card lists take it above the cards.
+ */
+export function DrAttribution({ className }: { className?: string }) {
+  return (
+    <span className={cn("text-xs text-muted-foreground", className)}>
+      Domain Rating by{" "}
+      <a href={DR_ATTRIBUTION.url} target="_blank" rel="noopener" className="underline hover:text-foreground">
+        Ahrefs
+      </a>
     </span>
   );
 }

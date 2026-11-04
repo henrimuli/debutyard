@@ -46,16 +46,10 @@ export function setupChecklist(e: Env): SetupItem[] {
     },
     { label: "Directory logins", ok: has("CREDENTIALS_KEY"), required: false, hint: "CREDENTIALS_KEY" },
     {
-      label: "Authority Score provider",
-      ok: has("DR_API_KEY"),
+      label: "Domain Rating (Ahrefs)",
+      ok: has("AHREFS_API_KEY"),
       required: false,
-      hint: "DR_API_KEY (DataForSEO login:password); DR_PROVIDER to switch",
-    },
-    {
-      label: "Index check",
-      ok: has("SERP_PROVIDER", "SERP_API_KEY"),
-      required: false,
-      hint: "SERP_PROVIDER, SERP_API_KEY",
+      hint: "AHREFS_API_KEY",
     },
     {
       label: "Screenshots",

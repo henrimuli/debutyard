@@ -10,7 +10,7 @@ import {
   updateRowAction,
 } from "@/app/admin/submissions/actions";
 import { LinkVerdict } from "@/components/directories/link-verdict";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { DirectoryPicker, type DirectoryChoice } from "@/components/submissions/directory-picker";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -310,7 +310,7 @@ function RowEditor({
         >
           {row.directory.name} ↗
         </a>
-        {row.directory.dr !== null && <AuthorityScore score={row.directory.dr} />}
+        {row.directory.dr !== null && <DomainRating score={row.directory.dr} />}
         {row.directory.badgeRequired && <Badge tone="accent">badge</Badge>}
         {row.directory.needsAccount && <Badge>account</Badge>}
         {row.replaces && <Badge>replacement</Badge>}
@@ -524,6 +524,7 @@ export function OpsRows({
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {q ? `${matching.length} of ${rows.length}` : `${rows.length} directories`}
         </p>
+        <DrAttribution />
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <label className="flex items-center gap-2">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { starDirectoryAction } from "@/app/admin/directories/actions";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { Badge, Input } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +93,9 @@ export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
                 <span className="sr-only">Starred</span>
               </th>
               <th className="px-3 py-2 font-medium">Directory</th>
-              <th className="px-3 py-2 font-medium">Authority</th>
+              <th className="px-3 py-2 font-medium">
+                <DrAttribution />
+              </th>
               <th className="px-3 py-2 font-medium">Niche</th>
               <th className="px-3 py-2 font-medium">Link</th>
               <th className="px-3 py-2 font-medium">Flags</th>
@@ -125,7 +127,7 @@ export function DirectoryTable({ rows }: { rows: DirectoryRow[] }) {
                   </Link>
                 </td>
                 <td className="px-3 py-2">
-                  <AuthorityScore score={d.dr} />
+                  <DomainRating score={d.dr} />
                 </td>
                 <td className="px-3 py-2">{d.niche}</td>
                 <td className="px-3 py-2">{d.linkType}</td>

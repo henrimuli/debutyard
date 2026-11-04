@@ -11,6 +11,7 @@ import { productInput } from "@/lib/products/input";
 import { listCategories } from "@/lib/products/queries";
 import { isLiveCondition, listingLimitReached, ProductError, saveProduct } from "@/lib/products/service";
 import { checkReadiness, ReadinessError } from "@/lib/readiness/service";
+import { DR_ATTRIBUTION } from "@/lib/metrics/providers";
 import { checkDofollow, checkDr, ToolError } from "@/lib/tools/service";
 import { formatWeekLabel } from "@/lib/weeks";
 import type { ApiUser } from "./tokens";
@@ -149,7 +150,7 @@ export async function domainRating(
   caller: { clientKey: string; user: ApiUser | null; source: "api" | "mcp" },
 ) {
   const { domain } = drInput.parse(raw);
-  // Lookups cost provider credits and agents can't solve the website's bot check, so they need a token.
+  // Lookups use up our allowance with Ahrefs and agents can't solve the website's bot check, so they need a token.
   if (!caller.user) throw new ApiError("This needs an API token. Create one at " + site("/dashboard/api"), 401);
   return toolCall(() =>
     checkDr(domain, { clientKey: caller.clientKey, userId: caller.user?.id, source: caller.source }),
@@ -269,6 +270,7 @@ export async function launchDirectories(raw: z.input<typeof directoriesInput>) {
     niche: d.niche,
     pricing: d.pricing,
     dr: d.dr,
+    drAttribution: DR_ATTRIBUTION,
     linkType: effectiveLinkType(d),
     linkTypeVerified: d.linkTypeObserved !== "unknown",
     badgeRequired: d.badgeRequired,

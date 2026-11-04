@@ -1,0 +1,52 @@
+# OpenSERP for DebutYard: Google only, and nothing else it can do. It has no login of its
+# own, so it has no public domain on Railway, and only the screenshot worker's /search reaches it.
+server:
+  host: 0.0.0.0
+  port: 7000
+  debug: false
+  verbose: false
+  raw_requests: false # A real browser. Plain requests get blocked sooner.
+  insecure: false
+
+app:
+  log_format: "text"
+  log_level: "info"
+  save_log: false # Railway keeps stdout. No log file to fill the disk.
+  timeout: 15 # Seconds per attempt. The worker and the app wait longer than this with the retry below.
+  block_resources: "image,font,css,media"
+  block_trackers: true
+  max_processes: 2 # Outreach searches one at a time. Each Chrome costs memory.
+  idle_ttl: 5m # Research runs every three hours, so Chrome mostly isn't running.
+
+extract:
+  enabled: false # Fetches any URL it's given. We don't use it.
+
+proxies:
+  allow_request_proxy_url: false # A caller must never be able to choose where requests go.
+
+cache:
+  ttl_seconds: 600
+  max_size: 200
+
+resilience:
+  max_retries: 1
+  allow_endpoint_fallback: false # Our emails say "on Google". Results from another engine would make that untrue.
+
+cors:
+  enabled: false
+
+google:
+  rate_requests: 6 # Per minute. Far below what could look like a bot's pace.
+  rate_burst: 2
+  resolve_urls: true # Google can hide destinations behind /goto. The app rejects any that come through anyway.
+
+yandex:
+  disabled: true
+baidu:
+  disabled: true
+bing:
+  disabled: true
+duckduckgo:
+  disabled: true
+ecosia:
+  disabled: true

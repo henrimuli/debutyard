@@ -11,7 +11,6 @@ import { Card, Heading } from "@/components/ui/primitives";
 import { env } from "@/env";
 import { installKit } from "@/lib/badge-block/render";
 import { liveBadgeCount } from "@/lib/badge-block/service";
-import { orderIndexStats } from "@/lib/links/indexed";
 import { drHistory } from "@/lib/metrics/service";
 import { listCategories } from "@/lib/products/queries";
 import { domainOf } from "@/lib/slug";
@@ -88,14 +87,13 @@ export async function OrderView({ token }: { token: string }) {
     }
   })();
   const blockLive = order.badgePreference === "allow" && Boolean(order.blockInstalledAt);
-  const [rows, dr, badgeBlock, badgesShowing, accounts, index] = await Promise.all([
+  const [rows, dr, badgeBlock, badgesShowing, accounts] = await Promise.all([
     orderRows(order.id),
     domain ? drHistory(domain) : Promise.resolve([]),
     order.badgePreference === "allow" && !blockLive && order.status !== "delivered" ? badgeBlockFor(order.id) : null,
     blockLive ? liveBadgeCount(order) : 0,
     // Logins are handed over with the delivery report, and only on this private page.
     order.status === "delivered" ? credentialsFor(order.id) : Promise.resolve([]),
-    orderIndexStats(order.id),
   ]);
   const summary = summarizeOrder(
     order,
@@ -155,7 +153,7 @@ export async function OrderView({ token }: { token: string }) {
           )}
           {dr.length > 0 && (
             <Card className="p-4">
-              <p className="text-sm font-medium">Authority Score</p>
+              <p className="text-sm font-medium">Domain Rating</p>
               <p className="mb-2 truncate text-xs text-muted-foreground">{domain}</p>
               <DrChart points={dr} compact />
             </Card>
@@ -178,12 +176,6 @@ export async function OrderView({ token }: { token: string }) {
         </Card>
       )}
       <OrderReport order={order} rows={rows} summary={summary} />
-      {index.checked > 0 && (
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{index.indexed}</span> of {index.checked} live listings we
-          checked are indexed by Google. New listings often take a few weeks; we re-check weekly.
-        </p>
-      )}
       {accounts.length > 0 && (
         <Card className="p-5">
           <p className="font-medium">Directory accounts we created</p>

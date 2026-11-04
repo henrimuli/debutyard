@@ -3,17 +3,17 @@ import { env } from "@/env";
 import { schema } from "@/db";
 import { geminiJson, user } from "@/lib/ai/gemini";
 import { readProductSite } from "@/lib/blog/ai/catalog";
-import { createSerpSearch, searchOrError, type SerpResult } from "@/lib/links/serp";
+import { createSerpSearch, SearchDownError, searchOrError, type SerpResult } from "@/lib/links/serp";
 import { drProvider } from "@/lib/metrics/service";
-import type { DrReading } from "@/lib/metrics/providers";
+import { DrRateLimitError, type DrReading } from "@/lib/metrics/providers";
 import { directoryDomains } from "./discover";
 import { isPlatformHost, registrableDomain } from "./rules";
 import { pickKeyword, type KeywordResults } from "./pick";
 
 /**
  * What the email's claims rest on. The model suggests what a business's buyers
- * search for and which results are real competitors; DataForSEO says who
- * actually ranks and how much authority each site has. No measurement, no email.
+ * search for and which results are real competitors; Google says who
+ * actually ranks, and Ahrefs how strong each site's links are. No measurement, no email.
  */
 
 type Prospect = typeof schema.outreachProspects.$inferSelect;
@@ -23,14 +23,12 @@ export type ResearchResult = { ok: true; research: Research } | { ok: false; rea
 
 type Search = (keyword: string) => Promise<SerpResult[]>;
 
-/** SERP_* when set, otherwise the DataForSEO account behind the Authority Score. */
+/** Our own OpenSERP, through the worker. */
 let searchOverride: Search | undefined;
 export function serpSearch(): Search | null {
   if (searchOverride) return searchOverride;
-  const { SERP_PROVIDER, SERP_API_KEY, DR_PROVIDER, DR_API_KEY } = env();
-  if (SERP_PROVIDER && SERP_API_KEY) return createSerpSearch(SERP_PROVIDER, SERP_API_KEY);
-  if (DR_API_KEY && (DR_PROVIDER ?? "dataforseo") === "dataforseo") return createSerpSearch("dataforseo", DR_API_KEY);
-  return null;
+  const { WORKER_URL, WORKER_SECRET } = env();
+  return WORKER_URL && WORKER_SECRET ? createSerpSearch(WORKER_URL, WORKER_SECRET) : null;
 }
 
 /** Test-only. */
@@ -38,7 +36,10 @@ export function setSerpSearchForTests(s: Search | undefined) {
   searchOverride = s;
 }
 
-/** Keywords per business: each one is a paid query. */
+/** A blocked search can take a minute and a half, so a run stops trying after this many, within its time limit. */
+const MAX_FAILED_SEARCHES = 2;
+
+/** Keywords per business: each one is a Google search from our own address, so few. */
 const MAX_KEYWORDS = 3;
 
 const UNDERSTAND_SYSTEM = `You study a new product's website and work out what its future customers type into Google.
@@ -76,12 +77,21 @@ const COMPETITORS_SCHEMA = {
   required: ["competitors"],
 };
 
-async function readings(domains: string[]): Promise<Map<string, DrReading>> {
+/**
+ * Every domain's score, one lookup each. A competitor without one is just left
+ * out. The business's own score, or being throttled, is worth another try later.
+ */
+async function readings(own: string, domains: string[]): Promise<Map<string, DrReading>> {
   const provider = drProvider();
-  if (!provider) throw new Error("Authority Score provider isn't configured");
-  if (provider.fetchBulk) return provider.fetchBulk(domains);
-  const rows = await Promise.all(domains.map(async (d) => [d, await provider.fetchDr(d)] as const));
-  return new Map(rows);
+  if (!provider) throw new Error("Domain Rating provider isn't configured");
+  const out = new Map<string, DrReading>();
+  const settled = await Promise.allSettled(domains.map((d) => provider.fetchDr(d)));
+  settled.forEach((r, i) => {
+    if (r.status === "fulfilled") out.set(domains[i]!, r.value);
+    else if (domains[i] === own || r.reason instanceof DrRateLimitError) throw r.reason;
+    else console.error("outreach score failed", domains[i], r.reason);
+  });
+  return out;
 }
 
 export async function researchProspect(p: Prospect, maxAuthority: number): Promise<ResearchResult> {
@@ -115,11 +125,13 @@ export async function researchProspect(p: Prospect, maxAuthority: number): Promi
   const results: KeywordResults[] = [];
   const allowed = new Map<string, string>();
   let searchFailed: Error | null = null;
+  let failedSearches = 0;
   for (const keyword of keywords) {
     const found = await searchOrError(search, keyword);
     if ("error" in found) {
       console.error("outreach search failed", p.domain, keyword, found.error);
       searchFailed = found.error;
+      if (++failedSearches >= MAX_FAILED_SEARCHES) break;
       continue;
     }
     const rows = found.rows;
@@ -166,17 +178,17 @@ export async function researchProspect(p: Prospect, maxAuthority: number): Promi
   // Thrown rather than rejected: the search that failed might have been the one to find them, so this gets another go.
   const domains = [...new Set([p.domain, ...allowed.keys()])];
   if (domains.length === 1) {
-    if (searchFailed) throw searchFailed;
+    if (searchFailed) throw new SearchDownError(searchFailed.message);
     return { ok: false, reason: "no_competitors" };
   }
-  const scores = await readings(domains);
+  const scores = await readings(p.domain, domains);
   const own = scores.get(p.domain)?.dr ?? null;
-  if (own === null) return { ok: false, reason: "no_score", detail: `no Authority Score for ${p.domain}` };
-  if (own > maxAuthority) return { ok: false, reason: "too_strong", detail: `Authority Score ${own}` };
+  if (own === null) return { ok: false, reason: "no_score", detail: `no Domain Rating for ${p.domain}` };
+  if (own > maxAuthority) return { ok: false, reason: "too_strong", detail: `Domain Rating ${own}` };
 
   const pick = pickKeyword(results, p.domain, own, (d) => scores.get(d)?.dr ?? null);
   if (!pick.ok) {
-    if (searchFailed) throw searchFailed;
+    if (searchFailed) throw new SearchDownError(searchFailed.message);
     return { ok: false, reason: pick.reason };
   }
 

@@ -46,9 +46,9 @@ const planName = (sub: Subscription) => planForSku(sub.sku)?.label ?? getSku(sub
 
 const WELCOME: Record<string, string> = {
   maker_pro:
-    "Your perks: 100 listings, 100 monitored links, a free Fast Track each quarter (pick it when you submit), Authority Score tracking for 100 domains, the Pro badge on your profile and listings, and sponsor slots bookable 16 weeks ahead.",
+    "Your perks: 100 listings, 100 monitored links, a free Fast Track each quarter (pick it when you submit), Domain Rating tracking for 100 domains, the Pro badge on your profile and listings, and sponsor slots bookable 16 weeks ahead.",
   maker_unlimited:
-    "Your perks: unlimited listings, monitored links and Authority Score tracking, 3 free Fast Tracks each quarter (pick one when you submit), the Pro badge on your profile and listings, and sponsor slots bookable 20 weeks ahead.",
+    "Your perks: unlimited listings, monitored links and Domain Rating tracking, 3 free Fast Tracks each quarter (pick one when you submit), the Pro badge on your profile and listings, and sponsor slots bookable 20 weeks ahead.",
 };
 
 /**

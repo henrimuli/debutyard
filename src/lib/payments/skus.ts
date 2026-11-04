@@ -154,7 +154,7 @@ export const SKUS = [
     "Maker Pro (monthly)",
     1200,
     "monthly",
-    "100 listings, 100 monitored links, a free Fast Track each quarter, Authority Score tracking for 100 domains, a Pro badge and slots bookable 16 weeks ahead.",
+    "100 listings, 100 monitored links, a free Fast Track each quarter, Domain Rating tracking for 100 domains, a Pro badge and slots bookable 16 weeks ahead.",
   ),
   recurring("sub_maker_pro_yearly", "Maker Pro (yearly)", 9900, "annually", "Maker Pro for a year: two months free."),
   recurring(
@@ -162,7 +162,7 @@ export const SKUS = [
     "Maker Unlimited (monthly)",
     2900,
     "monthly",
-    "Unlimited listings, monitored links and Authority Score tracking, 3 free Fast Tracks each quarter, a Pro badge and slots bookable 20 weeks ahead.",
+    "Unlimited listings, monitored links and Domain Rating tracking, 3 free Fast Tracks each quarter, a Pro badge and slots bookable 20 weeks ahead.",
   ),
   recurring(
     "sub_maker_unlimited_yearly",

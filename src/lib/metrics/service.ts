@@ -8,7 +8,15 @@ import { entitled } from "@/lib/billing/entitlements";
 import { MAKER_SKUS, planForSku } from "@/lib/billing/plans";
 import { roundRobin } from "@/lib/fair-share";
 import { domainOf } from "@/lib/slug";
-import { BULK_MAX, createDrProvider, DR_DROP_ALERT, type DrProvider, type DrReading } from "./providers";
+import {
+  createAhrefsProvider,
+  DR_ATTRIBUTION,
+  DR_DROP_ALERT,
+  DR_SOURCE,
+  DrRateLimitError,
+  type DrProvider,
+  type DrReading,
+} from "./providers";
 
 const { domainMetrics, products, subscriptions, submissionOrders, directories } = schema;
 export type DomainMetric = typeof domainMetrics.$inferSelect;
@@ -21,11 +29,11 @@ const url = (path: string) => new URL(path, env().NEXT_PUBLIC_SITE_URL).toString
 
 let override: DrProvider | null | undefined;
 
-/** The configured Authority Score provider (DataForSEO unless DR_PROVIDER says otherwise), or null without a key. */
+/** Ahrefs' Domain Rating, or null without a key. */
 export function drProvider(): DrProvider | null {
   if (override !== undefined) return override;
-  const { DR_PROVIDER, DR_API_KEY } = env();
-  return DR_API_KEY ? createDrProvider(DR_PROVIDER ?? "dataforseo", DR_API_KEY) : null;
+  const { AHREFS_API_KEY } = env();
+  return AHREFS_API_KEY ? createAhrefsProvider(AHREFS_API_KEY) : null;
 }
 
 export const drEnabled = () => drProvider() !== null;
@@ -35,12 +43,16 @@ export function setDrProviderForTests(p: DrProvider | null | undefined) {
   override = p;
 }
 
+/** Readings from earlier providers are on another scale, so comparing with them would invent rises and drops. */
+const current = eq(domainMetrics.provider, DR_SOURCE);
+
 /** Latest reading for a domain, if it's no older than `maxAgeDays`. */
 export async function latestDr(domain: string, maxAgeDays = SNAPSHOT_EVERY_DAYS, now = new Date()) {
   return (
     (await db().query.domainMetrics.findFirst({
       where: and(
         eq(domainMetrics.domain, domain),
+        current,
         gt(domainMetrics.measuredAt, ts(new Date(now.getTime() - maxAgeDays * DAY))),
       ),
       orderBy: desc(domainMetrics.measuredAt),
@@ -53,7 +65,7 @@ export async function drHistory(domain: string) {
   return db()
     .select({ at: domainMetrics.measuredAt, dr: domainMetrics.dr })
     .from(domainMetrics)
-    .where(eq(domainMetrics.domain, domain))
+    .where(and(eq(domainMetrics.domain, domain), current))
     .orderBy(asc(domainMetrics.measuredAt))
     .limit(200);
 }
@@ -64,13 +76,13 @@ export async function snapshot(domain: string, now = new Date()) {
   if (!provider) return null;
   const previous =
     (await db().query.domainMetrics.findFirst({
-      where: eq(domainMetrics.domain, domain),
+      where: and(eq(domainMetrics.domain, domain), current),
       orderBy: desc(domainMetrics.measuredAt),
     })) ?? null;
   const reading = await provider.fetchDr(domain);
   const [row] = await db()
     .insert(domainMetrics)
-    .values({ domain, ...reading, provider: provider.id, measuredAt: now })
+    .values({ domain, ...reading, provider: DR_SOURCE, measuredAt: now })
     .returning();
   return { row, previous };
 }
@@ -171,7 +183,9 @@ export async function snapshotDomains(now = new Date(), { batch = 100 } = {}) {
       await db()
         .selectDistinct({ domain: domainMetrics.domain })
         .from(domainMetrics)
-        .where(gt(domainMetrics.measuredAt, ts(new Date(now.getTime() - (SNAPSHOT_EVERY_DAYS - 0.5) * DAY))))
+        .where(
+          and(current, gt(domainMetrics.measuredAt, ts(new Date(now.getTime() - (SNAPSHOT_EVERY_DAYS - 0.5) * DAY)))),
+        )
     ).map((r) => r.domain),
   );
   // Taking turns between owners, so one big account can't fill the batch.
@@ -197,18 +211,19 @@ export async function snapshotDomains(now = new Date(), { batch = 100 } = {}) {
             to: w.email,
             ...renderEmail({
               variant: "customer",
-              label: "Authority Score",
-              subject: `Authority Score alert: ${domain} dropped ${Math.round(drop)} points`,
-              reason: `you track the Authority Score of ${domain}`,
+              label: "Domain Rating",
+              subject: `Domain Rating alert: ${domain} dropped ${Math.round(drop)} points`,
+              reason: `you track the Domain Rating of ${domain}`,
               blocks: [
                 { heading: `${domain} dropped ${Math.round(drop)} points` },
                 {
-                  text: `The Authority Score of ${domain} fell from ${res.previous!.dr} to ${res.row.dr} since our last check.`,
+                  text: `The Domain Rating of ${domain} fell from ${res.previous!.dr} to ${res.row.dr} since our last check.`,
                 },
                 {
                   text: "A drop like this usually means some sites that linked to you removed the link or lost authority themselves. Your Link Monitor shows which listings changed.",
                 },
                 { button: "See the details", href: w.href },
+                { text: `Domain Rating by [Ahrefs](${DR_ATTRIBUTION.url})` },
               ],
             }),
           });
@@ -217,6 +232,7 @@ export async function snapshotDomains(now = new Date(), { batch = 100 } = {}) {
       }
     } catch (err) {
       console.error(`DR snapshot ${domain}`, err);
+      if (err instanceof DrRateLimitError) break;
     }
   }
   const directoriesScored = await refreshDirectoryScores(now);
@@ -225,16 +241,14 @@ export async function snapshotDomains(now = new Date(), { batch = 100 } = {}) {
 
 /** Directory scores are re-measured this often, all together. */
 export const DIRECTORY_REFRESH_DAYS = 30;
-/** Without a bulk API (Ahrefs, Open PageRank), single lookups per run, so a run stays short. */
+/** Ahrefs has no bulk lookup, so single lookups per run, which keeps a run short. A long list takes a few days. */
 const SINGLE_LOOKUPS_PER_RUN = 50;
 
 /**
- * Scores every active directory that has none, or whose last reading is
- * DIRECTORY_REFRESH_DAYS old, in as few requests as the provider allows: one
- * bulk request (up to 1,000 domains) with DataForSEO. In practice that's one
- * request a month for the whole list, plus a small one when directories are
- * added. Readings go into domain_metrics too, so directories have history.
- * Returns how many directories got a score.
+ * Scores active directories that have no score, or whose last reading is
+ * DIRECTORY_REFRESH_DAYS old, up to SINGLE_LOOKUPS_PER_RUN at a time. Readings
+ * go into domain_metrics too, so directories have history. Returns how many
+ * directories got a score.
  */
 export async function refreshDirectoryScores(now = new Date()) {
   const provider = drProvider();
@@ -263,6 +277,7 @@ export async function refreshDirectoryScores(now = new Date()) {
         .where(
           and(
             inArray(domainMetrics.domain, [...byDomain.keys()]),
+            current,
             gt(domainMetrics.measuredAt, ts(new Date(now.getTime() - DIRECTORY_REFRESH_DAYS * DAY))),
           ),
         )
@@ -274,29 +289,19 @@ export async function refreshDirectoryScores(now = new Date()) {
   if (due.length === 0) return 0;
 
   const readings = new Map<string, DrReading>();
-  try {
-    if (provider.fetchBulk) {
-      for (let i = 0; i < due.length; i += BULK_MAX) {
-        for (const [domain, r] of await provider.fetchBulk(due.slice(i, i + BULK_MAX))) readings.set(domain, r);
-      }
-    } else {
-      for (const domain of due.slice(0, SINGLE_LOOKUPS_PER_RUN)) {
-        try {
-          readings.set(domain, await provider.fetchDr(domain));
-        } catch (err) {
-          console.error(`Directory score ${domain}`, err);
-        }
-      }
+  for (const domain of due.slice(0, SINGLE_LOOKUPS_PER_RUN)) {
+    try {
+      readings.set(domain, await provider.fetchDr(domain));
+    } catch (err) {
+      console.error(`Directory score ${domain}`, err);
+      if (err instanceof DrRateLimitError) break;
     }
-  } catch (err) {
-    console.error("Directory score refresh failed", err);
-    return 0;
   }
   if (readings.size === 0) return 0;
 
   await db()
     .insert(domainMetrics)
-    .values([...readings].map(([domain, r]) => ({ domain, ...r, provider: provider.id, measuredAt: now })));
+    .values([...readings].map(([domain, r]) => ({ domain, ...r, provider: DR_SOURCE, measuredAt: now })));
   let scored = 0;
   for (const [domain, r] of readings) {
     const ids = (byDomain.get(domain) ?? []).map((d) => d.id);

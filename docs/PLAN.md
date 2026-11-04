@@ -171,7 +171,7 @@ Submit product (form with URL prefill, or via MCP agent draft)
 **Maker dashboard**
 - My products, launch status, queue position/ETA, badge status + last check, link rel status.
 - Analytics per product: views, outbound clicks (UTM `?ref=debutyard`), votes over time, referrers, badge impressions.
-- **DR tracking** for the maker's domain, with alerts (Uneed Pro has this; it's cheap to offer via the Ahrefs/DataForSEO API).
+- **DR tracking** for the maker's domain, with alerts (Uneed Pro has this; it's free to offer through Ahrefs' free Domain Rating endpoint).
 - Upgrade flows, relaunch, "add directory boost" (attach a submission package to an existing launch).
 
 **Directory tracker, submission service & Link Monitor** (§4).
@@ -309,8 +309,8 @@ All packages replace rejected directories. Rationale: Nick charges $99/$149/$199
 
 | Plan | Price | For |
 |---|---|---|
-| **Maker Pro** | **$12/mo** or **$99/yr** | Matches Uneed Pro's $99/yr. 100 listings, 100 monitored links, 1 free Fast Track per quarter, Authority Score tracking + alerts for 100 domains, Pro badge, sponsor slots bookable 16 weeks ahead. **No vote multiplier** |
-| **Maker Unlimited** | **$29/mo** or **$249/yr** | Unlimited listings, monitored links and Authority Score tracking (fair use), 3 free Fast Tracks per quarter, Pro badge, sponsor slots bookable 20 weeks ahead. **No vote multiplier** |
+| **Maker Pro** | **$12/mo** or **$99/yr** | Matches Uneed Pro's $99/yr. 100 listings, 100 monitored links, 1 free Fast Track per quarter, Domain Rating tracking + alerts for 100 domains, Pro badge, sponsor slots bookable 16 weeks ahead. **No vote multiplier** |
+| **Maker Unlimited** | **$29/mo** or **$249/yr** | Unlimited listings, monitored links and Domain Rating tracking (fair use), 3 free Fast Tracks per quarter, Pro badge, sponsor slots bookable 20 weeks ahead. **No vote multiplier** |
 | **Distribution Suite** (later) | **$79–99/mo** | AI-visibility prompt tracking, Search Console rankings, written posts. Nick has announced this at $99, so treat it as a Phase 5 option, not a launch item |
 
 ### 5.5 Launch promotions
@@ -367,7 +367,7 @@ Still to do before committing: a USPTO/EUIPO trademark search, and X/GitHub hand
 | Jobs/cron | Inngest or Trigger.dev (or pg-boss workers on Railway/Fly) | Badge checks, link monitoring, week rollover, recap drafting, emails |
 | Crawling | `fetch`/cheerio first, Playwright workers for JS/bot-protected pages and evidence screenshots | Badge verification, link checks, URL prefill |
 | AI | Claude API for URL-prefill drafting, readiness suggestions, recap drafts, and audience reports | |
-| SEO data | DataForSEO/Ahrefs API (DR, index checks) | DR tracking, directory DB, indexation |
+| SEO data | Ahrefs (DR), self-hosted OpenSERP (Google results) | DR tracking, directory DB, indexation |
 | MCP / API | MCP server (Streamable HTTP) + REST `/api/v1` + OpenAPI, sharing one service layer | Agent-native submission (table stakes in 2026) |
 | Storage | Cloudflare R2 | Logos, galleries, evidence screenshots |
 | Email | Resend + React Email (newsletter: Beehiiv or Resend broadcasts) | |
@@ -433,7 +433,7 @@ submissions(id, product_id, directory_id, submission_order_id NULL,  -- NULL = D
 tracked_links(id, owner_user_id, submission_id NULL, url, target_domain, expected_anchor,
               last_status_code, last_rel, indexed, last_checked_at)
 link_checks(id, tracked_link_id, checked_at, status_code, rel, found, indexed, raw_excerpt)
-domain_metrics(id, domain, dr, referring_domains, measured_at)  -- DR before/after, Pro DR tracking
+domain_metrics(id, domain, dr, provider, measured_at)  -- DR before/after, Pro DR tracking
 
 events(id, product_id, kind[view|outbound_click|badge_impression|slot_impression|slot_click], ref, created_at)
 newsletter_subscribers, posts (blog/CMS), audit_log

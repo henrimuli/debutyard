@@ -9,7 +9,7 @@ const usage = (hour: number, day: number, oldestHourAgoMin = 30, oldestDayAgoH =
   oldestInDay: day ? new Date(now.getTime() - oldestDayAgoH * HOUR) : null,
 });
 
-describe("Authority Score checker limits", () => {
+describe("Domain Rating checker limits", () => {
   it("gives signed-out visitors 5 an hour and 15 a day", () => {
     expect(drVerdict([usage(0, 0)], false, now)).toEqual({ ok: true, remaining: { hour: 4, day: 14 } });
     expect(drVerdict([usage(4, 10)], false, now)).toEqual({ ok: true, remaining: { hour: 0, day: 4 } });
@@ -31,11 +31,9 @@ describe("Authority Score checker limits", () => {
     expect(day).toMatchObject({ retryAt: new Date(now.getTime() - 20 * HOUR + DAY) });
     if (v.ok || day.ok) throw new Error("expected limits");
     expect(limitMessage(v, false, now)).toBe(
-      "That's all your Authority Score checks for this hour. Try again in 40 minutes. Signed-in accounts get more checks.",
+      "That's all your Domain Rating checks for this hour. Try again in 40 minutes. Signed-in accounts get more checks.",
     );
-    expect(limitMessage(day, true, now)).toBe(
-      "That's all your Authority Score checks for today. Try again in 4 hours.",
-    );
+    expect(limitMessage(day, true, now)).toBe("That's all your Domain Rating checks for today. Try again in 4 hours.");
     expect(waitText(new Date(now.getTime() + 1000), now)).toBe("1 minute");
     expect(waitText(new Date(now.getTime() + 61 * 60_000), now)).toBe("2 hours");
   });

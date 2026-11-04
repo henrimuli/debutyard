@@ -82,10 +82,12 @@ export function GET() {
         ? {
             "/tools/dr": {
               post: {
-                summary: "Authority Score for a domain (cached 7 days; token required, rate-limited)",
+                summary: "Domain Rating by Ahrefs for a domain (cached 7 days; token required, rate-limited)",
                 security: [{ token: [] }],
                 requestBody: { required: true, content: { "application/json": { schema: schema(drInput) } } },
-                responses: ok("Authority Score 0-100 (as dr), referring domains, provider and when it was measured"),
+                responses: ok(
+                  "Domain Rating 0-100 (as dr), provider, when it was measured, and the attribution to show next to it",
+                ),
               },
             },
           }

@@ -131,7 +131,7 @@ export function PlanCards({
   activePlans: string[];
   details: Record<string, ReactNode>;
   providers: ProviderId[];
-  /** Whether Authority Score tracking is set up, so it can be sold. */
+  /** Whether Domain Rating tracking is set up, so it can be sold. */
   authority: boolean;
   className?: string;
 }) {

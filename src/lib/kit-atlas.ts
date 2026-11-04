@@ -1,3 +1,4 @@
+import { DR_ATTRIBUTION_PLAIN } from "@/lib/metrics/providers";
 /** The Founder Kit's Directory Atlas: the directory catalog sorted into the order to work through it. */
 
 export type AtlasDirectory = {
@@ -30,7 +31,7 @@ export const ATLAS_TIERS: { id: AtlasTierId; title: string; advice: string }[] =
     id: "free-wins",
     title: "Week one: free, followed links, no badge",
     advice:
-      "The best effort-to-value submissions. Work down the list by authority; each takes 5–10 minutes with your copy ready.",
+      "The best effort-to-value submissions. Work down the list by Domain Rating; each takes 5–10 minutes with your copy ready.",
   },
   {
     id: "worth-paying",
@@ -46,7 +47,7 @@ export const ATLAS_TIERS: { id: AtlasTierId; title: string; advice: string }[] =
   },
 ];
 
-/** Paid directories below this authority are not "worth paying" for and drop to the long tail. */
+/** Paid directories below this Domain Rating are not "worth paying" for and drop to the long tail. */
 const PAID_MIN_DR = 50;
 
 export function atlasTier(d: AtlasDirectory): AtlasTierId {
@@ -56,7 +57,7 @@ export function atlasTier(d: AtlasDirectory): AtlasTierId {
   return "long-tail";
 }
 
-/** Tiers in reading order, each sorted by authority (unknown last), then name. */
+/** Tiers in reading order, each sorted by Domain Rating (unknown last), then name. */
 export function atlasTiers(dirs: AtlasDirectory[]) {
   const byDr = (a: AtlasDirectory, b: AtlasDirectory) => (b.dr ?? -1) - (a.dr ?? -1) || a.name.localeCompare(b.name);
   return ATLAS_TIERS.map((t) => ({ ...t, items: dirs.filter((d) => atlasTier(d) === t.id).sort(byDr) }));
@@ -74,7 +75,7 @@ export function atlasCsv(dirs: AtlasDirectory[]): string {
     "tier",
     "name",
     "submit_url",
-    "authority",
+    DR_ATTRIBUTION_PLAIN,
     "pricing",
     "link",
     "badge_required",

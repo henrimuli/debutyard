@@ -110,8 +110,8 @@ Suggested order: **A → B → C → D → E → F**. Do one branch and one PR p
 
 ### C. DR snapshots and before/after charts
 
-- **Table:** `domain_metrics(id, domain, dr, referring_domains, measured_at)`.
-- **Provider:** `src/lib/metrics/` with a provider interface. Implementations: DataForSEO, the Ahrefs API, or Open PageRank (free, for a rough score), chosen by env (`DR_PROVIDER`, `DR_API_KEY`). With no key, the feature hides itself.
+- **Table:** `domain_metrics(id, domain, dr, provider, measured_at)`.
+- **Provider:** `src/lib/metrics/` calls Ahrefs' free Domain Rating endpoint with `AHREFS_API_KEY`. Without a key, the feature hides itself. Every display credits "Domain Rating by Ahrefs".
 - **Jobs:** weekly snapshots for Maker Pro users' product domains and for domains with an active or delivered submission order. Take a baseline at intake. Also backfill `directories.dr` for directories with no DR.
 - **Charts:** a simple SVG line chart (no chart library) on the order dashboard (`/orders/[token]`: "DR 7 → 19 since intake") and on the Pro dashboard. Add a DR alert email when it drops by 5 or more.
 
@@ -164,7 +164,7 @@ These are smaller and mostly independent. Pick them up after A and B, or interle
    - Check the client's site for it with the existing badge/backlink checker.
    - Hold badge-gated submissions until it's found. After 7 days without it, replace those directories automatically (reuse `addReplacement` in `src/lib/submissions/service.ts`).
    - Directory badge snippets need a new `badge_snippet` column on `directories`, editable in the admin editor.
-5. **Indexed check:** Google index status per live link via a SERP API (e.g. DataForSEO or SerpApi; key in env). Store `indexed` on the tracked link or submission and show it on the dashboards ("41 indexed"). Run it weekly, not daily, because of cost.
+5. **Indexed check:** retired for now: `INDEX_CHECK_ON` in `src/lib/links/indexed.ts` is off and the figures are gone from the dashboards. The code remains, on OpenSERP.
 6. **MCP browser-approval connect flow** (Phase 2 follow-up): `/connect` OAuth-style device or approval flow so agents connect without pasting a token. Implement the MCP authorization spec (OAuth 2.1 with PKCE and dynamic client registration) on top of the existing `api_tokens`. Keep pasted tokens working.
 7. **Monthly directory audit** (`directories.audit`):
    - Monthly, fetch each active directory's homepage. Mark it inactive after repeated failures (the admin sees a flag).

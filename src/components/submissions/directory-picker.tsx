@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { Badge, Input } from "@/components/ui/primitives";
 
 export type DirectoryChoice = {
@@ -44,30 +44,33 @@ export function DirectoryPicker({
           {choices.length === 0 ? "No other dofollow directories are available." : "No matching directories."}
         </p>
       ) : (
-        <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border bg-card">
-          {shown.map((c) => (
-            <li key={c.id}>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onPick(c)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
-              >
-                <span className="min-w-0 truncate font-medium">{c.name}</span>
-                {c.starred && (
-                  <span title="Starred" className="text-amber-500">
-                    ★
+        <>
+          <DrAttribution className="block px-1" />
+          <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border bg-card">
+            {shown.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onPick(c)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                >
+                  <span className="min-w-0 truncate font-medium">{c.name}</span>
+                  {c.starred && (
+                    <span title="Starred" className="text-amber-500">
+                      ★
+                    </span>
+                  )}
+                  {c.dr !== null && <DomainRating score={c.dr} />}
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    {c.badgeRequired && <Badge tone="accent">badge</Badge>}
+                    <Badge>{c.niche}</Badge>
                   </span>
-                )}
-                {c.dr !== null && <AuthorityScore score={c.dr} />}
-                <span className="ml-auto flex shrink-0 items-center gap-1">
-                  {c.badgeRequired && <Badge tone="accent">badge</Badge>}
-                  <Badge>{c.niche}</Badge>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

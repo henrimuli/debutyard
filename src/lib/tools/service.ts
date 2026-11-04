@@ -3,6 +3,7 @@ import { and, count, eq, gt, sql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { env } from "@/env";
 import { checkLink } from "@/lib/directories/verify";
+import { DR_ATTRIBUTION } from "@/lib/metrics/providers";
 import { drEnabled, latestDr, SNAPSHOT_EVERY_DAYS, snapshot } from "@/lib/metrics/service";
 import { hashClient, normalizeUrl, ReadinessError } from "@/lib/readiness/service";
 import { DAY, DEFAULT_DAILY_PROVIDER_CAP, drVerdict, HOUR, limitMessage, type Usage } from "./dr-limits";
@@ -81,7 +82,7 @@ export async function checkDofollow(pageUrl: string, target: string, caller: Too
   };
 }
 
-/** Authority Score checks in the last day matching `who`, with the hour's share and the oldest of each. */
+/** Domain Rating checks in the last day matching `who`, with the hour's share and the oldest of each. */
 async function drUsage(who: SQL, now: Date): Promise<Usage> {
   const { toolChecks: t } = schema;
   const hourAgo = new Date(now.getTime() - HOUR).toISOString();
@@ -101,7 +102,7 @@ async function drUsage(who: SQL, now: Date): Promise<Usage> {
 }
 
 /**
- * Counts an Authority Score check against the caller's IP and, when signed in,
+ * Counts a Domain Rating check against the caller's IP and, when signed in,
  * their account (see dr-limits.ts), or throws when any of them is used up.
  * Locked per IP, so parallel requests can't slip past the limit together.
  */
@@ -144,15 +145,15 @@ async function providerLookupsToday(now: Date) {
   return n;
 }
 
-const BUSY = "The Authority Score checker has hit its limit for today. Try again tomorrow.";
+const BUSY = "The Domain Rating checker has hit its limit for today. Try again tomorrow.";
 
 /**
- * A domain's Authority Score, cached for 7 days. Each check counts against the
+ * A domain's Domain Rating, cached for 7 days. Each check counts against the
  * caller's limits; a cache miss also counts against the site-wide daily cap on
- * provider lookups, since those cost credits.
+ * provider lookups, since Ahrefs can throttle or cut off heavy use.
  */
 export async function checkDr(rawDomain: string, caller: ToolCaller, now = new Date()) {
-  if (!drEnabled()) throw new ToolError("The Authority Score checker isn't available right now.");
+  if (!drEnabled()) throw new ToolError("The Domain Rating checker isn't available right now.");
   const domain = domainOrThrow(rawDomain, "a domain");
   const cap = env().DR_DAILY_PROVIDER_CAP ?? DEFAULT_DAILY_PROVIDER_CAP;
   const cached = await latestDr(domain, SNAPSHOT_EVERY_DAYS, now);
@@ -171,12 +172,13 @@ export async function checkDr(rawDomain: string, caller: ToolCaller, now = new D
         return null;
       });
   }
-  if (!row) throw new ToolError(`We couldn't get an Authority Score for ${domain}. Try again later.`);
+  if (!row) throw new ToolError(`We couldn't get a Domain Rating for ${domain}. Try again later.`);
   return {
     domain,
     dr: row.dr,
-    referringDomains: row.referringDomains,
     provider: row.provider,
+    /** Ahrefs' licence asks anyone showing this score to credit it like this. */
+    attribution: DR_ATTRIBUTION,
     measuredAt: row.measuredAt.toISOString(),
     /** Checks this caller has left in the current hour and day. */
     remaining,

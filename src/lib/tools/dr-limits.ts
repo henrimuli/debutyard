@@ -1,5 +1,5 @@
 /**
- * Limits for the Authority Score checker, which spends paid provider credits.
+ * Limits for the Domain Rating checker, so one visitor can't use up our allowance with Ahrefs.
  * Every check counts against the visitor's IP and, when signed in, their
  * account too; each bucket has an hourly and a daily allowance, and all of
  * them must have room. Pure, so it can be tested without a database.
@@ -52,6 +52,6 @@ export function limitMessage(v: Extract<Verdict, { ok: false }>, signedIn: boole
   const when = `Try again in ${waitText(v.retryAt, now)}`;
   const more = signedIn ? "" : " Signed-in accounts get more checks.";
   return v.window === "hour"
-    ? `That's all your Authority Score checks for this hour. ${when}.${more}`
-    : `That's all your Authority Score checks for today. ${when}.${more}`;
+    ? `That's all your Domain Rating checks for this hour. ${when}.${more}`
+    : `That's all your Domain Rating checks for today. ${when}.${more}`;
 }

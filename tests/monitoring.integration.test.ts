@@ -111,7 +111,6 @@ describe.skipIf(!TEST_DB)("monitoring (Postgres)", () => {
 
     const asked: string[] = [];
     const fake: SerpProvider = {
-      id: "serpapi",
       async isIndexed(url) {
         asked.push(url);
         if (url.includes("/err")) throw new Error("quota");

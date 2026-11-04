@@ -70,7 +70,7 @@ export function DirectoryEditor({ id, initial }: { id: string | null; initial: V
         {text("slug", "Slug", "from the name")}
         {text("url", "Website", "https://")}
         {text("submitUrl", "Submit page", "https:// (optional)")}
-        {text("dr", "Authority Score", "0–100")}
+        {text("dr", "Domain Rating", "0–100")}
         {text("queueEstimateDays", "Typical queue (days)")}
         <div className="space-y-1.5">
           <Label htmlFor="niche">Niche</Label>

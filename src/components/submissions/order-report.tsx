@@ -1,6 +1,6 @@
 import { LinkVerdict } from "@/components/directories/link-verdict";
 import { FoldedTable } from "@/components/submissions/folded-table";
-import { AuthorityScore } from "@/components/metrics/authority-score";
+import { DomainRating, DrAttribution } from "@/components/metrics/domain-rating";
 import { Badge, Card } from "@/components/ui/primitives";
 import { PACKAGES } from "@/lib/submissions/packages";
 import type { orderRows, SubmissionOrder, summarizeOrder } from "@/lib/submissions/service";
@@ -41,7 +41,9 @@ export function OrderReport({
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 font-medium">Directory</th>
+            <th className="px-3 py-2 font-medium">
+              Directory · <DrAttribution />
+            </th>
             <th className="px-3 py-2 font-medium">Status</th>
             <th className="px-3 py-2 font-medium">Submitted</th>
             <th className="px-3 py-2 font-medium">Live</th>
@@ -54,7 +56,7 @@ export function OrderReport({
               <td className="px-3 py-2">
                 <span className="inline-flex items-center gap-2">
                   <span className="font-medium">{d.name}</span>
-                  {d.dr !== null && <AuthorityScore score={d.dr} />}
+                  {d.dr !== null && <DomainRating score={d.dr} />}
                 </span>
                 {s.liveUrl && (
                   <a

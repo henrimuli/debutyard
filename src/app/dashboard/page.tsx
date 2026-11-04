@@ -254,7 +254,7 @@ function GrowthRow({ href, icon, label, value }: { href: string; icon: IconName;
   );
 }
 
-/** Maker Pro: Authority Score over time for each of the maker's product domains. */
+/** Maker Pro: Domain Rating over time for each of the maker's product domains. */
 async function DomainRating({ userId, domains }: { userId: string; domains: Array<string | null> }) {
   if (!drEnabled() || !(await can(userId, "dr_tracking"))) return null;
   const unique = domains.filter((d, i, all): d is string => !!d && all.indexOf(d) === i);
@@ -262,7 +262,7 @@ async function DomainRating({ userId, domains }: { userId: string; domains: Arra
   if (histories.length === 0) return null;
   return (
     <Card className="p-5">
-      <h2 className="font-display text-lg font-semibold">Authority Score</h2>
+      <h2 className="font-display text-lg font-semibold">Domain Rating</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Measured weekly. We email you if it drops by 5 points or more.
       </p>

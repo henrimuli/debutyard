@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/primitives";
 import type { CatalogStats } from "@/lib/directories/service";
 import { PACKAGES } from "@/lib/submissions/packages";
+import { DrAttribution } from "@/components/metrics/domain-rating";
 import { cn } from "@/lib/utils";
 import { ToPackages } from "./to-packages";
 
@@ -97,10 +98,10 @@ export function PainPoints() {
 export function CatalogFigures({ stats, className }: { stats: CatalogStats; className?: string }) {
   const figures = [
     stats.active > 0 && { value: `${stats.active}+`, label: "directories we submit to" },
-    stats.medianDr !== null && { value: `DR ${stats.medianDr}`, label: "median Authority Score" },
-    stats.dr50 > 0 && { value: `${stats.dr50}`, label: "with an Authority Score of 50+" },
+    stats.medianDr !== null && { value: `DR ${stats.medianDr}`, label: "median Domain Rating", dr: true },
+    stats.dr50 > 0 && { value: `${stats.dr50}`, label: "with a Domain Rating of 50+", dr: true },
     stats.dofollow > 0 && { value: `${stats.dofollow}`, label: "with dofollow links" },
-  ].filter(Boolean) as Array<{ value: string; label: string }>;
+  ].filter(Boolean) as Array<{ value: string; label: string; dr?: boolean }>;
   if (figures.length === 0) return null;
   return (
     <dl
@@ -115,6 +116,7 @@ export function CatalogFigures({ stats, className }: { stats: CatalogStats; clas
           <dd>
             <span className="block font-display text-3xl font-bold text-primary">{f.value}</span>
             <span className="mt-1 block text-sm text-muted-foreground">{f.label}</span>
+            {f.dr && <DrAttribution className="mt-1 block" />}
           </dd>
         </div>
       ))}
@@ -369,7 +371,7 @@ export const FAQ: Array<{
   {
     short: true,
     q: "Which directories will you use for my product?",
-    a: "We match directories to your categories first, then rank them by Authority Score and by how often they accept products like yours. You can browse the whole catalog before you buy.",
+    a: "We match directories to your categories first, then rank them by Domain Rating and by how often they accept products like yours. You can browse the whole catalog before you buy.",
     link: { href: "/directories", label: "Browse the directories" },
   },
   {

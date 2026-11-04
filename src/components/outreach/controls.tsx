@@ -145,7 +145,7 @@ export function SettingsForm({
         />
       </div>
       <div>
-        <Label htmlFor="outreach-authority">Skip sites above this Authority Score</Label>
+        <Label htmlFor="outreach-authority">Skip sites above this Domain Rating</Label>
         <Input
           id="outreach-authority"
           className="mt-1"
