@@ -73,7 +73,7 @@ const reject = (id: string, reason: string, detail?: string) =>
     .where(eq(outreachProspects.id, id));
 
 /** Runs one stage of one prospect. A failure counts against it, and the third one drops it. */
-async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<boolean> {
+async function advance(p: Prospect, maxAuthority: number, now: Date, onSearchWorked?: () => void): Promise<boolean> {
   try {
     if (p.status === "discovered") {
       const v = await qualify(p);
@@ -97,7 +97,7 @@ async function advance(p: Prospect, maxAuthority: number, now: Date): Promise<bo
       return false;
     }
     if (p.status === "qualified") {
-      const r = await researchProspect(p, maxAuthority);
+      const r = await researchProspect(p, maxAuthority, onSearchWorked);
       if (!r.ok) {
         await reject(p.id, r.reason, r.detail);
         return false;
@@ -450,6 +450,8 @@ export async function runResearch(now = new Date(), budgetMs = BUDGET_MS) {
   let ready = (await researchedWaiting()) + (await draftsWaiting(now, settings.mode === "live"));
   let crawls = 0;
   let stages = 0;
+  // The dashboard tells a run whose searches worked from one that never searched (see search-health.ts).
+  let searched = false;
   const skip = new Set<string>();
   const crawled = new Set<string>();
   while (ready < goal && left() > STAGE_MS) {
@@ -458,11 +460,13 @@ export async function runResearch(now = new Date(), budgetMs = BUDGET_MS) {
       // One stage a turn per prospect, so a failing one can't hold up the run.
       stages++;
       try {
-        await advance(p, settings.maxAuthority, now);
+        await advance(p, settings.maxAuthority, now, () => {
+          searched = true;
+        });
       } catch (err) {
         if (!(err instanceof SearchDownError)) throw err;
         console.error("outreach research stopped", p.domain, err);
-        return { mode: settings.mode, goal, ready, crawls, stages, searchDown: err.message };
+        return { mode: settings.mode, goal, ready, crawls, stages, searched, searchDown: err.message };
       }
       const [after] = await db()
         .select({ status: outreachProspects.status })
@@ -489,7 +493,7 @@ export async function runResearch(now = new Date(), budgetMs = BUDGET_MS) {
         });
     });
   }
-  return { mode: settings.mode, goal, ready, crawls, stages };
+  return { mode: settings.mode, goal, ready, crawls, stages, searched };
 }
 
 /** Writes emails for whoever is researched and sends what's due. Doesn't care when research last ran. */

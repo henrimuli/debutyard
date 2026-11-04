@@ -94,7 +94,11 @@ async function readings(own: string, domains: string[]): Promise<Map<string, DrR
   return out;
 }
 
-export async function researchProspect(p: Prospect, maxAuthority: number): Promise<ResearchResult> {
+export async function researchProspect(
+  p: Prospect,
+  maxAuthority: number,
+  onSearchWorked?: () => void,
+): Promise<ResearchResult> {
   const search = serpSearch();
   if (!search) throw new Error("No SERP provider configured");
   const pages = await readProductSite(p.websiteUrl, 3);
@@ -134,6 +138,7 @@ export async function researchProspect(p: Prospect, maxAuthority: number): Promi
       if (++failedSearches >= MAX_FAILED_SEARCHES) break;
       continue;
     }
+    onSearchWorked?.();
     const rows = found.rows;
     const serp = rows.flatMap((r) => {
       const domain = registrableDomain(r.url);

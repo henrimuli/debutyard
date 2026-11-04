@@ -67,12 +67,51 @@ describe.skipIf(!TEST_DB)("outreach research while searches are down (Postgres)"
       .returning();
 
     const result = await pipeline.runResearch();
-    expect(result).toMatchObject({ searchDown: "OpenSERP returned HTTP 429" });
+    expect(result).toMatchObject({ searchDown: "OpenSERP returned HTTP 429", searched: false });
     expect(researchProspect).toHaveBeenCalledTimes(1);
 
     for (const row of rows) {
       const after = await dbmod.db().query.outreachProspects.findFirst({ where: eq(outreachProspects.id, row.id) });
       expect(after).toMatchObject({ status: "qualified", attempts: 0 });
     }
+  });
+
+  it("tells the banner when searches work again", async () => {
+    researchProspect.mockReset();
+    researchProspect.mockImplementation(async (_p, _max, onSearchWorked: () => void) => {
+      onSearchWorked();
+      return { ok: false, reason: "no_competitors" };
+    });
+    expect(await pipeline.runResearch()).toMatchObject({ searched: true });
+    expect(researchProspect).toHaveBeenCalled();
+  });
+
+  it("shows failed runs on the outreach pages, until a run's searches work", async () => {
+    const { cronRuns } = dbmod.schema;
+    const { searchDown } = await import("@/lib/outreach/queries");
+    const run = (hoursAgo: number, research: object) => ({
+      job: "outreach-research",
+      startedAt: new Date(Date.now() - hoursAgo * 3_600_000),
+      results: { research },
+    });
+    await dbmod.db().delete(cronRuns);
+    expect(await searchDown()).toBeNull();
+
+    await dbmod
+      .db()
+      .insert(cronRuns)
+      .values([
+        run(3, { searchDown: "OpenSERP returned HTTP 429", searched: false }),
+        run(6, { searchDown: "OpenSERP returned HTTP 429", searched: false }),
+        run(9, { searchDown: "OpenSERP returned HTTP 403", searched: false }),
+        run(12, { searched: true }),
+      ]);
+    expect(await searchDown()).toMatchObject({ runs: 3, needsProxy: true, error: "OpenSERP returned HTTP 429" });
+
+    await dbmod
+      .db()
+      .insert(cronRuns)
+      .values(run(0, { searched: true }));
+    expect(await searchDown()).toBeNull();
   });
 });
