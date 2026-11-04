@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { replyAction, saveSettingsAction, type ActionResult } from "@/app/admin/outreach/actions";
 import { Icon } from "@/components/app-shell/icons";
 import { ToolButton } from "@/components/support/thread-parts";
@@ -60,6 +60,78 @@ function Feedback({ result }: { result: ActionResult | null }) {
 }
 
 /** A button that runs a server action and shows how it went. */
+/** Long enough not to query on every letter, short enough to feel immediate. */
+const SEARCH_WAIT_MS = 250;
+
+/** Filters as you type by updating the URL, keeping the tab's filter and starting again from its first page. */
+export function LiveSearch({
+  action,
+  value,
+  filter,
+  placeholder,
+  label,
+  className,
+  inputClassName,
+}: {
+  action: string;
+  value: string;
+  filter?: string;
+  placeholder: string;
+  label: string;
+  className?: string;
+  inputClassName?: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const input = useRef<HTMLInputElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // The back button can change the search. Follow it, unless someone is typing.
+  useEffect(() => {
+    if (input.current && document.activeElement !== input.current) input.current.value = value;
+  }, [value]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const search = (raw: string) => {
+    clearTimeout(timer.current);
+    const params = new URLSearchParams(window.location.search);
+    const q = raw.trim();
+    if (q === (params.get("q") ?? "")) return;
+    if (q) params.set("q", q);
+    else params.delete("q");
+    params.delete("page");
+    // In a transition, so the list stays up until the new one is ready rather than flashing "Loading…".
+    startTransition(() => router.replace(`${action}${params.size ? `?${params}` : ""}`, { scroll: false }));
+  };
+
+  return (
+    <form
+      action={action}
+      className={className}
+      onSubmit={(e) => {
+        e.preventDefault();
+        search(input.current?.value ?? "");
+      }}
+    >
+      {filter && <input type="hidden" name="filter" value={filter} />}
+      <Input
+        ref={input}
+        name="q"
+        defaultValue={value}
+        placeholder={placeholder}
+        aria-label={label}
+        aria-busy={pending}
+        className={inputClassName}
+        onChange={(e) => {
+          const raw = e.target.value;
+          clearTimeout(timer.current);
+          timer.current = setTimeout(() => search(raw), SEARCH_WAIT_MS);
+        }}
+      />
+    </form>
+  );
+}
+
 export function ActionButton({
   action,
   label,

@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { ActionButton } from "@/components/outreach/controls";
-import { Badge, Card, Input } from "@/components/ui/primitives";
+import { ActionButton, LiveSearch } from "@/components/outreach/controls";
+import { ListPager } from "@/components/outreach/list-pager";
+import { Badge, Card } from "@/components/ui/primitives";
 import { requireStaff } from "@/lib/auth";
 import { listProspects, listSuppressions, PROSPECT_FILTERS, type ProspectFilter } from "@/lib/outreach/queries";
 import { cn } from "@/lib/utils";
 import { blockDomainAction, retryProspectAction } from "../actions";
 
 const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+const pageParam = (raw: string) => Math.max(0, Number.parseInt(raw, 10) || 0);
 
 export default async function OutreachProspectsPage(props: PageProps<"/admin/outreach/prospects">) {
   await requireStaff("/admin/outreach/prospects");
@@ -16,11 +19,14 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
     ? (one(sp.filter) as ProspectFilter)
     : "all";
   const q = one(sp.q).slice(0, 200);
-  const page = Math.max(0, Number.parseInt(one(sp.page), 10) || 0);
-  const [rows, blocked] = await Promise.all([listProspects(filter, q, page), listSuppressions()]);
+  const [{ rows, page, pageCount }, blocked] = await Promise.all([
+    listProspects(filter, q, pageParam(one(sp.page))),
+    listSuppressions(pageParam(one(sp.blocked))),
+  ]);
   const href = (patch: Record<string, string | number>) => {
     const s = new URLSearchParams();
-    for (const [k, v] of Object.entries({ filter, q, page, ...patch })) if (v && v !== "all") s.set(k, String(v));
+    for (const [k, v] of Object.entries({ filter, q, page, blocked: blocked.page, ...patch }))
+      if (v && v !== "all") s.set(k, String(v));
     return `/admin/outreach/prospects${s.size ? `?${s}` : ""}`;
   };
 
@@ -39,10 +45,14 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
             {f}
           </Link>
         ))}
-        <form action="/admin/outreach/prospects" className="ml-auto w-full sm:w-64">
-          {filter !== "all" && <input type="hidden" name="filter" value={filter} />}
-          <Input name="q" defaultValue={q} placeholder="Search domain or name" aria-label="Search prospects" />
-        </form>
+        <LiveSearch
+          action="/admin/outreach/prospects"
+          value={q}
+          filter={filter !== "all" ? filter : undefined}
+          placeholder="Search domain or name"
+          label="Search prospects"
+          className="ml-auto w-full sm:w-64"
+        />
       </div>
 
       <Card className="overflow-x-auto">
@@ -61,7 +71,9 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
             {rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-4 text-muted-foreground">
-                  No prospects here yet. Turn on a dry run and the next research run starts finding them.
+                  {q
+                    ? "No prospects match that search."
+                    : "No prospects here yet. Turn on a dry run and the next research run starts finding them."}
                 </td>
               </tr>
             )}
@@ -101,24 +113,19 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
             ))}
           </tbody>
         </table>
-        {(page > 0 || rows.length === 40) && (
-          <div className="flex justify-between p-3 text-sm">
-            {page > 0 ? <Link href={href({ page: page - 1 })}>Newer</Link> : <span />}
-            {rows.length === 40 && <Link href={href({ page: page + 1 })}>Older</Link>}
-          </div>
-        )}
+        <ListPager page={page} pageCount={pageCount} href={(n) => href({ page: n })} />
       </Card>
 
-      <Card className="p-5">
+      <Card id="never-contact" className="scroll-mt-4 p-5">
         <h2 className="font-semibold">Never contact</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Unsubscribes, hard bounces, people who said no, and anything blocked by hand.
         </p>
-        {blocked.length === 0 ? (
+        {blocked.rows.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">Nobody yet.</p>
         ) : (
           <ul className="mt-3 divide-y divide-border text-sm">
-            {blocked.map((b) => (
+            {blocked.rows.map((b) => (
               <li key={b.id} className="flex flex-wrap justify-between gap-2 py-1.5">
                 <span className="break-all">{b.value}</span>
                 <span className="text-muted-foreground">
@@ -128,6 +135,11 @@ export default async function OutreachProspectsPage(props: PageProps<"/admin/out
             ))}
           </ul>
         )}
+        <ListPager
+          page={blocked.page}
+          pageCount={blocked.pageCount}
+          href={(n) => `${href({ blocked: n })}#never-contact`}
+        />
       </Card>
     </div>
   );

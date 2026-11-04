@@ -24,7 +24,8 @@ const {
   outreachVariants,
 } = schema;
 
-const PAGE = 40;
+/** The emails and prospects lists. */
+const PAGE = 10;
 
 export async function funnel() {
   const [statuses, reasons, emails] = await Promise.all([
@@ -168,7 +169,13 @@ function emailFilter(filter: EmailFilter) {
   }
 }
 
-export async function listEmails(filter: EmailFilter, q: string, page = 0) {
+/** A row can leave the list while someone is on its last page, so a page past the end shows the last one. */
+function pageOf(total: number, asked: number) {
+  const pageCount = Math.max(1, Math.ceil(total / PAGE));
+  return { page: Math.min(asked, pageCount - 1), pageCount };
+}
+
+export async function listEmails(filter: EmailFilter, q: string, asked = 0) {
   const search = q
     ? or(
         ilike(e.toAddress, `%${q}%`),
@@ -176,15 +183,23 @@ export async function listEmails(filter: EmailFilter, q: string, page = 0) {
         ilike(outreachProspects.name, `%${q}%`),
       )
     : undefined;
-  return db()
+  const where = and(emailFilter(filter), search);
+  const [row] = await db()
+    .select({ n: count() })
+    .from(e)
+    .innerJoin(outreachProspects, eq(outreachProspects.id, e.prospectId))
+    .where(where);
+  const { page, pageCount } = pageOf(row?.n ?? 0, asked);
+  const rows = await db()
     .select({ email: e, prospect: outreachProspects, variant: outreachVariants.name })
     .from(e)
     .innerJoin(outreachProspects, eq(outreachProspects.id, e.prospectId))
     .innerJoin(outreachVariants, eq(outreachVariants.id, e.variantId))
-    .where(and(emailFilter(filter), search))
+    .where(where)
     .orderBy(desc(sql`coalesce(${e.sentAt}, ${e.createdAt})`))
     .limit(PAGE)
     .offset(page * PAGE);
+  return { rows, page, pageCount };
 }
 
 export async function getEmail(id: string) {
@@ -228,25 +243,36 @@ export async function retryProspect(id: string) {
     .where(and(eq(p.id, id), inArray(p.status, ["rejected", "failed"])));
 }
 
-export async function listProspects(filter: ProspectFilter, q: string, page = 0) {
+export async function listProspects(filter: ProspectFilter, q: string, asked = 0) {
   const p = outreachProspects;
-  return db()
+  const where = and(
+    filter === "all" ? undefined : eq(p.status, filter),
+    q ? or(ilike(p.domain, `%${q}%`), ilike(p.name, `%${q}%`)) : undefined,
+  );
+  const [row] = await db().select({ n: count() }).from(p).where(where);
+  const { page, pageCount } = pageOf(row?.n ?? 0, asked);
+  const rows = await db()
     .select({ prospect: p, directory: directories.name })
     .from(p)
     .leftJoin(directories, eq(directories.id, p.directoryId))
-    .where(
-      and(
-        filter === "all" ? undefined : eq(p.status, filter),
-        q ? or(ilike(p.domain, `%${q}%`), ilike(p.name, `%${q}%`)) : undefined,
-      ),
-    )
+    .where(where)
     .orderBy(desc(p.updatedAt))
     .limit(PAGE)
     .offset(page * PAGE);
+  return { rows, page, pageCount };
 }
 
-export async function listSuppressions() {
-  return db().select().from(outreachSuppressions).orderBy(desc(outreachSuppressions.createdAt)).limit(200);
+export async function listSuppressions(asked = 0) {
+  const s = outreachSuppressions;
+  const [row] = await db().select({ n: count() }).from(s);
+  const { page, pageCount } = pageOf(row?.n ?? 0, asked);
+  const rows = await db()
+    .select()
+    .from(s)
+    .orderBy(desc(s.createdAt))
+    .limit(PAGE)
+    .offset(page * PAGE);
+  return { rows, page, pageCount };
 }
 
 /** Staff saw a directory slip through, or simply don't want to contact a site: it stops here, for good. */
