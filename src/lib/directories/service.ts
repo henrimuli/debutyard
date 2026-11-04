@@ -2,10 +2,14 @@ import "server-only";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, queryRows, schema } from "@/db";
+import { isUniqueViolation } from "@/db/errors";
 import { slugify } from "@/lib/slug";
 
 const { directories } = schema;
 export type Directory = typeof directories.$inferSelect;
+
+/** A save staff can fix from the form; the message is shown to them as it is. */
+export class DirectoryError extends Error {}
 
 export const NICHES = ["general", "devtools", "ai", "indie", "b2b"] as const;
 export const NICHE_LABELS: Record<(typeof NICHES)[number], string> = {
@@ -121,12 +125,27 @@ export type DirectoryInput = z.input<typeof directoryInput>;
 export async function saveDirectory(raw: DirectoryInput, id?: string): Promise<Directory> {
   const input = directoryInput.parse(raw);
   const values = { ...input, slug: input.slug || slugify(input.name, 60) };
-  if (id) {
-    const [row] = await db().update(directories).set(values).where(eq(directories.id, id)).returning();
+  try {
+    if (id) {
+      const [row] = await db().update(directories).set(values).where(eq(directories.id, id)).returning();
+      return row;
+    }
+    const [row] = await db().insert(directories).values(values).returning();
     return row;
+  } catch (err) {
+    // The slug is the only unique column a save can collide on.
+    if (isUniqueViolation(err)) throw new DirectoryError(await slugTakenMessage(values.slug));
+    throw err;
   }
-  const [row] = await db().insert(directories).values(values).returning();
-  return row;
+}
+
+async function slugTakenMessage(slug: string): Promise<string> {
+  const taken = await db().query.directories.findFirst({
+    where: eq(directories.slug, slug),
+    columns: { name: true },
+  });
+  const who = taken ? `${taken.name} already exists` : "That directory already exists";
+  return `${who} with the slug "${slug}". Edit that one, or use a different slug if this is another directory.`;
 }
 
 /**

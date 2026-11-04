@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, eq, gt, inArray } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { db, schema } from "@/db";
 import { env } from "@/env";
@@ -8,7 +8,7 @@ import { ourHosts } from "@/lib/badges/service";
 import { fetchPage } from "@/lib/fetch-page";
 import { UnsafeUrlError } from "@/lib/net";
 import { extractPrefill } from "@/lib/products/prefill";
-import { bookableWeeks, nextFreeWeek } from "@/lib/products/service";
+import { bookableWeeks, listingHoldingSite, nextFreeWeek } from "@/lib/products/service";
 import { domainOf } from "@/lib/slug";
 import { formatWeekLabel, weekBounds } from "@/lib/weeks";
 import { pageChecks, scoreChecks, suggestedListing, unreachableChecks, type Existing } from "./checks";
@@ -37,11 +37,8 @@ export function normalizeUrl(raw: string): string {
   }
 }
 
-async function existingListing(domain: string): Promise<Existing> {
-  const p = await db().query.products.findFirst({
-    where: and(eq(schema.products.domain, domain), inArray(schema.products.status, ["pending", "approved"])),
-    columns: { slug: true, status: true, launchWeekKey: true },
-  });
+async function existingListing(url: string, userId?: string | null): Promise<Existing> {
+  const p = await listingHoldingSite(url, userId);
   if (!p) return null;
   const debutEnded = Boolean(p.launchWeekKey) && weekBounds(p.launchWeekKey!).endsAt.getTime() <= Date.now();
   return { slug: p.slug, status: p.status, debutEnded };
@@ -71,7 +68,7 @@ export async function checkReadiness(
     );
   if (n >= CHECKS_PER_HOUR) throw new ReadinessError("That's a lot of checks. Try again in an hour.");
 
-  const existing = await existingListing(domain);
+  const existing = await existingListing(url, caller.userId);
   let checks;
   let suggested = null;
   try {
