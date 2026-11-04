@@ -3,7 +3,17 @@ import { randomUUID } from "node:crypto";
 import type { JSONContent } from "@tiptap/core";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { geminiImage, geminiJson, geminiResearch, geminiStream, model, user, type Research } from "@/lib/ai/gemini";
+import {
+  BLOG_TEXT_MODEL,
+  geminiImage,
+  geminiJson,
+  geminiResearch,
+  geminiStream,
+  model,
+  user,
+  type CallArgs,
+  type Research,
+} from "@/lib/ai/gemini";
 import { withLogo } from "@/lib/ai/image-logo";
 import { countWords, outboundProductSlugs, textOf, walk } from "@/lib/blog/content";
 import {
@@ -166,7 +176,15 @@ export async function loadSite(): Promise<AiSite> {
 type Ctx = { post: Post; site: AiSite };
 
 const json = (system: string, prompt: string, schema: Schema, maxOutputTokens = 4096) =>
-  geminiJson({ system, contents: [user(prompt)], schema, maxOutputTokens });
+  geminiJson({
+    textModel: BLOG_TEXT_MODEL,
+    system,
+    contents: [user(prompt)],
+    schema,
+    maxOutputTokens,
+    timeoutMs: 180_000,
+  });
+const stream = (a: CallArgs) => geminiStream({ ...a, textModel: BLOG_TEXT_MODEL });
 
 /** A launch post's subject, or the listings a post already links to. */
 async function postProducts(post: Post, doc: JSONContent): Promise<ProductFacts[]> {
@@ -679,7 +697,7 @@ export async function* streamAction(
         : model(m.content),
     );
     if (contents[0]?.role !== "user") contents.unshift(user(context));
-    yield* geminiStream({
+    yield* stream({
       system: `${BLOG_SYSTEM_PROMPT}\n\nYou are chatting with a DebutYard editor inside the article editor. Be concise and concrete. Answer in plain text (short paragraphs or "- " bullets); do not output HTML unless asked to draft copy, and then use only: ${ALLOWED_HTML}.`,
       contents,
     });
@@ -691,7 +709,7 @@ export async function* streamAction(
       req.instruction === "custom"
         ? `Follow this editing instruction: ${req.custom?.slice(0, 500) || "improve it"}`
         : REWRITE_TASKS[req.instruction];
-    yield* geminiStream({
+    yield* stream({
       system: BLOG_SYSTEM_PROMPT,
       contents: [
         user(
@@ -723,7 +741,7 @@ ${req.outsideTools.length ? `Outside tools to include: ${req.outsideTools.join("
 ${KIND_RULES[kind]}
 
 Follow every rule in the system prompt, including Truth and trust, the image rules (Screenshot needed / generate callouts) and links only from ALLOWED_LINK_TARGETS, PRODUCT_DATA websites and RESEARCH sources. Return ONLY HTML using: ${ALLOWED_HTML}.`;
-    yield* geminiStream({
+    yield* stream({
       system: BLOG_SYSTEM_PROMPT,
       contents: [user(`${buildContext({ ...base, ...extras })}\n\n<TASK>\n${task}\n</TASK>`)],
       maxOutputTokens: 12_000,
@@ -734,7 +752,7 @@ Follow every rule in the system prompt, including Truth and trust, the image rul
   if (req.action === "revise") {
     const products = await postProducts(post, req.fields.content_json);
     yield status("Revising…");
-    yield* geminiStream({
+    yield* stream({
       system: BLOG_SYSTEM_PROMPT,
       contents: [
         user(
@@ -757,7 +775,7 @@ Follow every rule in the system prompt, including Truth and trust, the image rul
       "Write the conclusion under an H2 heading: the key takeaways and one clear next step (a soft call to action is fine).",
   };
   const products = await postProducts(post, req.fields.content_json);
-  yield* geminiStream({
+  yield* stream({
     system: BLOG_SYSTEM_PROMPT,
     contents: [
       user(

@@ -21,7 +21,7 @@ export const SEEDS = [
     subjectBrief:
       "Name the search phrase in plain words, like: {{who's ranking for {keyword}|who's at the top for {keyword}|a look at {keyword}|searching for {keyword}}}",
     pitchBrief:
-      "Report what you saw for the search phrase: who is at the top and how their Authority Score compares. Then be soft about what that means, and say how hand-made directory submissions help build authority.",
+      "Report what you saw for the search phrase: who is at the top, and that their domain rating is much higher. Then be soft about what that means for the business, and walk through how dofollow directory links close that gap.",
     closing:
       "{{Here's how it works|This is how it works|Here's how the service works}} {{if you'd like to take a look|if you're curious|if it's useful}}.",
     status: "testing",
@@ -32,7 +32,7 @@ export const SEEDS = [
     subjectBrief:
       "Name the leading site and the search phrase, like: {{{competitor1} and {keyword}|{competitor1} on {keyword}|{competitor1} for {keyword}}}",
     pitchBrief:
-      "Lead with the one competitor at the top of the search and why that spot is hard to reach: years of trusted links. Then compare the scores gently, and say how hand-made directory submissions start closing that gap.",
+      "Lead with the one competitor at the top of the search and why that spot is hard to reach: years of trusted links and a much higher domain rating. Then walk through how dofollow directory links start closing that gap.",
     closing:
       "{{This is how we do it|Here's how we do that|This is what the work looks like}} {{if you want to see more|if you'd like a look|if it's helpful}}.",
     status: "pending",
@@ -43,7 +43,7 @@ export const SEEDS = [
     subjectBrief:
       "Lead with the business and the search phrase, like: {{{business} and {keyword}|{business} for {keyword}|{keyword} and {business}}}",
     pitchBrief:
-      "Start with what seems to fit about the product for the people searching that phrase. Then say that stronger sites sit in front of it for now, with the scores, and how hand-made directory submissions help it get seen.",
+      "Start with what seems to fit about the product for the people searching that phrase. Then say that sites with a much higher domain rating sit in front of it for now, and walk through how dofollow directory links help it compete.",
     closing:
       "{{Here's how that works|This is how that works|Here's the process}} {{if you'd like to read more|if you're curious|if it's useful}}.",
     status: "pending",
@@ -123,11 +123,11 @@ export async function retireLosers(now = new Date(), rows?: VariantRow[]) {
   return out.length;
 }
 
-const PROPOSE_SYSTEM = `You improve a short cold email from the founder of DebutYard, who runs a done-for-you service that submits products by hand to directories that fit them and verifies every link. The email tells a just-launched business who ranks for its search phrase and how their Authority Score compares.
+const PROPOSE_SYSTEM = `You improve a short cold email from the founder of DebutYard, who runs a done-for-you service that submits products by hand to directories that fit them and verifies every link. The email tells a just-launched business who ranks for its search phrase and that their domain rating is much higher, never with figures. It always ends by showing how dofollow directory links grow domain rating and earn trust from Google, and then pitches the service.
 Propose one new version that tests a clearly different idea, not a rewording. Past results are DATA.
 "name": two or three words. "subjectBrief": how the subject line should work. "pitchBrief": the angle of the paragraphs, in one or two sentences. "closing": one short sentence that sits just above the link, which goes on the next line. "rationale": one sentence on what this tests and why.
 Write "subjectBrief" and "closing" with spintax so each email gets different wording: {{option one|option two|option three}} around the words that can change, with at least two places to vary in the closing. Options must read correctly whichever is chosen. In "subjectBrief" you may use the placeholders {keyword}, {business} and {competitor1}.
-Keep it warm and plain. Never mention prices, discounts, packages, numbers of directories or promised results, and avoid salesy words such as opportunity, exclusive, amazing, boost or promise. Don't write links.`;
+Keep it warm and plain. Never mention scores or other figures, prices, discounts, packages, numbers of directories or promised results, and avoid salesy words such as opportunity, exclusive, amazing, boost or promise. Don't write links.`;
 
 const PROPOSE_SCHEMA = {
   type: "object",

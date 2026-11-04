@@ -10,7 +10,7 @@ Apply the migration `supabase/migrations/20261031091844_blog_editor.sql` (`pnpm 
 
 | Variable | Needed for |
 | --- | --- |
-| `GEMINI_API_KEY` | The writer agent. It runs on a billed project and uses only `gemini-3.1-flash-lite` (text) and `gemini-nano-banana-2.1` (images). If this key is missing, the AI panel is off and the editor still works. |
+| `GEMINI_API_KEY` | The writer agent. It runs on a billed project and uses `gemini-3.1-pro-preview` (text) and `gemini-nano-banana-2.1` (images). Outreach shares the key with its own model, `gemini-3.1-flash-lite`. If this key is missing, the AI panel is off and the editor still works. |
 | `GOOGLE_ADS_CLIENT_ID` | Keyword Planner search volume, using the same OAuth client as Hivra. |
 | `GOOGLE_ADS_CLIENT_SECRET` | Keyword Planner. |
 | `GOOGLE_ADS_REFRESH_TOKEN` | Keyword Planner. Hivra's refresh token works here too. |

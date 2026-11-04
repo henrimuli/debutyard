@@ -13,19 +13,15 @@ import { allSpins } from "./variety";
 const ctx: DraftContext = {
   business: "Acme",
   keyword: "cross-post to tiktok",
-  competitors: [
-    { name: "Buffer", authority: 91 },
-    { name: "Later", authority: 88 },
-  ],
-  businessAuthority: 6,
+  competitors: [{ name: "Buffer" }, { name: "Later" }],
   forbiddenNames: ["buffer", "hootsuite"],
 };
 
 const good = {
   subject: "who's ranking for {keyword}",
   paragraphs: [
-    "I looked at who shows up when people search for {keyword}. {competitor1} and {competitor2} sit at the top, with Authority Scores of {competitor1_score} and {competitor2_score}, and {business} is at {business_score}.",
-    "Your product looks like a real fit for that search, but Google tends to favour sites with more trusted links, so it's hard to break through at that level. Building that authority is what we do, by submitting your product by hand to directories that fit it and verifying every link.",
+    "I looked at who shows up when people search for {keyword}. {competitor1} and {competitor2} sit at the top, and a big part of why is a much higher domain rating than {business} has.",
+    "Your product looks like a real fit for that search. Directories give a product a dofollow link when it's listed, those links help grow a domain rating, and that earns more trust from Google. I submit products by hand to directories that fit and verify every link.",
   ],
 };
 
@@ -36,9 +32,26 @@ describe("fillDraft", () => {
     if (!r.ok) return;
     expect(r.subject).toBe("who's ranking for cross-post to tiktok");
     expect(r.paragraphs[0]).toContain("Buffer and Later");
-    expect(r.paragraphs[0]).toContain("91 and 88");
-    expect(r.paragraphs[0]).toContain("Acme is at 6");
+    expect(r.paragraphs[0]).toContain("than Acme has");
+    expect(r.paragraphs.join(" ")).not.toMatch(/\d/);
   });
+
+  it("puts quote marks around the search phrase in the body, not the subject", () => {
+    const r = fillDraft(good, ctx);
+    if (!r.ok) throw new Error(r.problems.join());
+    expect(r.paragraphs[0]).toContain('search for "cross-post to tiktok".');
+    expect(r.subject).not.toContain('"');
+  });
+
+  it.each([['"{keyword}"'], ["'{keyword}'"], ["\u201c{keyword}\u201d"]])(
+    "doesn't double the marks when the model wrote %s",
+    (quoted) => {
+      const paragraphs = [good.paragraphs[0]!.replace("{keyword}", quoted), good.paragraphs[1]!];
+      const r = fillDraft({ ...good, paragraphs }, ctx);
+      if (!r.ok) throw new Error(r.problems.join());
+      expect(r.paragraphs[0]).toContain('search for "cross-post to tiktok".');
+    },
+  );
 
   const broken = (patch: Partial<typeof good>) => fillDraft({ ...good, ...patch }, ctx);
   const withLine = (line: string) => broken({ paragraphs: [good.paragraphs[0]!, `${good.paragraphs[1]} ${line}`] });
@@ -51,6 +64,14 @@ describe("fillDraft", () => {
     ["a number written by hand", "We cover about 90 sites."],
     ["a promise", "We guarantee results."],
     ["a ranking promise", "This will rank you."],
+    ["a rating promise", "These links will raise your domain rating."],
+    ["a figure in words", "They are ten times stronger."],
+    ["a score", "Your score is low."],
+    ["an Authority Score", "Theirs is a stronger Authority Score."],
+    ["a claim about all directories", "All directories give followed links."],
+    ["a claim about every directory", "Every directory passes trust."],
+    ["a score placeholder", "It sits at {business_score}."],
+    ["a missing possessive", "That grows a site domain rating."],
     ["a link", "See debutyard.com for more."],
     ["a name written by hand", "Unlike the others, hootsuite does not."],
     ["a capitalised name in a sentence", "It works like Zapier does."],
@@ -82,6 +103,32 @@ describe("fillDraft", () => {
     const r = fillDraft(good, { ...ctx, competitors: [ctx.competitors[0]!] });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.problems.join()).toContain("{competitor2}");
+  });
+
+  it.each([
+    ["directories", "directories"],
+    ["dofollow", "dofollow"],
+    ["a domain rating", "domain rating"],
+    ["Google", "Google"],
+    ["by hand", "by hand"],
+  ])("rejects a last paragraph without %s", (word, expected) => {
+    const last = good.paragraphs[1]!.replace(new RegExp(word.replace("a ", ""), "gi"), "stuff");
+    const r = broken({ paragraphs: [good.paragraphs[0]!, last] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.problems.join()).toContain(`doesn't mention`);
+    if (!r.ok) expect(r.problems.join().toLowerCase()).toContain(expected.toLowerCase());
+  });
+
+  it("lets it say so about the directories we use", () => {
+    expect(withLine("The ones I use all give a followed link.").ok).toBe(true);
+  });
+
+  it("rejects a draft with no contrast before the punchline", () => {
+    const r = broken({
+      paragraphs: [good.paragraphs[0]!.replace("a much higher domain rating", "more history"), good.paragraphs[1]!],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.problems.join()).toContain("contrast");
   });
 });
 
