@@ -154,22 +154,35 @@ describe("never a directory", () => {
     expect(directorySignals(input).length).toBeGreaterThan(0);
   });
 
-  it("rejects a page linking out to many other sites", () => {
-    const html = Array.from({ length: 25 }, (_, i) => `<a href="https://site${i}.com">S</a>`).join("");
-    expect(directorySignals({ ...product, html }).join()).toContain("25 other sites");
+  const many = (n: number, href: (i: number) => string, inner = "S") =>
+    Array.from({ length: n }, (_, i) => `<a href="${href(i)}">${inner}</a>`).join("");
+
+  it("rejects a front page linking to many of its own listings", () => {
+    const html = many(20, (i) => `https://acme.com/tool/thing-${i}`);
+    expect(directorySignals({ ...product, html }).join()).toContain("20 listing pages under /tool/");
   });
 
-  it("doesn't count badges in the footer as outbound", () => {
-    const badges = Array.from({ length: 133 }, (_, i) => `<a href="https://site${i}.com"><img src="b.png"></a>`).join(
-      "",
-    );
-    expect(directorySignals({ ...product, html: `<main>A product</main><footer>${badges}</footer>` })).toEqual([]);
+  it("counts each listing once, and needs enough of them", () => {
+    const repeated = many(30, (i) => `https://acme.com/product/thing-${i % 10}`);
+    expect(directorySignals({ ...product, html: repeated })).toEqual([]);
   });
 
-  it("still rejects a page full of outbound links with a footer of its own", () => {
-    const listings = Array.from({ length: 25 }, (_, i) => `<a href="https://site${i}.com">S</a>`).join("");
-    const html = `<main>${listings}</main><footer><a href="https://x.com/a">X</a></footer>`;
-    expect(directorySignals({ ...product, html }).join()).toContain("25 other sites");
+  it("passes a product's own free tools and newsletter posts", () => {
+    const html =
+      many(25, (i) => `https://acme.com/tools/converter-${i}`) + many(25, (i) => `https://acme.com/p/post-${i}`);
+    expect(directorySignals({ ...product, html })).toEqual([]);
+  });
+
+  it("doesn't count directory badges, wherever they are", () => {
+    // invoiceize.com: 191 badges in a scrolling strip outside the footer.
+    const badges = many(191, (i) => `https://site${i}.com/?ref=badge`, `<img src="b.png">`);
+    expect(
+      directorySignals({ ...product, html: `<main>A product</main><div class="badges-marquee">${badges}</div>` }),
+    ).toEqual([]);
+  });
+
+  it("doesn't count a product linking out to many sites", () => {
+    expect(directorySignals({ ...product, html: many(40, (i) => `https://site${i}.com`) })).toEqual([]);
   });
 
   it("still rejects a submit link in the footer", () => {

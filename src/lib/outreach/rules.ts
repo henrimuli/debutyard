@@ -188,8 +188,16 @@ const LINK_LABEL_SIGNAL =
   /\b(submit|add|list|post|launch)\s+(your|a|an|my)?\s*(tool|product|startup|saas|app|site|website|listing|project|business)\b|\bget (listed|featured)\b/i;
 const LINK_PATH_SIGNAL =
   /^\/(submit|submit-(your-)?(tool|product|startup|saas|app|site|website|listing|project|business)s?|add-(tool|product|startup|listing|your-[a-z]+)|list-your-[a-z-]+|launch-your-[a-z-]+)\/?$/i;
-/** More other sites than a product links to. Social links don't count, nor does the footer, where directories ask makers to put their badges. */
-const MANY_OUTBOUND = 20;
+/**
+ * A directory's front page links to its own listing pages, many under one
+ * prefix. Outbound links don't tell the two apart: makers carry walls of
+ * directory badges, often outside the footer, while directories mostly link
+ * inward. "tools", "apps" and "p" are left out because products use them for
+ * their own free tools, app pages and newsletter posts.
+ */
+const LISTING_PATH =
+  /^\/(tool|product|products|item|items|launch|launches|listing|listings|startup|startups)\/[^/]+\/?$/i;
+const MANY_LISTINGS = 15;
 
 /**
  * Why a homepage looks like a directory, launch platform or link seller. Any
@@ -217,12 +225,16 @@ export function directorySignals(input: { url: string; html: string; title?: str
     if (LINK_LABEL_SIGNAL.test(l.label)) reasons.push(`link "${l.label.slice(0, 60)}"`);
     else if (LINK_PATH_SIGNAL.test(new URL(l.url).pathname)) reasons.push(`link to ${new URL(l.url).pathname}`);
   }
-  const outbound = new Set<string>();
-  for (const l of pageLinks(input.html.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "), input.url)) {
-    const other = registrableDomain(l.url);
-    if (other && other !== domain && !isPlatformHost(new URL(l.url).hostname)) outbound.add(other);
+  const listings = new Map<string, Set<string>>();
+  for (const l of pageLinks(input.html, input.url)) {
+    if (registrableDomain(l.url) !== domain) continue;
+    const path = new URL(l.url).pathname.replace(/\/$/, "");
+    const prefix = LISTING_PATH.exec(path)?.[1]?.toLowerCase();
+    if (prefix) listings.set(prefix, (listings.get(prefix) ?? new Set()).add(path));
   }
-  if (outbound.size >= MANY_OUTBOUND) reasons.push(`links out to ${outbound.size} other sites`);
+  for (const [prefix, paths] of listings) {
+    if (paths.size >= MANY_LISTINGS) reasons.push(`links to ${paths.size} listing pages under /${prefix}/`);
+  }
   return [...new Set(reasons)];
 }
 
